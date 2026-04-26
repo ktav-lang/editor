@@ -15,12 +15,13 @@ out/
 dist/
 
 # Java / Gradle (intellij/)
+# `gradle/wrapper/`, `gradlew`, and `gradlew.bat` are intentionally
+# COMMITTED — they are the bootstrap that lets new contributors and CI
+# run the build without a system-installed Gradle. Only the local cache
+# directory `.gradle/` (with dot) is ignored.
 .gradle/
 build/
 *.iml
-gradle/
-gradlew
-gradlew.bat
 
 # Local-only
 /tmp/
