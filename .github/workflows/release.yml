@@ -1,0 +1,286 @@
+name: Release
+
+# Triggered by `git push origin v0.X.Y`. Runs four publish jobs in
+# parallel (vscode → Marketplace+OVSX, intellij → JetBrains
+# Marketplace, lsp → crates.io, github-release → GH Release with
+# notes from CHANGELOG.md). Each subproject's publish step is gated
+# on its own verify step.
+#
+# Required secrets (set per subproject's environment):
+#   • crates-io  → CARGO_REGISTRY_TOKEN
+#   • npm-vscode → VSCE_PAT, OVSX_PAT
+#   • intellij   → INTELLIJ_PUBLISH_TOKEN
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g. v0.1.0). Must already exist."
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ------------------------------------------------------------------
+  # Confirm tag matches versions across all four subprojects. Fails
+  # fast if anything is out of sync — protects against half-broken
+  # releases where, e.g., vscode's package.json was bumped but
+  # intellij's gradle.properties wasn't.
+  # ------------------------------------------------------------------
+  verify-versions:
+    name: Verify versions in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Compare versions
+        shell: bash
+        run: |
+          ref="${{ inputs.tag || github.ref_name }}"
+          tag="${ref#v}"
+          echo "Tag version: $tag"
+
+          lsp_ver=$(awk -F'"' '/^version *= *"/ { print $2; exit }' lsp/Cargo.toml)
+          vscode_ver=$(node -p "require('./vscode/package.json').version")
+          intellij_ver=$(awk -F'=' '/^pluginVersion *=/ { gsub(/[ \t]/,"",$2); print $2; exit }' intellij/gradle.properties)
+
+          echo "lsp/Cargo.toml      = $lsp_ver"
+          echo "vscode/package.json = $vscode_ver"
+          echo "intellij/gradle.properties = $intellij_ver"
+
+          fail=0
+          [ "$tag" = "$lsp_ver" ]    || { echo "::error::lsp version mismatch";    fail=1; }
+          [ "$tag" = "$vscode_ver" ] || { echo "::error::vscode version mismatch"; fail=1; }
+          [ "$tag" = "$intellij_ver" ] || { echo "::error::intellij version mismatch"; fail=1; }
+          [ "$fail" = 0 ] || exit 1
+
+  # ------------------------------------------------------------------
+  # lsp — cross-compile Rust LSP server, publish ktav-lsp on crates.io
+  # and attach prebuilt binaries to the GH Release.
+  # ------------------------------------------------------------------
+  lsp-publish:
+    name: lsp / cargo publish
+    needs: verify-versions
+    runs-on: ubuntu-latest
+    environment: crates-io
+    defaults:
+      run:
+        working-directory: lsp
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lsp
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --release --all-targets -- -D warnings
+      - run: cargo test --release
+      - name: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish
+
+  # ------------------------------------------------------------------
+  # lsp — cross-compile binaries for 6 platforms; uploaded as artifacts
+  # for the github-release job to attach to the Release.
+  # ------------------------------------------------------------------
+  lsp-binaries:
+    name: lsp binary / ${{ matrix.target }}
+    needs: verify-versions
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: ktav-lsp
+            asset: ktav-lsp-linux-amd64
+            use-zigbuild: true
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: ktav-lsp
+            asset: ktav-lsp-linux-arm64
+            use-zigbuild: true
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: ktav-lsp
+            asset: ktav-lsp-darwin-amd64
+            use-zigbuild: false
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: ktav-lsp
+            asset: ktav-lsp-darwin-arm64
+            use-zigbuild: false
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: ktav-lsp.exe
+            asset: ktav-lsp-windows-amd64.exe
+            use-zigbuild: false
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            artifact: ktav-lsp.exe
+            asset: ktav-lsp-windows-arm64.exe
+            use-zigbuild: false
+    defaults:
+      run:
+        working-directory: lsp
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lsp
+          key: ${{ matrix.target }}
+      - name: Install zig
+        if: matrix.use-zigbuild
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.14.0
+      - name: Install cargo-zigbuild
+        if: matrix.use-zigbuild
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+      - name: Build (zigbuild)
+        if: matrix.use-zigbuild
+        run: cargo zigbuild --release --target ${{ matrix.target }}.2.17
+      - name: Build (native)
+        if: ${{ !matrix.use-zigbuild }}
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Stage artifact
+        shell: bash
+        run: cp target/${{ matrix.target }}/release/${{ matrix.artifact }} ../${{ matrix.asset }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------
+  # vscode — package + publish to VS Code Marketplace + Open VSX.
+  # ------------------------------------------------------------------
+  vscode-publish:
+    name: vscode / vsce + ovsx publish
+    needs: verify-versions
+    runs-on: ubuntu-latest
+    environment: npm-vscode
+    defaults:
+      run:
+        working-directory: vscode
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+      - run: npm ci
+      - run: npx tsc -p tsconfig.json --noEmit
+      - name: Package .vsix
+        run: npx vsce package --no-dependencies
+      - name: Publish to VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish --no-dependencies --pat "$VSCE_PAT"
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx ovsx publish --pat "$OVSX_PAT" *.vsix
+      - uses: actions/upload-artifact@v5
+        with:
+          name: vscode-vsix
+          path: vscode/*.vsix
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------
+  # intellij — Gradle build + JetBrains Marketplace publish.
+  # ------------------------------------------------------------------
+  intellij-publish:
+    name: intellij / gradle publishPlugin
+    needs: verify-versions
+    runs-on: ubuntu-latest
+    environment: intellij
+    defaults:
+      run:
+        working-directory: intellij
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew test verifyPlugin buildPlugin --no-daemon
+      - name: Publish to JetBrains Marketplace
+        env:
+          INTELLIJ_PUBLISH_TOKEN: ${{ secrets.INTELLIJ_PUBLISH_TOKEN }}
+        run: ./gradlew publishPlugin --no-daemon
+      - uses: actions/upload-artifact@v5
+        with:
+          name: intellij-zip
+          path: intellij/build/distributions/*.zip
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------
+  # GitHub Release — only after all four publish jobs succeed.
+  # Notes pulled from the matching `## [vX.Y.Z]` section of CHANGELOG.
+  # ------------------------------------------------------------------
+  github-release:
+    name: GitHub Release
+    needs: [lsp-publish, lsp-binaries, vscode-publish, intellij-publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        shell: bash
+        run: |
+          ref="${{ inputs.tag || github.ref_name }}"
+          ver="${ref#v}"
+          notes=$(awk -v v="$ver" '
+            $0 ~ "^## \\[?" v "\\]?" { in_section = 1; next }
+            in_section && /^## / { exit }
+            in_section { print }
+          ' CHANGELOG.md)
+          {
+            echo "body<<__END_NOTES__"
+            echo "$notes"
+            echo "__END_NOTES__"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: ${{ inputs.tag || github.ref_name }}
+          body: ${{ steps.notes.outputs.body }}
+          files: artifacts/*
+          fail_on_unmatched_files: false

@@ -1,0 +1,379 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Ktav",
+  "scopeName": "source.ktav",
+  "fileTypes": ["ktav"],
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#multiline-verbatim-open" },
+    { "include": "#multiline-stripped-open" },
+    { "include": "#compound-object-open" },
+    { "include": "#compound-array-open" },
+    { "include": "#compound-close" },
+    { "include": "#pair" }
+  ],
+  "repository": {
+
+    "comment": {
+      "match": "^\\s*#.*$",
+      "name": "comment.line.number-sign.ktav"
+    },
+
+    "compound-close": {
+      "match": "^\\s*([}\\]])\\s*$",
+      "captures": {
+        "1": {
+          "patterns": [
+            { "match": "\\}", "name": "punctuation.section.braces.end.ktav" },
+            { "match": "\\]", "name": "punctuation.section.brackets.end.ktav" }
+          ]
+        }
+      }
+    },
+
+    "compound-object-open": {
+      "begin": "^\\s*(\\{)\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.braces.begin.ktav" }
+      },
+      "end": "^\\s*(\\})\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.braces.end.ktav" }
+      },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#multiline-verbatim-open" },
+        { "include": "#multiline-stripped-open" },
+        { "include": "#compound-object-open" },
+        { "include": "#compound-array-open" },
+        { "include": "#pair" }
+      ]
+    },
+
+    "compound-array-open": {
+      "begin": "^\\s*(\\[)\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.brackets.begin.ktav" }
+      },
+      "end": "^\\s*(\\])\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.brackets.end.ktav" }
+      },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#array-multiline-verbatim-open" },
+        { "include": "#array-multiline-stripped-open" },
+        { "include": "#array-compound-object-open" },
+        { "include": "#array-compound-array-open" },
+        { "include": "#array-item" }
+      ]
+    },
+
+    "array-compound-object-open": {
+      "begin": "^\\s*(\\{)\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.braces.begin.ktav" }
+      },
+      "end": "^\\s*(\\})\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.braces.end.ktav" }
+      },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#multiline-verbatim-open" },
+        { "include": "#multiline-stripped-open" },
+        { "include": "#compound-object-open" },
+        { "include": "#compound-array-open" },
+        { "include": "#pair" }
+      ]
+    },
+
+    "array-compound-array-open": {
+      "begin": "^\\s*(\\[)\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.brackets.begin.ktav" }
+      },
+      "end": "^\\s*(\\])\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.brackets.end.ktav" }
+      },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#array-multiline-verbatim-open" },
+        { "include": "#array-multiline-stripped-open" },
+        { "include": "#array-compound-object-open" },
+        { "include": "#array-compound-array-open" },
+        { "include": "#array-item" }
+      ]
+    },
+
+    "pair": {
+      "patterns": [
+        { "include": "#pair-raw" },
+        { "include": "#pair-integer" },
+        { "include": "#pair-float" },
+        { "include": "#pair-object-empty" },
+        { "include": "#pair-array-empty" },
+        { "include": "#pair-multiline-verbatim" },
+        { "include": "#pair-multiline-stripped" },
+        { "include": "#pair-object-open" },
+        { "include": "#pair-array-open" },
+        { "include": "#pair-string" }
+      ]
+    },
+
+    "key-name": {
+      "patterns": [
+        { "match": "\\.", "name": "punctuation.accessor.dot.ktav" },
+        { "match": "[^\\s\\[\\]{}:#.]+", "name": "entity.name.tag.ktav" }
+      ]
+    },
+
+    "pair-raw": {
+      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(::)(?:(\\s+)(.*?))?\\s*$",
+      "captures": {
+        "2": { "patterns": [ { "include": "#key-name" } ] },
+        "3": { "name": "keyword.operator.marker.raw.ktav" },
+        "5": { "name": "string.unquoted.raw.ktav" }
+      }
+    },
+
+    "pair-integer": {
+      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:i)(?=\\s|$)(?:\\s+([+-]?\\d+))?\\s*$",
+      "captures": {
+        "2": { "patterns": [ { "include": "#key-name" } ] },
+        "3": { "name": "keyword.operator.marker.integer.ktav" },
+        "4": { "name": "constant.numeric.integer.ktav" }
+      }
+    },
+
+    "pair-float": {
+      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:f)(?=\\s|$)(?:\\s+([+-]?\\d+\\.\\d+(?:[eE][+-]?\\d+)?))?\\s*$",
+      "captures": {
+        "2": { "patterns": [ { "include": "#key-name" } ] },
+        "3": { "name": "keyword.operator.marker.float.ktav" },
+        "4": { "name": "constant.numeric.float.ktav" }
+      }
+    },
+
+    "pair-object-empty": {
+      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\{)\\s*(\\})\\s*$",
+      "captures": {
+        "2": { "patterns": [ { "include": "#key-name" } ] },
+        "3": { "name": "punctuation.separator.key-value.ktav" },
+        "4": { "name": "punctuation.section.braces.begin.ktav" },
+        "5": { "name": "punctuation.section.braces.end.ktav" }
+      }
+    },
+
+    "pair-array-empty": {
+      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\[)\\s*(\\])\\s*$",
+      "captures": {
+        "2": { "patterns": [ { "include": "#key-name" } ] },
+        "3": { "name": "punctuation.separator.key-value.ktav" },
+        "4": { "name": "punctuation.section.brackets.begin.ktav" },
+        "5": { "name": "punctuation.section.brackets.end.ktav" }
+      }
+    },
+
+    "pair-object-open": {
+      "begin": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\{)\\s*$",
+      "beginCaptures": {
+        "2": { "patterns": [ { "include": "#key-name" } ] },
+        "3": { "name": "punctuation.separator.key-value.ktav" },
+        "4": { "name": "punctuation.section.braces.begin.ktav" }
+      },
+      "end": "^\\s*(\\})\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.braces.end.ktav" }
+      },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#multiline-verbatim-open" },
+        { "include": "#multiline-stripped-open" },
+        { "include": "#compound-object-open" },
+        { "include": "#compound-array-open" },
+        { "include": "#pair" }
+      ]
+    },
+
+    "pair-array-open": {
+      "begin": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\[)\\s*$",
+      "beginCaptures": {
+        "2": { "patterns": [ { "include": "#key-name" } ] },
+        "3": { "name": "punctuation.separator.key-value.ktav" },
+        "4": { "name": "punctuation.section.brackets.begin.ktav" }
+      },
+      "end": "^\\s*(\\])\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.brackets.end.ktav" }
+      },
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#array-multiline-verbatim-open" },
+        { "include": "#array-multiline-stripped-open" },
+        { "include": "#array-compound-object-open" },
+        { "include": "#array-compound-array-open" },
+        { "include": "#array-item" }
+      ]
+    },
+
+    "pair-multiline-verbatim": {
+      "begin": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\(\\()\\s*$",
+      "beginCaptures": {
+        "2": { "patterns": [ { "include": "#key-name" } ] },
+        "3": { "name": "punctuation.separator.key-value.ktav" },
+        "4": { "name": "punctuation.section.parens.begin.ktav" }
+      },
+      "end": "^\\s*(\\)\\))\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.parens.end.ktav" }
+      },
+      "contentName": "string.quoted.multiline.verbatim.ktav",
+      "patterns": [
+        { "include": "#multiline-verbatim-content" }
+      ]
+    },
+
+    "pair-multiline-stripped": {
+      "begin": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\()\\s*$",
+      "beginCaptures": {
+        "2": { "patterns": [ { "include": "#key-name" } ] },
+        "3": { "name": "punctuation.separator.key-value.ktav" },
+        "4": { "name": "punctuation.section.parens.begin.ktav" }
+      },
+      "end": "^\\s*(\\))\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.parens.end.ktav" }
+      },
+      "contentName": "string.quoted.multiline.stripped.ktav",
+      "patterns": [
+        { "include": "#multiline-stripped-content" }
+      ]
+    },
+
+    "pair-string": {
+      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)(?:(\\s+)(.*?))?\\s*$",
+      "captures": {
+        "2": { "patterns": [ { "include": "#key-name" } ] },
+        "3": { "name": "punctuation.separator.key-value.ktav" },
+        "5": { "patterns": [ { "include": "#scalar-body" } ] }
+      }
+    },
+
+    "scalar-body": {
+      "patterns": [
+        { "match": "^(null|true|false)$", "name": "constant.language.ktav" },
+        { "match": ".+", "name": "string.unquoted.ktav" }
+      ]
+    },
+
+    "multiline-stripped-open": {
+      "begin": "^\\s*(\\()\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.parens.begin.ktav" }
+      },
+      "end": "^\\s*(\\))\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.parens.end.ktav" }
+      },
+      "contentName": "string.quoted.multiline.stripped.ktav",
+      "patterns": [ { "include": "#multiline-stripped-content" } ]
+    },
+
+    "multiline-verbatim-open": {
+      "begin": "^\\s*(\\(\\()\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.parens.begin.ktav" }
+      },
+      "end": "^\\s*(\\)\\))\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.parens.end.ktav" }
+      },
+      "contentName": "string.quoted.multiline.verbatim.ktav",
+      "patterns": [ { "include": "#multiline-verbatim-content" } ]
+    },
+
+    "array-multiline-stripped-open": {
+      "begin": "^\\s*(\\()\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.parens.begin.ktav" }
+      },
+      "end": "^\\s*(\\))\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.parens.end.ktav" }
+      },
+      "contentName": "string.quoted.multiline.stripped.ktav",
+      "patterns": [ { "include": "#multiline-stripped-content" } ]
+    },
+
+    "array-multiline-verbatim-open": {
+      "begin": "^\\s*(\\(\\()\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.parens.begin.ktav" }
+      },
+      "end": "^\\s*(\\)\\))\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.parens.end.ktav" }
+      },
+      "contentName": "string.quoted.multiline.verbatim.ktav",
+      "patterns": [ { "include": "#multiline-verbatim-content" } ]
+    },
+
+    "multiline-stripped-content": {
+      "match": "^.*$"
+    },
+
+    "multiline-verbatim-content": {
+      "match": "^.*$"
+    },
+
+    "array-item": {
+      "patterns": [
+        { "include": "#array-item-raw" },
+        { "include": "#array-item-integer" },
+        { "include": "#array-item-float" },
+        { "include": "#array-item-keyword" },
+        { "include": "#array-item-string" }
+      ]
+    },
+
+    "array-item-raw": {
+      "match": "^(\\s*)(::)(?:(\\s+)(.*?))?\\s*$",
+      "captures": {
+        "2": { "name": "keyword.operator.marker.raw.ktav" },
+        "4": { "name": "string.unquoted.raw.ktav" }
+      }
+    },
+
+    "array-item-integer": {
+      "match": "^(\\s*)(:i)(?=\\s|$)(?:\\s+([+-]?\\d+))?\\s*$",
+      "captures": {
+        "2": { "name": "keyword.operator.marker.integer.ktav" },
+        "3": { "name": "constant.numeric.integer.ktav" }
+      }
+    },
+
+    "array-item-float": {
+      "match": "^(\\s*)(:f)(?=\\s|$)(?:\\s+([+-]?\\d+\\.\\d+(?:[eE][+-]?\\d+)?))?\\s*$",
+      "captures": {
+        "2": { "name": "keyword.operator.marker.float.ktav" },
+        "3": { "name": "constant.numeric.float.ktav" }
+      }
+    },
+
+    "array-item-keyword": {
+      "match": "^\\s*(null|true|false)\\s*$",
+      "captures": {
+        "1": { "name": "constant.language.ktav" }
+      }
+    },
+
+    "array-item-string": {
+      "match": "^\\s*(.+?)\\s*$",
+      "captures": {
+        "1": { "name": "string.unquoted.ktav" }
+      }
+    }
+  }
+}

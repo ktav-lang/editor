@@ -1,0 +1,99 @@
+name: CI
+
+# CI runs each subproject in its own job in parallel. A subproject's
+# job runs only when files inside that subproject (or in shared
+# `grammars/`) change — so a doc-only commit doesn't spin up Gradle.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ------------------------------------------------------------------
+  # grammars/ — JSON validation only. Runs on every change anywhere
+  # since vscode/ and intellij/ both depend on it.
+  # ------------------------------------------------------------------
+  grammars:
+    name: grammars (JSON validation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate JSON
+        run: |
+          set -eu
+          for f in grammars/*.json; do
+            node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))"
+            echo "  ok: $f"
+          done
+
+  # ------------------------------------------------------------------
+  # lsp/ — Rust LSP server. fmt + clippy + test.
+  # ------------------------------------------------------------------
+  lsp:
+    name: lsp / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: lsp
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lsp
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --release --all-targets -- -D warnings
+      - run: cargo test --release
+      - run: cargo build --release
+
+  # ------------------------------------------------------------------
+  # vscode/ — TypeScript extension. tsc + npm test (vitest).
+  # ------------------------------------------------------------------
+  vscode:
+    name: vscode (TypeScript)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vscode
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+      - run: npm ci
+      - run: npx tsc -p tsconfig.json --noEmit
+      - run: npm test --if-present
+
+  # ------------------------------------------------------------------
+  # intellij/ — Kotlin plugin. gradle test + verifyPlugin.
+  # ------------------------------------------------------------------
+  intellij:
+    name: intellij (Gradle)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: intellij
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew test verifyPlugin --no-daemon

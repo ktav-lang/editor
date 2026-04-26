@@ -1,0 +1,12 @@
+.vscode/
+.gitignore
+.gitkeep
+**/.gitkeep
+node_modules/
+out/**/*.map
+src/**
+tsconfig.json
+scripts/
+scripts/sync-grammars.js
+**/*.ts
+!out/**/*.js

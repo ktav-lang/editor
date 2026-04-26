@@ -1,0 +1,50 @@
+<idea-plugin>
+  <id>lang.ktav</id>
+  <name>Ktav</name>
+  <vendor email="phpcraftdream@gmail.com" url="https://github.com/ktav-lang">Marat K</vendor>
+
+  <description><![CDATA[
+    <p>Editor support for the <a href="https://github.com/ktav-lang/spec">Ktav</a>
+    plain configuration format.</p>
+
+    <p>Features:</p>
+    <ul>
+      <li>Syntax highlighting for <code>.ktav</code> files via TextMate grammar</li>
+      <li>Comment toggle (<code>#</code>)</li>
+      <li>Bracket matching for <code>{}</code> <code>[]</code> <code>()</code></li>
+      <li>Live diagnostics via <a href="https://github.com/ktav-lang/editor/tree/main/lsp">ktav-lsp</a> (when installed in PATH; configurable in settings)</li>
+    </ul>
+
+    <p>Reference Rust crate: <a href="https://github.com/ktav-lang/rust">ktav-lang/rust</a>.
+    Other implementations available — see the <a href="https://github.com/ktav-lang/editor">monorepo README</a>.</p>
+  ]]></description>
+
+  <change-notes><![CDATA[
+    <h3>0.1.0</h3>
+    <ul>
+      <li>Initial release</li>
+      <li>Syntax highlighting via TextMate</li>
+    </ul>
+  ]]></change-notes>
+
+  <depends>com.intellij.modules.platform</depends>
+  <depends>org.jetbrains.plugins.textmate</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <fileType
+      name="Ktav"
+      implementationClass="lang.ktav.KtavFileType"
+      fieldName="INSTANCE"
+      language="ktav"
+      extensions="ktav" />
+    <lang.commenter
+      language="ktav"
+      implementationClass="lang.ktav.KtavCommenter" />
+  </extensions>
+
+  <applicationListeners>
+    <listener
+      class="lang.ktav.KtavTextMateLoader"
+      topic="com.intellij.ide.AppLifecycleListener" />
+  </applicationListeners>
+</idea-plugin>

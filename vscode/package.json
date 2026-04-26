@@ -1,0 +1,70 @@
+{
+  "name": "ktav",
+  "displayName": "Ktav",
+  "description": "Ktav configuration format — syntax highlighting and language support",
+  "version": "0.1.0",
+  "publisher": "ktav-lang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ktav-lang/editor.git",
+    "directory": "vscode"
+  },
+  "homepage": "https://github.com/ktav-lang/editor/tree/main/vscode",
+  "bugs": {
+    "url": "https://github.com/ktav-lang/editor/issues"
+  },
+  "license": "MIT",
+  "author": "Marat K <phpcraftdream@gmail.com>",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "ktav",
+    "config",
+    "configuration"
+  ],
+  "icon": "icon.png",
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:ktav"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "ktav",
+        "aliases": [
+          "Ktav",
+          "ktav"
+        ],
+        "extensions": [
+          ".ktav"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "ktav",
+        "scopeName": "source.ktav",
+        "path": "./syntaxes/ktav.tmLanguage.json"
+      }
+    ]
+  },
+  "scripts": {
+    "sync-grammars": "node scripts/sync-grammars.js",
+    "compile": "npm run sync-grammars && tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run sync-grammars && npm run compile",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^3.0.0",
+    "ovsx": "^0.10.0"
+  }
+}

@@ -1,0 +1,27 @@
+# Common
+*.log
+.DS_Store
+.idea/
+.vscode/
+
+# Rust (lsp/)
+target/
+Cargo.lock
+
+# Node (vscode/)
+node_modules/
+*.vsix
+out/
+dist/
+
+# Java / Gradle (intellij/)
+.gradle/
+build/
+*.iml
+gradle/
+gradlew
+gradlew.bat
+
+# Local-only
+/tmp/
+/scratch/
