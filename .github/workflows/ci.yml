@@ -27,6 +27,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # `lsp/tests/spec_conformance.rs` walks `<repo>/spec/...`
+          # (the ktav-lang/spec submodule). Other jobs don't read the
+          # submodule directly but recursive checkout costs little.
+          submodules: recursive
       - name: Validate JSON
         run: |
           set -eu
@@ -50,6 +55,11 @@ jobs:
         working-directory: lsp
     steps:
       - uses: actions/checkout@v5
+        with:
+          # `lsp/tests/spec_conformance.rs` walks `<repo>/spec/...`
+          # (the ktav-lang/spec submodule). Other jobs don't read the
+          # submodule directly but recursive checkout costs little.
+          submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -72,6 +82,11 @@ jobs:
         working-directory: vscode
     steps:
       - uses: actions/checkout@v5
+        with:
+          # `lsp/tests/spec_conformance.rs` walks `<repo>/spec/...`
+          # (the ktav-lang/spec submodule). Other jobs don't read the
+          # submodule directly but recursive checkout costs little.
+          submodules: recursive
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
@@ -92,6 +107,11 @@ jobs:
         working-directory: intellij
     steps:
       - uses: actions/checkout@v5
+        with:
+          # `lsp/tests/spec_conformance.rs` walks `<repo>/spec/...`
+          # (the ktav-lang/spec submodule). Other jobs don't read the
+          # submodule directly but recursive checkout costs little.
+          submodules: recursive
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
