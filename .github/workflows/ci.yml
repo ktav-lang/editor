@@ -1,8 +1,9 @@
 name: CI
 
-# CI runs each subproject in its own job in parallel. A subproject's
-# job runs only when files inside that subproject (or in shared
-# `grammars/`) change — so a doc-only commit doesn't spin up Gradle.
+# CI runs each subproject in its own job in parallel. Jobs run on
+# every push / PR — there is no per-path gating. (Adding
+# `dorny/paths-filter` per job is on the wishlist but not worth the
+# extra maintenance for a four-subproject monorepo today.)
 
 on:
   push:

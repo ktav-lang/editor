@@ -6,7 +6,8 @@
 
 # Rust (lsp/)
 target/
-Cargo.lock
+# NOTE: lsp/ is a binary crate — `Cargo.lock` MUST be committed for
+# reproducible builds. Do not re-add it to this ignore list.
 
 # Node (vscode/)
 node_modules/
@@ -22,6 +23,8 @@ dist/
 .gradle/
 build/
 *.iml
+# Local artifact cache populated by the gradle-intellij-platform plugin.
+.intellijPlatform/
 
 # Local-only
 /tmp/

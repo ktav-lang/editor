@@ -68,7 +68,11 @@ jobs:
   # ------------------------------------------------------------------
   lsp-publish:
     name: lsp / cargo publish
-    needs: verify-versions
+    # Gate crates.io publish on every binary target also building cleanly —
+    # otherwise a single broken platform could ship a release where
+    # `cargo install ktav-lsp` works but the bundled VSIX/IntelliJ binaries
+    # don't.
+    needs: [verify-versions, lsp-binaries]
     runs-on: ubuntu-latest
     environment: crates-io
     defaults:
@@ -193,6 +197,12 @@ jobs:
           cache-dependency-path: vscode/package-lock.json
       - run: npm ci
       - run: npx tsc -p tsconfig.json --noEmit
+      # Make grammar sync explicit instead of relying on `vscode:prepublish`
+      # — `vsce package --no-dependencies` skips the prepublish hook in
+      # some toolchains, and a stale or missing `syntaxes/ktav.tmLanguage.json`
+      # would silently ship a broken VSIX.
+      - name: Sync shared grammar into vscode/syntaxes/
+        run: npm run sync-grammars
       - name: Package .vsix
         run: npx vsce package --no-dependencies
       - name: Publish to VS Code Marketplace

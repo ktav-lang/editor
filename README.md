@@ -4,7 +4,7 @@
 
 > Editor support for the **[Ktav](https://github.com/ktav-lang/spec)** configuration format —
 > syntax highlighting, IDE plugins, and a Language Server. One repo,
-> three subprojects, one shared TextMate grammar.
+> four subprojects, one shared TextMate grammar.
 
 ## What's inside
 
