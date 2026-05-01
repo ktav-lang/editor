@@ -25,6 +25,11 @@
   <depends>com.intellij.modules.platform</depends>
   <depends>org.jetbrains.plugins.textmate</depends>
 
+  <!-- Optional LSP integration: when LSP4IJ is installed, ktav-lsp4ij.xml
+       contributes the language-server factory and language mapping. When
+       it isn't, the plugin still works in TextMate-only mode. -->
+  <depends optional="true" config-file="ktav-lsp4ij.xml">com.redhat.devtools.lsp4ij</depends>
+
   <extensions defaultExtensionNs="com.intellij">
     <fileType
       name="Ktav"
@@ -35,6 +40,21 @@
     <lang.commenter
       language="ktav"
       implementationClass="lang.ktav.KtavCommenter" />
+
+    <!-- Settings UI is registered unconditionally so users can configure
+         the ktav-lsp path even before LSP4IJ is installed (the value is
+         persisted and consumed by KtavLanguageServerFactory once LSP4IJ
+         loads). -->
+    <applicationConfigurable
+      parentId="tools"
+      instance="lang.ktav.lsp.KtavConfigurable"
+      id="lang.ktav.settings"
+      displayName="Ktav" />
+    <applicationService
+      serviceImplementation="lang.ktav.lsp.KtavSettings" />
+    <notificationGroup
+      id="Ktav"
+      displayType="BALLOON" />
   </extensions>
 
   <applicationListeners>

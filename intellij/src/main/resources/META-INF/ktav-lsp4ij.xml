@@ -1,0 +1,21 @@
+<idea-plugin>
+  <!--
+    Optional LSP4IJ wiring. Loaded only when the user has the LSP4IJ
+    plugin (com.redhat.devtools.lsp4ij) installed; absence is fine, the
+    main plugin then runs in TextMate-only mode.
+
+    Extension-point names are taken from LSP4IJ's own plugin.xml
+    (redhat-developer/lsp4ij main branch, 0.19.x):
+      - <server> declares a LanguageServerFactory.
+      - <languageMapping> binds an IntelliJ Language id to a server id.
+  -->
+  <extensions defaultExtensionNs="com.redhat.devtools.lsp4ij">
+    <server
+      id="ktav-lsp"
+      name="Ktav Language Server"
+      factoryClass="lang.ktav.lsp.KtavLanguageServerFactory" />
+    <languageMapping
+      language="ktav"
+      serverId="ktav-lsp" />
+  </extensions>
+</idea-plugin>

@@ -51,12 +51,24 @@ the gear menu → **Install Plugin from Disk…** and pick
 - File icon and File → New → Ktav file (icon TODO; uses the platform
   default text-file icon for now).
 
-The plugin does **not** yet integrate with [`ktav-lsp`](../lsp). When it
-does, you will get live diagnostics, hover, completion, semantic tokens,
-and document symbols — see the [editor README](../README.md) for the
-LSP feature matrix. Until then you can wire `ktav-lsp` in via the
-generic LSP4IJ plugin from the marketplace if you need diagnostics
-sooner.
+### LSP features (optional)
+
+When the [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij)
+plugin is installed alongside Ktav, you get live diagnostics, hover,
+completion, document symbols, and semantic tokens served by
+[`ktav-lsp`](../lsp). Without LSP4IJ the plugin still works in
+TextMate-only mode — install LSP4IJ from the Marketplace whenever you
+want the richer features.
+
+The server binary is discovered in this order:
+
+1. The explicit path configured under **Settings → Tools → Ktav**.
+2. A binary bundled inside the plugin distribution at
+   `bin/<platform>-<arch>/ktav-lsp` (not bundled in the current
+   release).
+3. `ktav-lsp` resolved via your shell `PATH` — install it with
+   `cargo install ktav-lsp` (matches the VS Code extension's
+   discovery order).
 
 ## Building locally
 

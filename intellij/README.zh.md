@@ -50,11 +50,22 @@
 - 文件图标与 File → New → Ktav file(图标 TODO;暂时使用平台
   默认的文本文件图标)。
 
-插件**目前未与** [`ktav-lsp`](../lsp) 集成。集成完成后将提供实时
-诊断、悬停、补全、semantic tokens、document symbols ——
-LSP 功能矩阵见 [editor README](../README.zh.md)。在此之前,如果
-急需诊断,可以通过 marketplace 上的通用 LSP4IJ 插件接入
-`ktav-lsp`。
+### LSP 功能(可选)
+
+当与 Ktav 一起安装了
+[LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) 插件时,
+即可获得由 [`ktav-lsp`](../lsp) 提供的实时诊断、悬停、补全、
+document symbols 和 semantic tokens。未安装 LSP4IJ 时,本插件仍以
+TextMate-only 模式正常工作 —— 需要更丰富的功能时再从 Marketplace
+安装 LSP4IJ 即可。
+
+服务器二进制按以下顺序查找:
+
+1. **Settings → Tools → Ktav** 中显式配置的路径。
+2. 插件分发包中随附的二进制
+   `bin/<platform>-<arch>/ktav-lsp`(当前版本未随附)。
+3. 通过 shell `PATH` 解析的 `ktav-lsp` —— 用
+   `cargo install ktav-lsp` 安装(与 VS Code 扩展的查找顺序一致)。
 
 ## 本地构建
 
