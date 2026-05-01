@@ -88,7 +88,8 @@
     "vscode:prepublish": "npm run sync-grammars && npm run compile",
     "package": "vsce package --no-dependencies",
     "pretest": "npm run compile",
-    "test": "node ./out/test/runTest.js"
+    "test": "node ./out/test/runTest.js",
+    "test:unit": "mocha --ui tdd \"out/test/unit/**/*.test.js\""
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

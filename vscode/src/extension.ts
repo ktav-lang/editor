@@ -1,5 +1,4 @@
 import * as fs from "fs";
-import * as path from "path";
 import * as vscode from "vscode";
 import {
   LanguageClient,
@@ -7,45 +6,19 @@ import {
   ServerOptions,
   TransportKind,
 } from "vscode-languageclient/node";
+import { resolveServerPath as resolveServerPathPure } from "./discovery";
 
 let client: LanguageClient | undefined;
 
-const BINARY_NAME = "ktav-lsp";
-
-function exeName(): string {
-  return process.platform === "win32" ? `${BINARY_NAME}.exe` : BINARY_NAME;
-}
-
-function platformDir(): string {
-  // e.g. win32-x64, linux-x64, darwin-arm64
-  return `${process.platform}-${process.arch}`;
-}
-
-/**
- * Discovery order:
- *   1. explicit `ktav.server.path` setting
- *   2. bundled binary at `<extensionPath>/bin/<platform>-<arch>/ktav-lsp[.exe]`
- *   3. PATH (just spawn `ktav-lsp` and let the OS resolve)
- */
 function resolveServerPath(context: vscode.ExtensionContext): string {
-  const cfg = vscode.workspace.getConfiguration("ktav");
-  const explicit = (cfg.get<string>("server.path") ?? "").trim();
-  if (explicit.length > 0) {
-    return explicit;
-  }
-
-  const bundled = path.join(
-    context.extensionPath,
-    "bin",
-    platformDir(),
-    exeName(),
-  );
-  if (fs.existsSync(bundled)) {
-    return bundled;
-  }
-
-  // Fall back to PATH lookup.
-  return BINARY_NAME;
+  return resolveServerPathPure({
+    getServerPathSetting: () =>
+      vscode.workspace.getConfiguration("ktav").get<string>("server.path") ?? "",
+    existsSync: fs.existsSync,
+    platform: process.platform,
+    arch: process.arch,
+    extensionPath: context.extensionPath,
+  });
 }
 
 function buildClient(context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel): LanguageClient {

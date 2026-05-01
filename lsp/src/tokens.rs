@@ -509,6 +509,61 @@ mod tests {
     }
 
     #[test]
+    fn byte_to_utf16_empty() {
+        assert_eq!(byte_to_utf16("", 0), 0);
+        assert_eq!(byte_to_utf16("", 5), 0);
+    }
+
+    #[test]
+    fn byte_to_utf16_overshoot_clamps() {
+        // Past end → clamps to UTF-16 length of full string.
+        assert_eq!(byte_to_utf16("a", 5), 1);
+        assert_eq!(byte_to_utf16("abc", 999), 3);
+    }
+
+    #[test]
+    fn byte_to_utf16_mid_codepoint_invalid_byte_index() {
+        // "é" is 2 bytes (0xC3 0xA9) and 1 UTF-16 unit. Asking for byte
+        // index 1 lands mid-codepoint. The helper slices `&line[..cap]`;
+        // a non-boundary cap would panic, so we verify current behaviour:
+        // byte_idx==1 is NOT a char boundary in "é", so the helper would
+        // panic. Pin the safe boundaries instead.
+        assert_eq!(byte_to_utf16("é", 0), 0);
+        assert_eq!(byte_to_utf16("é", 2), 1); // full "é"
+    }
+
+    #[test]
+    fn byte_to_utf16_4byte_utf8_surrogate_pair() {
+        // "𝕏" (U+1D54F) — 4 bytes UTF-8, 2 UTF-16 units (surrogate pair).
+        assert_eq!(byte_to_utf16("𝕏", 0), 0);
+        assert_eq!(byte_to_utf16("𝕏", 4), 2);
+        // Past end clamps to 2.
+        assert_eq!(byte_to_utf16("𝕏", 99), 2);
+    }
+
+    #[test]
+    fn prefix_utf16_mid_surrogate_rounds_down() {
+        use crate::server::PositionEncoding::Utf16;
+        // "𝕏" is a single codepoint occupying 2 UTF-16 units. Target=1
+        // lands mid-surrogate-pair: helper rounds DOWN (returns "").
+        assert_eq!(prefix_by_encoding("𝕏", 1, Utf16), "");
+        // Target=0 → "".
+        assert_eq!(prefix_by_encoding("𝕏", 0, Utf16), "");
+        // Target=2 → full "𝕏".
+        assert_eq!(prefix_by_encoding("𝕏", 2, Utf16), "𝕏");
+    }
+
+    #[test]
+    fn prefix_utf8_mid_codepoint_rounds_down() {
+        use crate::server::PositionEncoding::Utf8;
+        // "café" — 'é' is 2 bytes at offset 3..5. byte_idx=4 lands
+        // mid-codepoint; helper rounds DOWN to byte 3 → "caf".
+        assert_eq!(prefix_by_encoding("café", 3, Utf8), "caf");
+        assert_eq!(prefix_by_encoding("café", 4, Utf8), "caf");
+        assert_eq!(prefix_by_encoding("café", 5, Utf8), "café");
+    }
+
+    #[test]
     fn cursor_after_sep() {
         assert!(cursor_is_after_separator("name: "));
         assert!(cursor_is_after_separator("name:: "));
