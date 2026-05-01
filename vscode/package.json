@@ -6,7 +6,7 @@
   "publisher": "ktav-lang",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ktav-lang/editor.git",
+    "url": "https://github.com/ktav-lang/editor",
     "directory": "vscode"
   },
   "homepage": "https://github.com/ktav-lang/editor/tree/main/vscode",
@@ -51,18 +51,54 @@
         "scopeName": "source.ktav",
         "path": "./syntaxes/ktav.tmLanguage.json"
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "ktav.restartServer",
+        "title": "Ktav: Restart Language Server",
+        "category": "Ktav"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Ktav",
+      "properties": {
+        "ktav.server.path": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the ktav-lsp binary. When empty, the extension first looks for a bundled binary under bin/<platform>-<arch>/, then falls back to `ktav-lsp` on PATH."
+        },
+        "ktav.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces communication between VS Code and the Ktav language server."
+        }
+      }
+    }
   },
   "scripts": {
     "sync-grammars": "node scripts/sync-grammars.js",
     "compile": "npm run sync-grammars && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "vscode:prepublish": "npm run sync-grammars && npm run compile",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package --no-dependencies",
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
     "@types/node": "^20.0.0",
+    "@types/mocha": "^10.0.6",
+    "@vscode/test-electron": "^2.4.1",
+    "mocha": "^10.4.0",
     "typescript": "^5.3.0",
     "@vscode/vsce": "^3.0.0",
     "ovsx": "^0.10.0"

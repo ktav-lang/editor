@@ -12,11 +12,36 @@ Syntax highlighting and language support for the [Ktav](https://github.com/ktav-
 - Comment toggle with `#`
 - Auto-indent inside object / array / parenthesised compounds
 
-Coming soon (via the upcoming `ktav-lsp` integration):
+Powered by [`ktav-lsp`](https://crates.io/crates/ktav-lsp) when installed:
 
 - Diagnostics for parse errors and tag/type mismatches
 - Hover info for tags and scalar types
 - Completion for tag names and known keys
+
+## Language server
+
+The extension talks to the `ktav-lsp` binary over stdio. Install it once with:
+
+```
+cargo install ktav-lsp
+```
+
+### Discovery order
+
+When activating, the extension looks for the server in this order:
+
+1. **Explicit setting** — `ktav.server.path` (absolute path).
+2. **Bundled binary** — `<extension>/bin/<platform>-<arch>/ktav-lsp[.exe]` (reserved for future prebuilt releases; not bundled today).
+3. **PATH** — falls back to spawning `ktav-lsp` and letting the OS resolve it.
+
+If none of the above succeed, an error toast is shown and a `Ktav Language Server` output channel records the failure.
+
+### Settings
+
+| Setting              | Type                                | Default | Description                                                              |
+|----------------------|-------------------------------------|---------|--------------------------------------------------------------------------|
+| `ktav.server.path`   | string                              | `""`    | Absolute path to `ktav-lsp`. Empty means auto-discovery (see above).     |
+| `ktav.trace.server`  | `"off"` \| `"messages"` \| `"verbose"` | `"off"` | Traces JSON-RPC traffic to the output channel.                           |
 
 ## Installation
 
