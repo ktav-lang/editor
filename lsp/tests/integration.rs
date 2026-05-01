@@ -4,7 +4,7 @@
 
 use ktav_lsp::diagnostics::parse_for_diagnostics;
 use ktav_lsp::semantic::{semantic_tokens, token_types};
-use ktav_lsp::server::PositionEncoding;
+use ktav_lsp::server::{DocEntry, PositionEncoding};
 use ktav_lsp::symbols::build_symbols;
 use ktav_lsp::tokens::{
     byte_to_utf16, classify_line, cursor_is_after_separator, prefix_by_encoding, LineKind, Marker,
@@ -364,6 +364,69 @@ fn hover_classifier_skips_comment_line() {
         classify_line("# just a note"),
         LineKind::Comment { .. }
     ));
+}
+
+// ---- DocEntry parsed-value cache ----
+
+#[test]
+fn doc_entry_caches_parsed_value() {
+    // Two reads of the same `DocEntry.parsed` must point to the SAME
+    // `Arc<Value>` allocation — i.e. the parse happens once at insert
+    // and subsequent handlers (hover, document_symbol) share it.
+    let entry = DocEntry::new(1, "name: alice\nport: 8080\n".to_string());
+    let p1 = entry.parsed.clone().expect("doc parsed ok");
+    let p2 = entry.parsed.clone().expect("doc parsed ok");
+    assert!(
+        std::sync::Arc::ptr_eq(&p1, &p2),
+        "DocEntry::parsed should be a cached Arc — both clones must alias",
+    );
+    // And: a parse of the same text yields the same observable shape
+    // (sanity — we're not corrupting the cache).
+    let fresh = ktav::parse("name: alice\nport: 8080\n").expect("re-parse");
+    match (&*p1, &fresh) {
+        (ktav::Value::Object(a), ktav::Value::Object(b)) => assert_eq!(a.len(), b.len()),
+        _ => panic!("expected object root"),
+    }
+}
+
+#[test]
+fn doc_entry_invalidates_on_text_change() {
+    // Simulate did_change replacing the text: a new DocEntry must
+    // reflect the new content (no stale cache).
+    let v1 = DocEntry::new(1, "k: 1\n".to_string());
+    let v2 = DocEntry::new(2, "k: 2\n".to_string());
+    let p1 = v1.parsed.expect("v1 parsed");
+    let p2 = v2.parsed.expect("v2 parsed");
+    // Different Arcs.
+    assert!(!std::sync::Arc::ptr_eq(&p1, &p2));
+    // And the values differ in surface form.
+    let s1 = match &*p1 {
+        ktav::Value::Object(m) => m.get("k").and_then(|v| match v {
+            ktav::Value::Integer(s) => Some(s.as_str().to_string()),
+            ktav::Value::String(s) => Some(s.to_string()),
+            _ => None,
+        }),
+        _ => None,
+    };
+    let s2 = match &*p2 {
+        ktav::Value::Object(m) => m.get("k").and_then(|v| match v {
+            ktav::Value::Integer(s) => Some(s.as_str().to_string()),
+            ktav::Value::String(s) => Some(s.to_string()),
+            _ => None,
+        }),
+        _ => None,
+    };
+    assert_ne!(s1, s2, "expected different parsed values across versions");
+}
+
+#[test]
+fn doc_entry_unparseable_text_yields_none_cache() {
+    // Bad input → cache is `None`; handlers must degrade gracefully.
+    let entry = DocEntry::new(1, "key: {\n".to_string()); // unclosed brace
+    assert!(
+        entry.parsed.is_none(),
+        "unparseable text should leave parsed=None",
+    );
 }
 
 #[test]

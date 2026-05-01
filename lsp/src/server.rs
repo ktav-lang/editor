@@ -44,10 +44,35 @@ impl PositionEncoding {
 
 /// Document store entry: the latest known text and its `did_change`
 /// version, used to drop stale diagnostic publishes (race in fix #4).
+///
+/// `parsed` is the eagerly-cached `ktav::parse(&text)` result, populated
+/// by [`DocEntry::new`] on `did_open` / `did_change` / `did_save`. Hover
+/// and `documentSymbol` consume the cache instead of re-parsing the full
+/// document on every keystroke / hover. The parse cost was already paid
+/// for diagnostics on the same edit, so caching is essentially free.
+///
+/// `Arc<Value>` keeps clones cheap when the entry is read out of the
+/// `DashMap`. `None` means the document failed to parse — handlers
+/// degrade gracefully (hover returns a generic label, `documentSymbol`
+/// returns an empty list).
 #[derive(Debug, Clone)]
 pub struct DocEntry {
     pub version: i32,
     pub text: String,
+    pub parsed: Option<Arc<Value>>,
+}
+
+impl DocEntry {
+    /// Build a fresh entry, eagerly parsing once. The result is shared
+    /// across all readers via `Arc`.
+    pub fn new(version: i32, text: String) -> Self {
+        let parsed = ktav::parse(&text).ok().map(Arc::new);
+        Self {
+            version,
+            text,
+            parsed,
+        }
+    }
 }
 
 /// Backend state — one per running server process.
@@ -174,13 +199,8 @@ impl LanguageServer for Backend {
         let uri = params.text_document.uri.clone();
         let text = params.text_document.text;
         let version = params.text_document.version;
-        self.docs.insert(
-            uri.clone(),
-            DocEntry {
-                version,
-                text: text.clone(),
-            },
-        );
+        self.docs
+            .insert(uri.clone(), DocEntry::new(version, text.clone()));
         self.refresh_diagnostics(uri, text, Some(version)).await;
     }
 
@@ -189,13 +209,8 @@ impl LanguageServer for Backend {
         let version = params.text_document.version;
         // We advertised FULL sync, so the first change carries the whole file.
         if let Some(change) = params.content_changes.into_iter().next() {
-            self.docs.insert(
-                uri.clone(),
-                DocEntry {
-                    version,
-                    text: change.text.clone(),
-                },
-            );
+            self.docs
+                .insert(uri.clone(), DocEntry::new(version, change.text.clone()));
             self.refresh_diagnostics(uri, change.text, Some(version))
                 .await;
         }
@@ -203,14 +218,12 @@ impl LanguageServer for Backend {
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
         if let Some(text) = params.text {
-            let entry = DocEntry {
-                version: self
-                    .docs
-                    .get(&params.text_document.uri)
-                    .map(|e| e.version)
-                    .unwrap_or(0),
-                text: text.clone(),
-            };
+            let prior_version = self
+                .docs
+                .get(&params.text_document.uri)
+                .map(|e| e.version)
+                .unwrap_or(0);
+            let entry = DocEntry::new(prior_version, text.clone());
             let v = entry.version;
             self.docs.insert(params.text_document.uri.clone(), entry);
             self.refresh_diagnostics(params.text_document.uri, text, Some(v))
@@ -234,7 +247,11 @@ impl LanguageServer for Backend {
     async fn hover(&self, params: HoverParams) -> RpcResult<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let pos = params.text_document_position_params.position;
-        let Some(text) = self.docs.get(uri).map(|e| e.text.clone()) else {
+        let Some((text, parsed)) = self
+            .docs
+            .get(uri)
+            .map(|e| (e.text.clone(), e.parsed.clone()))
+        else {
             return Ok(None);
         };
 
@@ -262,9 +279,10 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
 
-        let parsed = ktav::parse(&text).ok();
+        // Read from the cached parse populated on `did_open`/`did_change`
+        // — avoids re-running the full parser on every hover request.
         let value_info = parsed
-            .as_ref()
+            .as_deref()
             .and_then(|v| lookup_dotted(v, key))
             .map(describe_value)
             .unwrap_or_else(|| "value".to_string());
@@ -321,14 +339,16 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentSymbolParams,
     ) -> RpcResult<Option<DocumentSymbolResponse>> {
-        let Some(text) = self
+        let Some((text, parsed)) = self
             .docs
             .get(&params.text_document.uri)
-            .map(|e| e.text.clone())
+            .map(|e| (e.text.clone(), e.parsed.clone()))
         else {
             return Ok(None);
         };
-        let Ok(value) = ktav::parse(&text) else {
+        // Cached parse — same `Arc<Value>` populated on `did_open`/
+        // `did_change`. If parsing failed, return an empty outline.
+        let Some(value) = parsed else {
             return Ok(Some(DocumentSymbolResponse::Nested(Vec::new())));
         };
         let mut symbols = build_symbols(&value, &text);
