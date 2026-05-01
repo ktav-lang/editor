@@ -38,10 +38,19 @@ dependencies {
         pluginVerifier()
         zipSigner()
         instrumentationTools()
+
+        // Test framework for `BasePlatformTestCase` — required by the
+        // commenter-toggle / file-type assertions in `KtavPlatformTest`.
+        testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // BasePlatformTestCase derives from the JUnit 3 / 4 lineage; pull JUnit 4
+    // for the heavyweight platform test only.
+    testImplementation("junit:junit:4.13.2")
+    // Run JUnit 4 BasePlatformTestCase tests under the JUnit Platform.
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.10.0")
 }
 
 intellijPlatform {
@@ -49,10 +58,12 @@ intellijPlatform {
         name = "Ktav"
         version = project.version.toString()
         ideaVersion {
-            // IntelliJ 2024.3 is build 243; we keep an upper bound through
-            // 2025.1 (251.*) — bump as we verify newer builds.
+            // IntelliJ 2024.3 is build 243. We deliberately omit
+            // `untilBuild` and rely on `pluginVerifier` (run in CI) to
+            // catch breakage on newer builds, instead of pinning a
+            // wildcard upper bound that the Marketplace warns about and
+            // that blocks loading on the next EAP.
             sinceBuild = "243"
-            untilBuild = "251.*"
         }
         description = """
             <p>Editor support for the
