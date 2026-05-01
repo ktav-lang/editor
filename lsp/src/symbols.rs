@@ -98,28 +98,65 @@ fn value_kind(v: &Value) -> &'static str {
     }
 }
 
-/// Find the first line where `key:` appears at the start of trimmed
-/// content (ignoring `#` comments). Returns full-line range.
+/// Find the first line where `key` appears as a key segment at the
+/// **top level** of the document (depth 0). Brace/bracket openers and
+/// closers on their own line bump the depth; nested objects are skipped
+/// so a top-level `host` is not matched by an inner `host`. The matched
+/// segment must be followed by `:`, `.`, or whitespace-then-`:`/`.`.
+///
+/// Returns the full-line range when found.
 fn locate_key(text: &str, key: &str) -> Option<Range> {
+    let mut depth: i32 = 0;
     for (i, line) in text.split('\n').enumerate() {
         let trimmed = line.trim_start();
-        if trimmed.starts_with('#') {
+        // Lone closer line bumps depth DOWN before inspection — closers
+        // belong to the parent scope.
+        if trimmed == "}" || trimmed == "]" || trimmed == ")" {
+            depth -= 1;
             continue;
         }
-        // Match either `key:` or `key.` (dotted-key prefix).
-        if let Some(rest) = trimmed.strip_prefix(key) {
-            if rest.starts_with(':') || rest.starts_with('.') {
-                return Some(Range {
-                    start: Position {
-                        line: i as u32,
-                        character: 0,
-                    },
-                    end: Position {
-                        line: i as u32,
-                        character: line.len() as u32,
-                    },
-                });
+        if trimmed.starts_with('#') || trimmed.is_empty() {
+            continue;
+        }
+
+        // Only look for top-level keys at depth 0.
+        if depth == 0 {
+            if let Some(rest) = trimmed.strip_prefix(key) {
+                // Boundary check: next byte must be ':' or '.', possibly
+                // preceded by whitespace before ':' / '.'.
+                let next = rest.trim_start_matches([' ', '\t']);
+                let ok = next.starts_with(':') || next.starts_with('.');
+                if ok {
+                    return Some(Range {
+                        start: Position {
+                            line: i as u32,
+                            character: 0,
+                        },
+                        end: Position {
+                            line: i as u32,
+                            character: line.len() as u32,
+                        },
+                    });
+                }
             }
+        }
+
+        // Track depth: an opener at end-of-line (after trimming) starts a
+        // nested compound. We look at the trimmed-trailing tail.
+        let tail = trimmed.trim_end();
+        // Lone openers like `{`, `[`, `(`, `((`.
+        if matches!(tail, "{" | "[" | "(" | "((") {
+            depth += 1;
+            continue;
+        }
+        // Pair line ending with an opener: `key: {` / `key: [` / `key: (`
+        // / `key: ((`.
+        if tail.ends_with(" {")
+            || tail.ends_with(" [")
+            || tail.ends_with(" (")
+            || tail.ends_with(" ((")
+        {
+            depth += 1;
         }
     }
     None

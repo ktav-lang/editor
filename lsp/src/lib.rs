@@ -9,5 +9,13 @@ pub mod diagnostics;
 pub mod semantic;
 pub mod server;
 pub mod symbols;
+/// Shared line-tokenizer.
+///
+/// **Unstable internal API.** Exposed `pub` only because integration tests
+/// (`tests/*.rs`) treat the LSP crate as an external consumer. External
+/// users should not depend on this module — its surface mirrors
+/// `ktav::parser` line-shape rules and may change without notice as the
+/// parser evolves.
+pub mod tokens;
 
 pub use server::Backend;
