@@ -94,7 +94,12 @@ jobs:
           cache-dependency-path: vscode/package-lock.json
       - run: npm ci
       - run: npx tsc -p tsconfig.json --noEmit
-      - run: npm test --if-present
+      # Pure-mocha unit suite (discovery.test.ts) — does not need
+      # @vscode/test-electron, so it runs on a headless ubuntu runner
+      # without xvfb. The full e2e suite under src/test/suite/ requires
+      # an X server and is run separately (gated on KTAV_LSP_PATH or
+      # spawned under xvfb-run when an LSP binary is available).
+      - run: npm run test:unit --if-present
 
   # ------------------------------------------------------------------
   # intellij/ — Kotlin plugin. gradle test + verifyPlugin.
