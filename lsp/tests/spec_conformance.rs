@@ -160,10 +160,6 @@ fn conformance_reference_parser_invalid() {
             Err(Error::Syntax(msg)) => {
                 if let Some(cat) = expected.as_deref() {
                     if !msg.contains(cat) && !category_is_message_aliased(cat, &msg) {
-                        // The current `ktav 0.1.4` message format
-                        // does not name every category verbatim — but
-                        // it does for the ones in the suite as of
-                        // this writing. Still, log + collect.
                         missing_category_in_msg.push(format!(
                             "{}: expected '{}' in message, got: {:?}",
                             path.display(),
@@ -174,9 +170,22 @@ fn conformance_reference_parser_invalid() {
                 }
                 let _ = wrong_category; // keep slot for future shape mismatches
             }
+            Err(Error::Structured(k)) => {
+                let msg = k.to_string();
+                if let Some(cat) = expected.as_deref() {
+                    if !msg.contains(cat) && !category_is_message_aliased(cat, &msg) {
+                        missing_category_in_msg.push(format!(
+                            "{}: expected '{}' in message, got: {:?}",
+                            path.display(),
+                            cat,
+                            msg
+                        ));
+                    }
+                }
+            }
             Err(other) => {
                 wrong_category.push(format!(
-                    "{}: expected Syntax error, got {:?}",
+                    "{}: expected Syntax/Structured error, got {:?}",
                     path.display(),
                     other
                 ));
@@ -238,9 +247,19 @@ fn category_is_message_aliased(cat: &str, msg: &str) -> bool {
                 || msg.contains("Unexpected")
         }
         "MismatchedBracket" => {
-            msg.contains("does not match the open") || msg.contains("Mismatched")
+            msg.contains("does not match the open")
+                || msg.contains("Mismatched")
+                // ktav 0.1.6+ surfaces wrong-shape closers under
+                // `UnbalancedBracket: <c> without matching <opener>`.
+                || (msg.contains("UnbalancedBracket") && msg.contains("without matching"))
         }
-        "OrphanLine" => msg.contains("no ':'") || msg.contains("Orphan") || msg.contains("orphan"),
+        "OrphanLine" => {
+            msg.contains("no ':'")
+                || msg.contains("Orphan")
+                || msg.contains("orphan")
+                // ktav 0.1.6+ surfaces orphan lines as MissingSeparator.
+                || msg.contains("MissingSeparator")
+        }
         "InlineNonEmptyCompound" => msg.contains("inline ") || msg.contains("Inline "),
         _ => false,
     }

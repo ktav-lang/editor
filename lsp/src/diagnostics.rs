@@ -1,23 +1,23 @@
 //! Run the `ktav` parser over a document and turn any [`ktav::Error`]
 //! into LSP [`Diagnostic`]s.
 //!
-//! `ktav 0.1.4` only carries free-form `Error::Syntax(String)` messages.
-//! We recover both the line number and (where possible) a tighter
-//! column range by re-scanning the offending line through the shared
-//! [`crate::tokens`] classifier.
+//! Since `ktav 0.1.5` (and especially `0.1.6`, which adds byte-offset
+//! [`ktav::Span`]s on every variant), the parser emits
+//! [`ktav::Error::Structured`] with a tight source span we can map
+//! directly to an LSP [`Range`]. The legacy `Error::Syntax(String)`
+//! path is kept as a defence-in-depth fallback (no live code path under
+//! `0.1.6+`, but the `#[non_exhaustive]` `Error` enum lets future
+//! callers / wrappers still produce it, and we used to depend on it
+//! exclusively).
 //!
-//! Recognised shapes (each produces a tightened range):
-//!   - `"Line N: MissingSeparatorSpace: ..."`           → marker + first non-ws char
-//!   - `"Line N: InvalidTypedScalar: ..."`              → value span
-//!   - `"Line N: Duplicate key '<k>' ..."`              → key segment
-//!   - `"Empty key at line N"`                          → leading ws → first ':'
-//!   - `"Invalid key at line N: '<k>'"`                 → key segment
-//!   - `"Unclosed { at end of input"` (no line)         → last line
-//!   - everything else                                  → full line 0
+//! Encoding contract: `Diagnostic.range.character` is emitted in BYTES
+//! here; if the negotiated [`crate::server::PositionEncoding`] is UTF-16,
+//! [`crate::server::convert_diagnostics_to_utf16`] re-encodes the columns
+//! after this function returns.
 
 use std::sync::OnceLock;
 
-use ktav::Error;
+use ktav::{Error, ErrorKind, Span};
 use regex::Regex;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
 
@@ -27,19 +27,64 @@ use crate::tokens::{classify_line, LineKind};
 pub fn parse_for_diagnostics(text: &str) -> Vec<Diagnostic> {
     match ktav::parse(text) {
         Ok(_) => Vec::new(),
-        Err(Error::Syntax(msg)) => vec![syntax_to_diagnostic(text, &msg)],
-        Err(Error::Io(_)) | Err(Error::Message(_)) => vec![Diagnostic {
-            range: full_line_range(text, 0),
-            severity: Some(DiagnosticSeverity::ERROR),
-            source: Some("ktav".to_string()),
-            message: "ktav: parse failed".to_string(),
-            ..Default::default()
-        }],
+        Err(Error::Structured(kind)) => vec![structured_to_diagnostic(text, &kind)],
+        Err(Error::Syntax(msg)) => vec![syntax_to_diagnostic_legacy(text, &msg)],
+        Err(_) => vec![generic_io_diagnostic()],
     }
 }
 
-fn syntax_to_diagnostic(text: &str, msg: &str) -> Diagnostic {
-    let range = compute_range(text, msg);
+/// Build a [`Diagnostic`] from a structured [`ErrorKind`]. The message
+/// text is `kind.to_string()` (byte-identical to what `Error::Syntax`
+/// used to produce per the Display contract); only the `range` is now
+/// derived from the structured `span` instead of regex-extracted line
+/// + classifier-derived columns.
+fn structured_to_diagnostic(text: &str, kind: &ErrorKind) -> Diagnostic {
+    let range = range_from_span(text, kind.span(), kind.line());
+    Diagnostic {
+        range,
+        severity: Some(DiagnosticSeverity::ERROR),
+        source: Some("ktav".to_string()),
+        message: kind.to_string(),
+        ..Default::default()
+    }
+}
+
+/// Convert a [`Span`] into an LSP [`Range`]. Falls back to a full-line
+/// or last-non-blank-line range when the span is empty (`Span::EMPTY`),
+/// which currently happens for some `UnclosedCompound` and `Other`
+/// internal-state failures where no source range is meaningful.
+fn range_from_span(text: &str, span: Span, fallback_line: Option<u32>) -> Range {
+    if span.start == 0 && span.end == 0 {
+        // Empty span — fall back. Prefer the kind's own line if known,
+        // otherwise the last non-blank line (matches the legacy
+        // "Unclosed { at end of input" behaviour).
+        let line = fallback_line
+            .map(|n| n.saturating_sub(1))
+            .unwrap_or_else(|| last_non_blank_line(text));
+        return full_line_range(text, line);
+    }
+
+    let (start_line, start_col) = span.line_col(text);
+    let end_span = Span::new(span.end, span.end);
+    let (end_line, end_col) = end_span.line_col(text);
+
+    Range {
+        start: Position {
+            line: start_line.saturating_sub(1),
+            character: start_col,
+        },
+        end: Position {
+            line: end_line.saturating_sub(1),
+            character: end_col,
+        },
+    }
+}
+
+/// Legacy fallback for `Error::Syntax(String)`. Kept as defence-in-depth
+/// against downstream wrappers that may still construct it; the parser
+/// itself no longer does under `0.1.5+`.
+fn syntax_to_diagnostic_legacy(text: &str, msg: &str) -> Diagnostic {
+    let range = compute_range_legacy(text, msg);
     Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::ERROR),
@@ -49,12 +94,28 @@ fn syntax_to_diagnostic(text: &str, msg: &str) -> Diagnostic {
     }
 }
 
-/// Best-effort tightened range for a syntax-error message.
-fn compute_range(text: &str, msg: &str) -> Range {
+/// Generic catch-all for `Error::Io` / `Error::Message` and any future
+/// `#[non_exhaustive]` variants.
+fn generic_io_diagnostic() -> Diagnostic {
+    Diagnostic {
+        range: Range::default(),
+        severity: Some(DiagnosticSeverity::ERROR),
+        source: Some("ktav".to_string()),
+        message: "ktav: parse failed".to_string(),
+        ..Default::default()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Legacy regex-based range computation. Pre-0.1.5 path. NOT exercised under
+// the path-dep ktav 0.1.7, but kept as a regression net for any future
+// `Error::Syntax(_)` that escapes through downstream wrappers.
+// ---------------------------------------------------------------------------
+
+fn compute_range_legacy(text: &str, msg: &str) -> Range {
     let line = match extract_line_number(msg) {
         Some(n) => n.saturating_sub(1),
         None => {
-            // No "line N" info — try last non-blank for "Unclosed" shapes.
             if msg.contains("Unclosed") {
                 last_non_blank_line(text)
             } else {
@@ -65,7 +126,6 @@ fn compute_range(text: &str, msg: &str) -> Range {
 
     let line_text = nth_line(text, line as usize).unwrap_or("");
 
-    // Shape-specific narrowing.
     if msg.contains("MissingSeparatorSpace") {
         if let Some(r) = range_for_missing_separator(line, line_text) {
             return r;
@@ -114,8 +174,6 @@ fn range_for_missing_separator(line: u32, line_text: &str) -> Option<Range> {
         return None;
     };
     let mlen = marker.len() as u32;
-    // Highlight marker + the next non-whitespace character (which is the
-    // glued body that violates the rule).
     let after = (marker_start + mlen) as usize;
     let extra = line_text[after..]
         .chars()
@@ -188,7 +246,6 @@ fn range_for_key_segment(line: u32, line_text: &str, key: &str) -> Option<Range>
         let lo = key_start as usize;
         let hi = lo + key_length as usize;
         let key_text = line_text.get(lo..hi)?;
-        // Locate the requested segment within the dotted path.
         if let Some(rel) = find_segment(key_text, key) {
             let abs = key_start + rel as u32;
             return Some(Range {
@@ -202,7 +259,6 @@ fn range_for_key_segment(line: u32, line_text: &str, key: &str) -> Option<Range>
                 },
             });
         }
-        // Fall back to the whole key.
         return Some(Range {
             start: Position {
                 line,
@@ -217,7 +273,6 @@ fn range_for_key_segment(line: u32, line_text: &str, key: &str) -> Option<Range>
     None
 }
 
-/// Locate `seg` as a dot-bounded segment inside `dotted`.
 fn find_segment(dotted: &str, seg: &str) -> Option<usize> {
     let mut col = 0usize;
     for s in dotted.split('.') {
@@ -244,7 +299,6 @@ fn range_for_leading_to_colon(line: u32, line_text: &str) -> Option<Range> {
     })
 }
 
-/// Pull the 1-based line number out of an `Error::Syntax` message.
 fn extract_line_number(msg: &str) -> Option<u32> {
     static RE: OnceLock<Vec<Regex>> = OnceLock::new();
     let res = RE.get_or_init(|| {
@@ -265,7 +319,6 @@ fn extract_line_number(msg: &str) -> Option<u32> {
     None
 }
 
-/// Pull a single-quoted key segment (e.g. `'foo.bar'`) out of a message.
 fn extract_quoted_key(msg: &str) -> Option<String> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"'([^']+)'").unwrap());
@@ -286,7 +339,6 @@ fn last_non_blank_line(text: &str) -> u32 {
     0
 }
 
-/// Full-line range for a 0-based line index.
 fn full_line_range(text: &str, line: u32) -> Range {
     let lines: Vec<&str> = text.split('\n').collect();
     let idx = line as usize;
@@ -317,8 +369,10 @@ mod tests {
         assert_eq!(diags.len(), 1);
         let r = diags[0].range;
         assert_eq!(r.start.line, 0);
-        assert_eq!(r.start.character, 3); // `:` column
-                                          // marker (':') + glued body ("value") = end column 9.
+        // Structured span covers the glued body `value` (bytes 4..9), not
+        // the separator itself. The legacy classifier-derived range used
+        // to start at the colon (col 3); the structured span is tighter.
+        assert_eq!(r.start.character, 4);
         assert_eq!(r.end.character, 9);
         assert!(diags[0].message.contains("MissingSeparatorSpace"));
     }
@@ -330,7 +384,7 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].range.start.line, 1);
         let r = diags[0].range;
-        // Tightened to the key segment `port` (cols 0..4), not the whole line.
+        // Tightened to the key segment `port` (cols 0..4).
         assert_eq!(r.start.character, 0);
         assert_eq!(r.end.character, 4);
     }
@@ -342,7 +396,7 @@ mod tests {
     }
 
     #[test]
-    fn line_extraction_regex_shapes() {
+    fn legacy_line_extraction_regex_shapes() {
         assert_eq!(extract_line_number("Invalid key at line 7: 'x.'"), Some(7));
         assert_eq!(extract_line_number("Empty key at line 3"), Some(3));
         assert_eq!(extract_line_number("Line 12: something"), Some(12));

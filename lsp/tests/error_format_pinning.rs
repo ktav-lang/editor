@@ -1,17 +1,16 @@
-//! Pinning tests for `ktav::Error::Syntax(String)` message shapes.
+//! Pinning tests for the `ktav` error message *Display* contract.
 //!
-//! `diagnostics.rs` recovers structured information (line number, key
-//! segment, error category) by **substring-matching** the free-form
-//! error message returned by `ktav 0.1.4`. The moment a future `ktav`
-//! release renames `MissingSeparatorSpace` → `MissingSep` or reformats
-//! `"Line N: duplicate key '<k>'"`, the LSP's range tightening will
-//! silently regress to whole-line ranges with no compile-time error.
+//! `ktav 0.1.5+` returns `Error::Structured(ErrorKind)` with a tight
+//! source span instead of a free-form `Error::Syntax(String)`, but the
+//! Display impl on `ErrorKind` reproduces byte-for-byte what
+//! `Error::Syntax(format!(…))` produced in `0.1.4`. These tests pin
+//! that Display contract — when `cargo test` fails here, the parser's
+//! error wording has drifted and any downstream consumer that
+//! string-matches (legacy bindings, log scrapers) needs to be checked.
 //!
-//! These tests assert the EXACT formatted string produced by a real
-//! `ktav::parse` call on a known-bad input — one fixture per category
-//! `diagnostics.rs` looks at. When `cargo test` fails here, update both
-//! the assertions AND the corresponding `msg.contains(...)` branches in
-//! `diagnostics.rs` together.
+//! The contract is the rendered string, not the enum variant: this
+//! file deliberately accepts either `Error::Syntax(s)` or
+//! `Error::Structured(k)` and asserts on `s` / `k.to_string()` alike.
 //!
 //! All fixtures use the real parser; no mocks (per project memory rules).
 
@@ -20,7 +19,8 @@ use ktav::Error;
 fn err(text: &str) -> String {
     match ktav::parse(text) {
         Err(Error::Syntax(m)) => m,
-        Err(other) => panic!("expected Syntax error, got {:?}", other),
+        Err(Error::Structured(k)) => k.to_string(),
+        Err(other) => panic!("expected Syntax/Structured error, got {:?}", other),
         Ok(_) => panic!("expected parse to fail for: {:?}", text),
     }
 }

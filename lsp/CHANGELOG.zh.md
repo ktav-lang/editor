@@ -7,6 +7,52 @@
 
 **Languages:** [English](CHANGELOG.md) · [Русский](CHANGELOG.ru.md) · **简体中文**
 
+## [0.1.5] —— 2026-05-01
+
+诊断管线的内部重构。公共 API 无变化。
+
+### 变更
+
+- **诊断** 现在消费 `ktav 0.1.5+` 的 `ktav::Error::Structured(ErrorKind)`:
+  `Diagnostic.range` 直接由变体的字节偏移 `Span` 通过 `Span::line_col`
+  构建,而不再依赖正则匹配格式化的错误消息并重新通过共享行分类器分析
+  出错行。范围的精度现在由解析器对失败点的自身认知驱动,对每个类别
+  都得到严格相等或更窄的范围 —— 例如 `key:value\n` 的
+  `MissingSeparatorSpace` 现在高亮字节 4..9(粘连的主体 `value`),
+  而不再是 3..9(冒号 + 主体)。
+- 现有的 `tests/error_format_pinning.rs` 同时接受 `Error::Syntax(_)`
+  和 `Error::Structured(_)`,断言渲染后的 Display 字符串 —— 契约是
+  消息文本,而不是枚举变体。
+- `tests/integration.rs` 的范围预期收紧到新的 structured spans
+  (`MissingSeparatorSpace` 4..9、`InvalidTypedScalar` 6..10 等)。
+  西里尔字节列测试重新固定到主体 span 的起点(`имя:значение\n` 的
+  字节 7)。
+- `tests/spec_conformance.rs` 接受新的 `MissingSeparator` /
+  `UnbalancedBracket` Display 字符串作为规范类别 `OrphanLine` /
+  `MismatchedBracket` 的别名。
+
+### 新增
+
+- `tests/structured_diagnostics.rs` —— 逐变体断言,覆盖全部 10 个
+  规范定义的 `ErrorKind` 变体,外加一个西里尔字节列测试,在诊断
+  范围转换路径上演练 `tokens::byte_to_utf16`。
+
+### 内部
+
+- 正则抽取代码(`extract_line_number`、`extract_quoted_key`、各类别的
+  `range_for_*` 辅助函数)保留为 `compute_range_legacy`,仅通过
+  `Error::Syntax(_)` 可达。`ktav 0.1.5+` 的解析器不再构造该变体,
+  但 `ktav::Error` 标注了 `#[non_exhaustive]`,下游包装器仍可能将其
+  浮现 —— legacy 路径作为纵深防御保留。
+- `ktav` 依赖从 `0.1.4` 升至 `0.1.5`(registry pin),以引入结构化
+  错误 API。需要针对未发布 ktav 进行本地 sibling-checkout 开发时,
+  可通过 `.cargo/config.toml` patch 恢复(per-developer,不纳入 git)。
+
+### 破坏性(内部)
+
+- crate 版本提升到 **0.1.5**,因此 `ktav-lsp` 0.1.4 形态的调用方
+  (无外部 —— 这是叶子二进制)可干净地针对 `ktav 0.1.5+` 重新编译。
+
 ## [0.1.0] —— 2026-04-26
 
 首个版本。

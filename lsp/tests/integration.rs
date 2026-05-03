@@ -26,8 +26,11 @@ fn missing_separator_space_tight_range_covers_marker_and_glued_body() {
     assert_eq!(d.len(), 1);
     let r = d[0].range;
     assert_eq!(r.start.line, 0);
-    assert_eq!(r.start.character, 3); // ':'
-    assert_eq!(r.end.character, 9); // end of `value`
+    // Structured span: just the glued body `value` (bytes 4..9). The
+    // legacy classifier-derived range used to start at the colon
+    // (col 3); the structured span is even tighter.
+    assert_eq!(r.start.character, 4);
+    assert_eq!(r.end.character, 9);
     assert!(d[0].message.contains("MissingSeparatorSpace"));
 }
 
@@ -67,8 +70,9 @@ fn invalid_typed_scalar_value_span_tightened() {
     assert_eq!(d.len(), 1);
     let r = d[0].range;
     assert_eq!(r.start.line, 0);
-    // value text "abc" starts at column 7.
-    assert_eq!(r.start.character, 7);
+    // Structured span covers the body region (incl. leading space):
+    // `port:i abc` — body starts at byte 6, ends at 10.
+    assert_eq!(r.start.character, 6);
     assert_eq!(r.end.character, 10);
     assert!(d[0].message.contains("InvalidTypedScalar"));
 }
@@ -252,13 +256,15 @@ fn semantic_tokens_with_cyrillic_key_emit_byte_columns() {
 
 #[test]
 fn diagnostics_byte_columns_for_cyrillic_pre_conversion() {
-    // `имя:значение` → MissingSeparatorSpace at byte col 6 (':').
+    // `имя:значение` → MissingSeparatorSpace. `имя` = 6 bytes, `:` at
+    // byte 6, glued body `значение` starts at byte 7. Structured span
+    // covers the body alone, so start column = 7 in BYTES.
     let text = "имя:значение\n";
     let d = parse_for_diagnostics(text);
     assert_eq!(d.len(), 1);
     let r = d[0].range;
     assert_eq!(r.start.line, 0);
-    assert_eq!(r.start.character, 6);
+    assert_eq!(r.start.character, 7);
 }
 
 // ---- Symbols depth/boundary fixes ----
