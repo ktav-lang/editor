@@ -399,8 +399,14 @@ impl LanguageServer for Backend {
             .unwrap_or(0);
         let edit = TextEdit {
             range: Range {
-                start: Position { line: 0, character: 0 },
-                end: Position { line: last_line, character: last_col },
+                start: Position {
+                    line: 0,
+                    character: 0,
+                },
+                end: Position {
+                    line: last_line,
+                    character: last_col,
+                },
             },
             new_text: formatted,
         };
