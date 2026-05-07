@@ -149,8 +149,16 @@ tasks.named("compileKotlin") {
     dependsOn(syncGrammars)
 }
 
-// Include bin/ directory (with pre-built LSP binaries) in the plugin distribution
-sourceSets["main"].resources.srcDir(layout.projectDirectory.dir("bin"))
+// Include bin/ directory (with pre-built LSP binaries) in the plugin distribution.
+// Use prepareSandbox hook to copy binaries so they end up in the final ZIP.
+tasks.named("prepareSandbox") {
+    doLast {
+        copy {
+            from(layout.projectDirectory.dir("bin"))
+            into(layout.buildDirectory.dir("idea-sandbox/plugins/ktav-intellij/lib/bin"))
+        }
+    }
+}
 
 tasks {
     wrapper {
