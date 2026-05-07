@@ -120,19 +120,16 @@ class KtavLexer : LexerBase() {
             scanColonMarker()
             return
         }
-        // Identifier — letters/digits/underscore. In top-level / object
-        // context this is a key; in array context it's a string-like
-        // value. The lexer can't tell without nesting tracking, so we
-        // emit KEY: in arrays it shows ident-tone too, but values stay
-        // distinct from numeric/typed siblings.
-        if (c.isLetter() || c == '_' || c.isDigit() || c == '-') {
+        // Key character — anything except whitespace and structural chars.
+        // Matches the VS Code TextMate regex `[^\s\[\]{}:#.]+`, so non-ASCII
+        // letters (Cyrillic, Greek, CJK, emoji) belong to the key the same
+        // way as ASCII does. The Ktav spec only forbids the structural set,
+        // not the alphabet.
+        if (isKeyChar(c)) {
             scanIdentifier(asKey = true)
             myState = AFTER_KEY
             return
         }
-        // Multi-line text content (no leading `:` marker — appears between
-        // `(` and `)` lines). We just paint it as plain string content;
-        // the editor opens a new line which goes back to LINE_START.
         // Anything else → bad char.
         myTokenEnd++
         myTokenType = Tokens.BAD_CHARACTER
@@ -147,13 +144,24 @@ class KtavLexer : LexerBase() {
             }
             c == ':' -> scanColonMarker()
             c == ' ' || c == '\t' -> scanHorizWhitespace()
-            c.isLetter() || c == '_' || c.isDigit() || c == '-' -> {
-                scanIdentifier(asKey = true)
-            }
+            isKeyChar(c) -> scanIdentifier(asKey = true)
             else -> {
                 myTokenEnd++
                 myTokenType = Tokens.BAD_CHARACTER
             }
+        }
+    }
+
+    /**
+     * Char belongs to a key/identifier (everything except whitespace and
+     * structural delimiters). Matches the VS Code TextMate behaviour so
+     * Cyrillic / CJK / emoji keys highlight the same way.
+     */
+    private fun isKeyChar(c: Char): Boolean {
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') return false
+        return when (c) {
+            '{', '}', '[', ']', '(', ')', ':', '#', '.' -> false
+            else -> true
         }
     }
 
@@ -230,7 +238,7 @@ class KtavLexer : LexerBase() {
         myTokenEnd = myTokenStart
         while (myTokenEnd < myBufferEnd) {
             val ch = myBuffer[myTokenEnd]
-            if (ch.isLetterOrDigit() || ch == '_' || ch == '-') {
+            if (isKeyChar(ch)) {
                 myTokenEnd++
             } else break
         }
