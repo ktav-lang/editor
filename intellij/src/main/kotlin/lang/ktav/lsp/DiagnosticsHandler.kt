@@ -52,11 +52,12 @@ class DiagnosticsHolder {
                 return
             }
             val obj = params.asJsonObject
-            val uri = obj.get("uri")?.asString
-            if (uri == null) {
+            val rawUri = obj.get("uri")?.asString
+            if (rawUri == null) {
                 companionLog.warn("[Ktav Diagnostics] uri missing in params")
                 return
             }
+            val uri = UriUtil.normalize(rawUri)
             val diagsArray = obj.getAsJsonArray("diagnostics")
             if (diagsArray == null) {
                 companionLog.warn("[Ktav Diagnostics] diagnostics array missing")
@@ -91,6 +92,9 @@ class DiagnosticsHolder {
             }
 
             getInstance().setDiagnostics(uri, diagnostics)
+
+            // Render directly to editor MarkupModel (bypasses PSI/parser requirement)
+            DiagnosticsRenderer.render(uri, diagnostics)
         }
     }
 }
@@ -125,8 +129,9 @@ class KtavDiagnosticsAnnotator : ExternalAnnotator<PsiFile, List<LspDiagnostic>>
     override fun doAnnotate(collectedInfo: PsiFile?): List<LspDiagnostic> {
         if (collectedInfo == null) return emptyList()
         val file = collectedInfo.virtualFile ?: return emptyList()
-        val diags = DiagnosticsHolder.getInstance().getDiagnostics(file.url)
-        log.info("[Ktav Annotator] doAnnotate: ${file.url} → ${diags.size} diagnostics")
+        val uri = UriUtil.fromVirtualFile(file)
+        val diags = DiagnosticsHolder.getInstance().getDiagnostics(uri)
+        log.info("[Ktav Annotator] doAnnotate: $uri → ${diags.size} diagnostics")
         return diags
     }
 

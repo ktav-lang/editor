@@ -58,6 +58,11 @@
     <projectService
       serviceImplementation="lang.ktav.lsp.KtavLspProjectService" />
 
+    <!-- Startup activity: starts LSP and syncs already-open files. Critical for
+         dynamic plugin loading where FileEditorManagerListener misses pre-open files. -->
+    <postStartupActivity
+      implementation="lang.ktav.lsp.KtavStartupActivity" />
+
     <!-- Live diagnostics from LSP server -->
     <externalAnnotator
       language="ktav"

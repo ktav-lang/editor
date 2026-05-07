@@ -5,6 +5,9 @@
 // IntelliJ Platform IDE artifacts as ordinary dependencies, instead of
 // downloading a sandbox SDK lazily at task-graph time.
 
+import java.text.SimpleDateFormat
+import java.util.Date
+
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.0.0"
@@ -12,7 +15,10 @@ plugins {
 }
 
 group = "lang.ktav"
-version = providers.gradleProperty("pluginVersion").get()
+// Version + build timestamp so users can see in IDE whether the installed
+// build is fresh. Format: "0.1.5+20260507-1638"
+version = providers.gradleProperty("pluginVersion").get() +
+    "+" + SimpleDateFormat("yyyyMMdd-HHmm").format(Date())
 
 repositories {
     mavenCentral()

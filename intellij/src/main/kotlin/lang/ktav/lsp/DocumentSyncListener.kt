@@ -27,8 +27,8 @@ class FileOpenListener(private val project: Project) : FileEditorManagerListener
     override fun fileOpened(source: FileEditorManager, file: VirtualFile) {
         if (file.extension != "ktav") return
 
-        log.info("[Ktav FileListener] .ktav file opened: ${file.url}")
-        println(">>> [Ktav FileListener] Opened: ${file.url}")
+        log.info("[Ktav FileListener] .ktav file opened: ${UriUtil.fromVirtualFile(file)}")
+        println(">>> [Ktav FileListener] Opened: ${UriUtil.fromVirtualFile(file)}")
 
         try {
             // Run LSP init in background to not block UI
@@ -52,14 +52,13 @@ class FileOpenListener(private val project: Project) : FileEditorManagerListener
                         return@executeOnPooledThread
                     }
 
-                    val uri = file.url
+                    val uri = UriUtil.fromVirtualFile(file)
                     val text = document.text
                     log.info("[Ktav FileListener] Sending didOpen for $uri (${text.length} chars)")
                     client.didOpen(uri, "ktav", 1, text)
 
                     // Add change listener for this document (only once per document)
-                    val tracker = ChangeTracker.getInstance(project)
-                    tracker.attachIfNeeded(file, document)
+                    ChangeTracker.attachIfNeeded(file, document)
                 } catch (ex: Exception) {
                     log.error("[Ktav FileListener] Error processing fileOpened", ex)
                 }
@@ -72,8 +71,8 @@ class FileOpenListener(private val project: Project) : FileEditorManagerListener
     override fun fileClosed(source: FileEditorManager, file: VirtualFile) {
         if (file.extension != "ktav") return
 
-        log.info("[Ktav FileListener] .ktav file closed: ${file.url}")
-        println(">>> [Ktav FileListener] Closed: ${file.url}")
+        log.info("[Ktav FileListener] .ktav file closed: ${UriUtil.fromVirtualFile(file)}")
+        println(">>> [Ktav FileListener] Closed: ${UriUtil.fromVirtualFile(file)}")
 
         try {
             val lspService = project.getLspService()
@@ -82,10 +81,10 @@ class FileOpenListener(private val project: Project) : FileEditorManagerListener
                 log.warn("[Ktav FileListener] No client to send didClose")
                 return
             }
-            client.didClose(file.url)
+            client.didClose(UriUtil.fromVirtualFile(file))
 
             // Remove change listener
-            ChangeTracker.getInstance(project).detach(file)
+            ChangeTracker.detach(file)
         } catch (ex: Exception) {
             log.error("[Ktav FileListener] Error on file close", ex)
         }
@@ -103,7 +102,7 @@ object ChangeTracker {
     fun getInstance(project: Project): ChangeTracker = this
 
     fun attachIfNeeded(file: VirtualFile, document: Document) {
-        val uri = file.url
+        val uri = UriUtil.fromVirtualFile(file)
         if (attached.containsKey(uri)) {
             log.debug("[Ktav ChangeTracker] Already attached: $uri")
             return
@@ -115,7 +114,7 @@ object ChangeTracker {
     }
 
     fun detach(file: VirtualFile) {
-        val uri = file.url
+        val uri = UriUtil.fromVirtualFile(file)
         attached.remove(uri) ?: return
         log.info("[Ktav ChangeTracker] Detached change listener: $uri")
     }
