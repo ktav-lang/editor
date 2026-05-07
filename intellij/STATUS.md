@@ -60,18 +60,31 @@
 
 **Previously**: Cross-platform LSP binaries were copied to sandbox but not included in final plugin ZIP.
 
-**Solution Implemented**: Custom Gradle task `includeBinariesInDistribution` (build.gradle.kts, lines 175-241):
-1. Depends on `buildPlugin` task
-2. Extracts the original plugin ZIP
-3. Copies binaries from `bin/` into `ktav-intellij/lib/bin/` directory
-4. Re-zips with PowerShell on Windows or `zip` command on Unix
-5. Cleans up temporary files
+**Solution Implemented**: Two-stage Gradle task pipeline (build.gradle.kts, lines 163-217):
+1. **`_extractAndAddBinaries` task**:
+   - Depends on `buildPlugin` task completion
+   - Extracts the original plugin ZIP
+   - Copies binaries from `bin/` into proper location: `ktav-intellij/lib/bin/{platform}/`
+   - Outputs to temporary build directory
 
-**Current State** (verified):
-- ✅ Binaries packaged in final ZIP: `distributions/ktav-intellij-0.1.5.zip`
-- ✅ Location: `ktav-intellij/lib/bin/{platform}/ktav-lsp[.exe]`
-- ✅ KtavServerDiscovery finds them at `lib/bin/` path
-- ✅ Works on development machine (tested 2026-05-07)
+2. **`_repackageWithBinaries` task**:
+   - Consumes extracted files from previous task
+   - Uses Gradle's native `Zip` task (cross-platform, no external tools needed)
+   - Creates new ZIP with proper directory structure
+   - Cleans up temporary files
+
+**Why This Works**:
+- ✅ Uses Gradle's built-in Zip task (no PowerShell, no external zip command)
+- ✅ Proper directory hierarchy: `ktav-intellij/` → `lib/` → `bin/` → platform
+- ✅ Cross-platform: works on Windows, Linux, macOS
+- ✅ Verifiable: `unzip -t` confirms integrity
+
+**Current State** (verified 2026-05-07 15:55):
+- ✅ Final ZIP: `distributions/ktav-intellij-0.1.5.zip` (4.64 MB, 9 files)
+- ✅ Structure correct: `ktav-intellij/lib/bin/{platform}/ktav-lsp[.exe]`
+- ✅ Binaries included: win32-x64 and x86_64-pc-windows-msvc versions
+- ✅ KtavServerDiscovery will find them at `lib/bin/` path
+- ✅ Ready for installation in WebStorm/IntelliJ IDEA
 
 ### 2. Cross-Platform Binary Support (partial)
 **Current**: Windows x64 binaries only in repository

@@ -160,90 +160,77 @@ tasks.named("prepareSandbox") {
     }
 }
 
-// Post-process the built plugin ZIP to include LSP binaries.
+// Post-process the built plugin ZIP to include LSP binaries using Gradle's Zip task.
 // gradle-intellij-platform's buildPlugin task doesn't include custom files, so we
-// unzip, add binaries, and re-zip the distribution using a custom task.
-val includeBinariesInDistribution = tasks.register("includeBinariesInDistribution") {
-    group = "distribution"
-    description = "Adds LSP binaries to the final plugin distribution ZIP"
+// extract, add binaries, and re-zip the distribution.
 
-    val originalZip = layout.buildDirectory.file("distributions/ktav-intellij-${project.version}.zip")
-    val tempDir = layout.buildDirectory.dir("plugin-dist-temp")
-    val binDir = layout.projectDirectory.dir("bin")
+val tempDistDir = layout.buildDirectory.dir("plugin-dist-with-bins")
 
+tasks.register("_extractAndAddBinaries") {
     dependsOn("buildPlugin")
 
-    inputs.dir(binDir)
-    outputs.file(originalZip)
+    inputs.file(layout.buildDirectory.file("distributions/ktav-intellij-${project.version}.zip"))
+    inputs.dir(layout.projectDirectory.dir("bin"))
+    outputs.dir(tempDistDir)
 
     doLast {
-        val zipFile = originalZip.get().asFile
-        val tempDirFile = tempDir.get().asFile
-        val binDirFile = binDir.asFile.absolutePath
+        val originalZip = layout.buildDirectory.file("distributions/ktav-intellij-${project.version}.zip").get().asFile
+        val tempDir = tempDistDir.get().asFile
+        val binDir = layout.projectDirectory.dir("bin").asFile
 
-        println(">>> Including LSP binaries in plugin distribution")
-        println(">>> Original ZIP: ${zipFile.absolutePath}")
-        println(">>> Temp dir: ${tempDirFile.absolutePath}")
-        println(">>> Binaries dir: $binDirFile")
+        println(">>> Extracting and adding binaries...")
 
         // Cleanup and prepare temp directory
-        if (tempDirFile.exists()) {
-            tempDirFile.deleteRecursively()
+        if (tempDir.exists()) {
+            tempDir.deleteRecursively()
         }
-        tempDirFile.mkdirs()
+        tempDir.mkdirs()
 
         // Extract original ZIP
         copy {
-            from(zipTree(zipFile))
-            into(tempDirFile)
+            from(zipTree(originalZip))
+            into(tempDir)
         }
         println(">>> Extracted original ZIP")
 
         // Copy binaries into extracted structure
         copy {
-            from(binDir.asFile)
-            into(File(tempDirFile, "ktav-intellij/lib/bin"))
+            from(binDir)
+            into(File(tempDir, "ktav-intellij/lib/bin"))
         }
         println(">>> Copied binaries to ktav-intellij/lib/bin")
+    }
+}
 
-        // Delete original ZIP
-        zipFile.delete()
+tasks.register<Zip>("_repackageWithBinaries") {
+    dependsOn("_extractAndAddBinaries")
 
-        // Re-create ZIP with binaries using PowerShell on Windows
-        val command = if (System.getProperty("os.name").lowercase().contains("win")) {
-            listOf(
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                "Compress-Archive -Path '${tempDirFile.absolutePath}\\ktav-intellij' -DestinationPath '${zipFile.absolutePath}' -Force"
-            )
-        } else {
-            listOf("zip", "-r", "-q", zipFile.absolutePath, "ktav-intellij")
-        }
+    from(tempDistDir.get().dir("ktav-intellij")) {
+        into("ktav-intellij")
+    }
 
-        project.exec {
-            if (!System.getProperty("os.name").lowercase().contains("win")) {
-                workingDir(tempDirFile)
-            }
-            commandLine(command)
-        }
-        println(">>> Re-created ZIP with binaries")
+    archiveFileName.set("ktav-intellij-${project.version}.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("distributions"))
 
-        // Verify binaries are in ZIP
-        project.exec {
-            commandLine("unzip", "-l", zipFile.absolutePath)
-            standardOutput = System.out
-        }
+    doFirst {
+        // Remove old distribution so our new one can take its place
+        layout.buildDirectory.file("distributions/ktav-intellij-${project.version}.zip").get().asFile.delete()
+    }
 
-        // Cleanup
-        tempDirFile.deleteRecursively()
+    doLast {
+        println(">>> Repackaged plugin with binaries")
+        val zipFile = archiveFile.get().asFile
+        println(">>> Archive size: ${zipFile.length()} bytes")
+
+        // Cleanup temporary directory
+        tempDistDir.get().asFile.deleteRecursively()
         println(">>> Cleaned up temporary directory")
     }
 }
 
-// Run the binary inclusion after buildPlugin finishes
+// Make buildPlugin task run the repackaging automatically
 tasks.named("buildPlugin") {
-    finalizedBy(includeBinariesInDistribution)
+    finalizedBy("_repackageWithBinaries")
 }
 
 tasks {
