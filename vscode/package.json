@@ -2,7 +2,7 @@
   "name": "ktav",
   "displayName": "Ktav",
   "description": "Ktav configuration format — syntax highlighting and language support",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "publisher": "ktav-lang",
   "repository": {
     "type": "git",

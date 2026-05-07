@@ -17,7 +17,74 @@ the Ktav format itself — for the latter see
 
 ## Unreleased
 
-Initial repo bootstrap. First publishable release will be tagged
-`v0.1.0` once the `grammars/`, `vscode/`, `intellij/`, and `lsp/`
-subprojects are individually feature-complete (see each subproject
-README for status).
+(no changes since 0.2.0)
+
+
+## [0.2.0] — 2026-05-07
+
+First synchronised release across all four subprojects (LSP, VS Code,
+IntelliJ, shared grammar). Tracks `ktav` Rust crate `0.2.0`.
+
+### LSP server (`ktav-lsp`)
+
+- **textDocument/formatting** capability + handler:
+  parse → render through `ktav` crate. Empty edits when content is
+  already canonical or input fails to parse.
+- Snap to `ktav = "0.2.0"` from crates.io (was a path-dep during
+  development).
+- Diagnostics for `:f 42` no longer emitted (handled at `ktav`
+  semantics layer — integer literals coerce to float).
+- Multi-line strings render in stripped `( ... )` form by default
+  (verbatim `(( ... ))` remains as fallback for content with leading
+  whitespace or sole-`)` lines).
+
+### VS Code extension
+
+- Explicit `DocumentFormattingEditProvider` registration (so
+  `editor.defaultFormatter = ktav-lang.ktav` resolves correctly and
+  VS Code does not prompt to install another formatter).
+- `configurationDefaults` for `[ktav]`: tabSize 4, insertSpaces,
+  defaultFormatter pinned to our extension.
+- VSIX packaged with `vscode-languageclient` runtime tree included —
+  fixes `Cannot find module 'vscode-languageclient/node'` activation
+  failure introduced by an earlier `--no-dependencies` packaging.
+
+### IntelliJ plugin
+
+- Replaced LSP4IJ dependency with an in-house JSON-RPC LSP client
+  (no external plugin required).
+- Native syntax highlighting via state-machine lexer:
+  KEY / KEY_DOT / MARKER_INT / MARKER_FLOAT / DOUBLE_COLON / COLON /
+  STRING_VALUE / INT_VALUE / FLOAT_VALUE / BOOLEAN / NULL /
+  MULTILINE_OPEN/CLOSE / BRACES / BRACKETS / COMMENT.
+- `KtavParserDefinition` (minimal flat parser) — gives PSI tree so
+  `ExternalAnnotator` (for LSP diagnostics → tooltip + Problems View)
+  works.
+- `KtavFoldingBuilder` — folds `{}`, `[]`, `()`, `(())`.
+- `KtavBraceMatcher` — paired-brace highlight + auto-close on type.
+- `KtavUnicodeAnnotator` — boxed red highlight for non-ASCII chars
+  inside keys (analog of VS Code's `editor.unicodeHighlight`).
+- `KtavFormattingService` (AsyncDocumentFormattingService) hooks
+  Ctrl+Alt+L into LSP `textDocument/formatting`.
+- `KtavStartupActivity` syncs already-open `.ktav` files when the
+  plugin loads dynamically.
+- Bundled cross-platform `ktav-lsp` binaries (Windows x64).
+- Plugin distribution ZIP correctly packages binaries via
+  `_repackageWithBinaries` task.
+- `pluginVerification` pinned to `IC-2024.3 / 2025.1 / 2025.2`
+  (avoids `recommended()` failing on metadata-only future releases).
+- `untilBuild = provider { null }` — no upper IDE-version pin in
+  plugin.xml (was emitting `until-build=""` which the verifier
+  rejected).
+- Plugin version bumped 0.1.5 → 0.2.0.
+
+### Shared grammar (`grammars/`)
+
+- `pair-float` and `array-item-float` regexes accept integer
+  literals after `:f` (decimal point now optional). Synced into
+  VS Code `syntaxes/` and IntelliJ `resources/grammars/`.
+
+### Spec submodule
+
+- `typed_float_without_decimal` fixture moved from `invalid/` to
+  `valid/typed_float_integer_body` (matches new `:f 42` semantics).
