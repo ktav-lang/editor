@@ -176,11 +176,11 @@ jobs:
           if-no-files-found: error
 
   # ------------------------------------------------------------------
-  # vscode — package + publish to VS Code Marketplace + Open VSX.
+  # vscode — download binaries, package + publish to Marketplace + Open VSX.
   # ------------------------------------------------------------------
   vscode-publish:
     name: vscode / vsce + ovsx publish
-    needs: verify-versions
+    needs: [verify-versions, lsp-binaries]
     runs-on: ubuntu-latest
     environment: npm-vscode
     defaults:
@@ -190,6 +190,27 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.tag || github.ref }}
+
+      # Download all platform binaries from lsp-binaries artifacts
+      - uses: actions/download-artifact@v5
+        with:
+          path: binaries
+          pattern: ktav-lsp-*
+          merge-multiple: false
+
+      # Place binaries in bin/<platform>-<arch>/
+      - name: Organize binaries
+        shell: bash
+        run: |
+          mkdir -p ../vscode/bin/{linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64,win32-arm64}
+          [ -d "binaries/ktav-lsp-linux-amd64" ] && cp binaries/ktav-lsp-linux-amd64/ktav-lsp ../vscode/bin/linux-x64/
+          [ -d "binaries/ktav-lsp-linux-arm64" ] && cp binaries/ktav-lsp-linux-arm64/ktav-lsp ../vscode/bin/linux-arm64/
+          [ -d "binaries/ktav-lsp-darwin-amd64" ] && cp binaries/ktav-lsp-darwin-amd64/ktav-lsp ../vscode/bin/darwin-x64/
+          [ -d "binaries/ktav-lsp-darwin-arm64" ] && cp binaries/ktav-lsp-darwin-arm64/ktav-lsp ../vscode/bin/darwin-arm64/
+          [ -d "binaries/ktav-lsp-windows-amd64.exe" ] && cp binaries/ktav-lsp-windows-amd64.exe/ktav-lsp.exe ../vscode/bin/win32-x64/
+          [ -d "binaries/ktav-lsp-windows-arm64.exe" ] && cp binaries/ktav-lsp-windows-arm64.exe/ktav-lsp.exe ../vscode/bin/win32-arm64/
+          ls -lhR ../vscode/bin/
+
       - uses: actions/setup-node@v6
         with:
           node-version: "20"
@@ -220,11 +241,11 @@ jobs:
           if-no-files-found: error
 
   # ------------------------------------------------------------------
-  # intellij — Gradle build + JetBrains Marketplace publish.
+  # intellij — download binaries, Gradle build + JetBrains Marketplace publish.
   # ------------------------------------------------------------------
   intellij-publish:
     name: intellij / gradle publishPlugin
-    needs: verify-versions
+    needs: [verify-versions, lsp-binaries]
     runs-on: ubuntu-latest
     environment: intellij
     defaults:
@@ -234,6 +255,27 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.tag || github.ref }}
+
+      # Download all platform binaries from lsp-binaries artifacts
+      - uses: actions/download-artifact@v5
+        with:
+          path: binaries
+          pattern: ktav-lsp-*
+          merge-multiple: false
+
+      # Place binaries in bin/<platform>-<arch>/
+      - name: Organize binaries
+        shell: bash
+        run: |
+          mkdir -p ../intellij/bin/{linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64,win32-arm64}
+          [ -d "binaries/ktav-lsp-linux-amd64" ] && cp binaries/ktav-lsp-linux-amd64/ktav-lsp ../intellij/bin/linux-x64/
+          [ -d "binaries/ktav-lsp-linux-arm64" ] && cp binaries/ktav-lsp-linux-arm64/ktav-lsp ../intellij/bin/linux-arm64/
+          [ -d "binaries/ktav-lsp-darwin-amd64" ] && cp binaries/ktav-lsp-darwin-amd64/ktav-lsp ../intellij/bin/darwin-x64/
+          [ -d "binaries/ktav-lsp-darwin-arm64" ] && cp binaries/ktav-lsp-darwin-arm64/ktav-lsp ../intellij/bin/darwin-arm64/
+          [ -d "binaries/ktav-lsp-windows-amd64.exe" ] && cp binaries/ktav-lsp-windows-amd64.exe/ktav-lsp.exe ../intellij/bin/win32-x64/
+          [ -d "binaries/ktav-lsp-windows-arm64.exe" ] && cp binaries/ktav-lsp-windows-arm64.exe/ktav-lsp.exe ../intellij/bin/win32-arm64/
+          ls -lhR ../intellij/bin/
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin

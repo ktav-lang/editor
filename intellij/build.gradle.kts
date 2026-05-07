@@ -138,6 +138,9 @@ tasks.named("compileKotlin") {
     dependsOn(syncGrammars)
 }
 
+// Include bin/ directory (with pre-built LSP binaries) in the plugin distribution
+sourceSets["main"].resources.srcDir(layout.projectDirectory.dir("bin"))
+
 tasks {
     wrapper {
         gradleVersion = "8.10"

@@ -15,15 +15,5 @@ out/test/**
 # ---------------------------------------------------------------------------
 # Per-platform native binaries
 # ---------------------------------------------------------------------------
-# At publish time the release workflow places `ktav-lsp[.exe]` under
-#   bin/<platform>-<arch>/   (e.g. bin/win32-x64/ktav-lsp.exe)
-# and packages a per-target VSIX via:
-#   vsce package --target <platform>-<arch>
-# Each per-target VSIX should ship ONLY the matching subdirectory of bin/,
-# not all of them — otherwise every platform's VSIX bundles every binary.
-#
-# The actual filtering is done by the workflow (a `--target`-aware
-# generator overrides this file); for local `vsce package` runs we exclude
-# bin/ wholesale by default so a stray `bin/` folder never sneaks into a
-# universal VSIX.
-bin/**
+# Include all per-platform native binaries in the VSIX
+# (vscode-languageclient will select the right one at runtime via discovery.ts)
