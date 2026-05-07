@@ -22,6 +22,7 @@ class KtavLexer : LexerBase() {
         myState = initialState
         myTokenStart = startOffset
         myTokenEnd = startOffset
+        advance() // Prepare the first token
     }
 
     override fun getState() = myState

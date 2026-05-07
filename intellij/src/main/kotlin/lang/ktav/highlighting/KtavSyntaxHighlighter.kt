@@ -19,6 +19,11 @@ import lang.ktav.highlighting.KtavTokenTypes as Tokens
  */
 class KtavSyntaxHighlighter : SyntaxHighlighter {
     companion object {
+        private val log = com.intellij.openapi.diagnostic.Logger.getInstance(KtavSyntaxHighlighter::class.java)
+
+        init {
+            log.info("KtavSyntaxHighlighter initialized")
+        }
         // Color keys
         private val KEY_ATTR = TextAttributesKey.createTextAttributesKey(
             "KTAV_KEY",
@@ -91,10 +96,17 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
 
     private val lexer = KtavLexer()
 
-    override fun getHighlightingLexer(): Lexer = lexer
+    override fun getHighlightingLexer(): Lexer {
+        log.info("KtavSyntaxHighlighter.getHighlightingLexer() called")
+        return lexer
+    }
 
     override fun getTokenHighlights(tokenType: IElementType?): Array<TextAttributesKey> {
-        return ATTRIBUTES[tokenType] ?: EMPTY_ATTRS
+        val attrs = ATTRIBUTES[tokenType] ?: EMPTY_ATTRS
+        if (tokenType != null) {
+            log.debug("KtavSyntaxHighlighter.getTokenHighlights($tokenType) -> ${attrs.size} attributes")
+        }
+        return attrs
     }
 }
 
@@ -102,7 +114,23 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
  * Factory for creating KtavSyntaxHighlighter instances.
  */
 class KtavSyntaxHighlighterFactory : SyntaxHighlighterFactory() {
+    companion object {
+        private val log = com.intellij.openapi.diagnostic.Logger.getInstance(KtavSyntaxHighlighterFactory::class.java)
+
+        init {
+            println(">>> KtavSyntaxHighlighterFactory class loaded!")
+            log.info("KtavSyntaxHighlighterFactory initialized")
+        }
+    }
+
+    init {
+        println(">>> KtavSyntaxHighlighterFactory instance created!")
+    }
+
     override fun getSyntaxHighlighter(project: Project?, virtualFile: VirtualFile?): SyntaxHighlighter {
+        val msg = "KtavSyntaxHighlighterFactory.getSyntaxHighlighter() for: ${virtualFile?.path}"
+        println(">>> $msg")
+        log.info(msg)
         return KtavSyntaxHighlighter()
     }
 }
