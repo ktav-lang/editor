@@ -67,16 +67,22 @@ intellijPlatform {
         name = "Ktav"
         version = project.version.toString()
         ideaVersion {
-            // Support IntelliJ/JetBrains IDEs from 2023.2 (build 232) forward.
+            // Support IntelliJ/JetBrains IDEs from 2021.1 (build 211) forward.
             // This includes: IntelliJ IDEA, WebStorm, PyCharm, PhpStorm, RubyMine,
             // CLion, GoLand, RustRover, Rider, and all other platform-based IDEs
-            // from 2023.2 through 2025.x (251+).
+            // from 2021.1 through 2025.x (251+).
+            //
+            // Note on dynamic plugin loading (unload without IDE restart):
+            // - Supported in 2023.2+ (build 232)
+            // - For 2021.1-2023.1, plugins require IDE restart to unload
+            // - This is an IDE limitation, not a plugin limitation
+            //
             // No upper bound — rely on `pluginVerifier` (run in CI) to catch
             // breakage on newer builds instead of pinning to a version that
             // blocks newer IDEs.
-            sinceBuild = "232"
+            sinceBuild = "211"
             // Explicitly set empty until-build to prevent gradle-intellij-platform
-            // from auto-adding "232.*" constraint
+            // from auto-adding "211.*" constraint
             untilBuild = ""
         }
         description = """
