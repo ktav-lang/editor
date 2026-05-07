@@ -15,6 +15,12 @@ import javax.swing.Icon
  *       generic-text-file icon.
  */
 object KtavFileType : LanguageFileType(KtavLanguage) {
+    init {
+        com.intellij.openapi.diagnostic.Logger.getInstance(KtavFileType::class.java)
+            .info("[Ktav FileType] KtavFileType object created (extension='ktav')")
+        println(">>> [Ktav FileType] KtavFileType object created")
+    }
+
     override fun getName(): String = "Ktav"
     override fun getDescription(): String = "Ktav configuration file"
     override fun getDefaultExtension(): String = "ktav"

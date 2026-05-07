@@ -26,7 +26,7 @@ class DiagnosticsHolder {
 
     fun setDiagnostics(fileUri: String, diags: List<LspDiagnostic>) {
         diagnostics[fileUri] = diags
-        log.debug("Stored ${diags.size} diagnostics for $fileUri")
+        log.info("[Ktav Diagnostics] Stored ${diags.size} diagnostics for $fileUri")
     }
 
     fun getDiagnostics(fileUri: String): List<LspDiagnostic> =
@@ -37,37 +37,57 @@ class DiagnosticsHolder {
     }
 
     companion object {
+        private val companionLog = Logger.getInstance(DiagnosticsHolder::class.java)
+
         fun getInstance(): DiagnosticsHolder =
             ApplicationManager.getApplication().getService(DiagnosticsHolder::class.java)
 
         /**
          * Parse LSP publishDiagnostics params and store them.
-         * params = { uri: string, diagnostics: Diagnostic[] }
          */
         fun handlePublishDiagnostics(params: JsonElement?) {
-            if (params == null || !params.isJsonObject) return
+            companionLog.info("[Ktav Diagnostics] handlePublishDiagnostics called: $params")
+            if (params == null || !params.isJsonObject) {
+                companionLog.warn("[Ktav Diagnostics] params is null or not object")
+                return
+            }
             val obj = params.asJsonObject
-            val uri = obj.get("uri")?.asString ?: return
-            val diagsArray = obj.getAsJsonArray("diagnostics") ?: return
+            val uri = obj.get("uri")?.asString
+            if (uri == null) {
+                companionLog.warn("[Ktav Diagnostics] uri missing in params")
+                return
+            }
+            val diagsArray = obj.getAsJsonArray("diagnostics")
+            if (diagsArray == null) {
+                companionLog.warn("[Ktav Diagnostics] diagnostics array missing")
+                return
+            }
+            companionLog.info("[Ktav Diagnostics] uri=$uri, count=${diagsArray.size()}")
 
             val diagnostics = mutableListOf<LspDiagnostic>()
             for (elem in diagsArray) {
-                val d = elem.asJsonObject
-                val range = d.getAsJsonObject("range")
-                val start = range.getAsJsonObject("start")
-                val end = range.getAsJsonObject("end")
+                try {
+                    val d = elem.asJsonObject
+                    val range = d.getAsJsonObject("range")
+                    val start = range.getAsJsonObject("start")
+                    val end = range.getAsJsonObject("end")
 
-                diagnostics.add(LspDiagnostic(
-                    range = LspRange(
-                        startLine = start.get("line").asInt,
-                        startChar = start.get("character").asInt,
-                        endLine = end.get("line").asInt,
-                        endChar = end.get("character").asInt
-                    ),
-                    message = d.get("message")?.asString ?: "",
-                    severity = d.get("severity")?.asInt,
-                    code = d.get("code")?.asString
-                ))
+                    val diag = LspDiagnostic(
+                        range = LspRange(
+                            startLine = start.get("line").asInt,
+                            startChar = start.get("character").asInt,
+                            endLine = end.get("line").asInt,
+                            endChar = end.get("character").asInt
+                        ),
+                        message = d.get("message")?.asString ?: "",
+                        severity = d.get("severity")?.asInt,
+                        code = d.get("code")?.asString
+                    )
+                    diagnostics.add(diag)
+                    companionLog.info("[Ktav Diagnostics]   - ${diag.severity}/${diag.code}: ${diag.message} @${diag.range}")
+                } catch (ex: Exception) {
+                    companionLog.warn("[Ktav Diagnostics] Failed to parse diagnostic: $elem", ex)
+                }
             }
 
             getInstance().setDiagnostics(uri, diagnostics)
@@ -97,12 +117,17 @@ class KtavDiagnosticsAnnotator : ExternalAnnotator<PsiFile, List<LspDiagnostic>>
 
     private val log = Logger.getInstance(KtavDiagnosticsAnnotator::class.java)
 
-    override fun collectInformation(file: PsiFile): PsiFile = file
+    override fun collectInformation(file: PsiFile): PsiFile {
+        log.debug("[Ktav Annotator] collectInformation: ${file.virtualFile?.url}")
+        return file
+    }
 
     override fun doAnnotate(collectedInfo: PsiFile?): List<LspDiagnostic> {
         if (collectedInfo == null) return emptyList()
         val file = collectedInfo.virtualFile ?: return emptyList()
-        return DiagnosticsHolder.getInstance().getDiagnostics(file.url)
+        val diags = DiagnosticsHolder.getInstance().getDiagnostics(file.url)
+        log.info("[Ktav Annotator] doAnnotate: ${file.url} → ${diags.size} diagnostics")
+        return diags
     }
 
     override fun apply(
@@ -110,6 +135,7 @@ class KtavDiagnosticsAnnotator : ExternalAnnotator<PsiFile, List<LspDiagnostic>>
         diagnostics: List<LspDiagnostic>,
         holder: AnnotationHolder
     ) {
+        log.info("[Ktav Annotator] apply: ${file.virtualFile?.url} with ${diagnostics.size} diagnostics")
         val virtualFile = file.virtualFile ?: return
         val document = FileDocumentManager.getInstance().getDocument(virtualFile) ?: return
 

@@ -32,6 +32,12 @@ import com.intellij.lang.Language
  * the README for the exact steps.
  */
 object KtavLanguage : Language("ktav") {
+    init {
+        com.intellij.openapi.diagnostic.Logger.getInstance(KtavLanguage::class.java)
+            .info("[Ktav Language] KtavLanguage object created (id='ktav')")
+        println(">>> [Ktav Language] KtavLanguage object created")
+    }
+
     override fun getDisplayName(): String = "Ktav"
     override fun isCaseSensitive(): Boolean = true
 }

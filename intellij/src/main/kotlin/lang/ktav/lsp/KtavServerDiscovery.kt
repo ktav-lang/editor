@@ -10,17 +10,10 @@ import java.nio.file.Path
 /**
  * Resolves the command line used to launch the `ktav-lsp` server.
  *
- * Discovery order (mirrors the VS Code extension):
- *   1. Explicit override from [KtavSettings] (`serverPath`), if non-blank
- *      and the file exists on disk.
- *   2. Bundled binary inside the plugin distribution under
- *      `bin/<platform>-<arch>/ktav-lsp[.exe]`.
- *   3. Bare `ktav-lsp` — let the OS locate it via PATH / `cargo install`.
- *
- * Returns a list suitable for `ProcessBuilder` / LSP4IJ's
- * `setCommands(...)`. Never returns null: case 3 is the always-present
- * fallback. Whether the resulting command actually launches is checked
- * by the caller.
+ * Discovery order:
+ *   1. Explicit override from [KtavSettings] (`serverPath`).
+ *   2. Bundled binary inside the plugin distribution.
+ *   3. Bare `ktav-lsp` — let the OS locate it via PATH.
  */
 object KtavServerDiscovery {
 
@@ -29,65 +22,96 @@ object KtavServerDiscovery {
     private const val PLUGIN_ID = "lang.ktav"
     private const val BINARY_BASENAME = "ktav-lsp"
 
-    fun resolve(): List<String> = resolveWith { KtavSettings.getInstance().state.serverPath }
+    fun resolve(): List<String> {
+        log.info("[Ktav Discovery] Starting binary resolution")
+        return resolveWith { KtavSettings.getInstance().state.serverPath }
+    }
 
-    /**
-     * Test-friendly variant: the caller supplies the configured path
-     * lookup, so unit tests can drive discovery without bootstrapping
-     * the IntelliJ application service container.
-     */
     internal fun resolveWith(serverPathSupplier: () -> String): List<String> {
-        configuredPath(serverPathSupplier())?.let { return listOf(it.toString()) }
-        bundledPath()?.let { return listOf(it.toString()) }
+        val configured = serverPathSupplier()
+        log.info("[Ktav Discovery] Configured path from settings: '$configured'")
+
+        configuredPath(configured)?.let {
+            log.info("[Ktav Discovery] Using configured path: $it")
+            return listOf(it.toString())
+        }
+
+        bundledPath()?.let {
+            log.info("[Ktav Discovery] Using bundled path: $it")
+            return listOf(it.toString())
+        }
+
+        log.warn("[Ktav Discovery] No bundled binary found, falling back to PATH lookup: '$BINARY_BASENAME'")
         return listOf(BINARY_BASENAME)
     }
 
     private fun configuredPath(raw: String): Path? {
         val trimmed = raw.trim()
-        if (trimmed.isEmpty()) return null
-        val p = runCatching { Path.of(trimmed) }.getOrNull() ?: return null
-        return if (Files.isRegularFile(p)) p else null
+        if (trimmed.isEmpty()) {
+            log.info("[Ktav Discovery] No configured path set")
+            return null
+        }
+        val p = runCatching { Path.of(trimmed) }.getOrNull() ?: run {
+            log.warn("[Ktav Discovery] Configured path invalid: '$trimmed'")
+            return null
+        }
+        return if (Files.isRegularFile(p)) {
+            log.info("[Ktav Discovery] Configured path is valid file: $p")
+            p
+        } else {
+            log.warn("[Ktav Discovery] Configured path is not a regular file: $p")
+            null
+        }
     }
 
     private fun bundledPath(): Path? {
+        log.info("[Ktav Discovery] Looking for plugin: $PLUGIN_ID")
+
         val plugin = runCatching {
             PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))
-        }.getOrNull() ?: return null
-        val root = plugin.pluginPath ?: return null
-        val triple = platformTriple(SystemInfo.OS_NAME, SystemInfo.OS_ARCH) ?: return null
+        }.getOrNull()
+
+        if (plugin == null) {
+            log.warn("[Ktav Discovery] Plugin not found via PluginManagerCore")
+            return null
+        }
+
+        val root = plugin.pluginPath
+        if (root == null) {
+            log.warn("[Ktav Discovery] Plugin has no pluginPath")
+            return null
+        }
+        log.info("[Ktav Discovery] Plugin root: $root")
+
+        val osName = SystemInfo.OS_NAME
+        val osArch = SystemInfo.OS_ARCH
+        log.info("[Ktav Discovery] OS_NAME='$osName', OS_ARCH='$osArch'")
+
+        val triple = platformTriple(osName, osArch)
+        if (triple == null) {
+            log.warn("[Ktav Discovery] Unsupported platform: $osName/$osArch")
+            return null
+        }
+        log.info("[Ktav Discovery] Platform triple: $triple")
+
         val name = BINARY_BASENAME + exeSuffix()
+        log.info("[Ktav Discovery] Binary name: $name")
+
         val candidates = listOf(
             root.resolve("bin").resolve(triple).resolve(name),
             root.resolve("lib").resolve("bin").resolve(triple).resolve(name),
         )
-        return candidates.firstOrNull { Files.isRegularFile(it) }.also {
-            if (it == null) {
-                log.debug("Ktav: no bundled ktav-lsp binary at ${candidates.joinToString()}")
-            }
+
+        for (c in candidates) {
+            val exists = Files.isRegularFile(c)
+            log.info("[Ktav Discovery] Candidate: $c → exists=$exists")
+            if (exists) return c
         }
+
+        log.warn("[Ktav Discovery] No bundled binary at any candidate path")
+        return null
     }
 
-    /**
-     * Compute a `linux-x64` / `darwin-arm64` / `win32-x64` style triple from
-     * raw `os.name` / `os.arch` JVM property values.
-     *
-     * Pure function — no `SystemInfo` access — so it can be unit-tested
-     * outside an IntelliJ sandbox. The mapping mirrors the VS Code
-     * extension's `process.platform` + `process.arch` directory naming so
-     * that a single bundled-binary tree (`bin/<triple>/`) serves both
-     * editors.
-     *
-     * OS detection is substring-based and case-insensitive (matches
-     * `SystemInfo` behaviour): any name containing `windows` → `win32`,
-     * `mac`/`darwin` → `darwin`, `linux` → `linux`. Anything else → `null`
-     * (we do not silently treat e.g. FreeBSD as Linux — better to fall
-     * through to PATH lookup than launch a binary built for a different
-     * libc).
-     *
-     * Arch detection accepts the common JVM spellings: `amd64`/`x86_64` →
-     * `x64`, `aarch64`/`arm64` → `arm64`. Anything else (`i386`, `ppc64`,
-     * `riscv64`, ...) → `null`.
-     */
     internal fun platformTriple(osName: String, osArch: String): String? {
         val osLower = osName.lowercase()
         val os = when {

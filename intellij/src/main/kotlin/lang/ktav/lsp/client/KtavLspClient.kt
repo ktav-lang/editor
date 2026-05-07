@@ -2,7 +2,6 @@ package lang.ktav.lsp.client
 
 import com.google.gson.JsonObject
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.util.SystemInfo
 import java.io.File
 import java.util.concurrent.CompletableFuture
 
@@ -23,7 +22,8 @@ class KtavLspClient(
 
     private val log = Logger.getInstance(KtavLspClient::class.java)
     private var transport: LspTransport? = null
-    private var isInitialized = false
+    @Volatile private var isInitialized = false
+    private var process: Process? = null
 
     /**
      * Start the LSP server process and send initialize request.
@@ -31,25 +31,36 @@ class KtavLspClient(
     fun initialize(): CompletableFuture<Void> {
         return CompletableFuture.runAsync {
             try {
+                log.info("[Ktav LSP Client] Starting process: $serverCommand")
+                log.info("[Ktav LSP Client] Working directory: $workspaceRoot")
+
                 // Start process
                 val processBuilder = ProcessBuilder(serverCommand)
                     .redirectErrorStream(false)
                     .directory(File(workspaceRoot))
-                val process = processBuilder.start()
+                process = processBuilder.start()
+
+                log.info("[Ktav LSP Client] Process started, PID=${process?.pid()}")
 
                 // Create transport
-                transport = LspTransport(process) { notification ->
-                    handleNotification(notification)
-                }
+                transport = LspTransport(
+                    process = process!!,
+                    onNotification = { notification ->
+                        handleNotification(notification)
+                    }
+                )
+                log.info("[Ktav LSP Client] Transport created, sending initialize request")
 
                 // Send initialize request
                 val initParams = createInitializeParams()
+                log.info("[Ktav LSP Client] Initialize params: $initParams")
+
                 val response = transport!!.sendRequest("initialize", initParams).get()
 
-                log.info("LSP server initialized: $response")
+                log.info("[Ktav LSP Client] Initialize response received: $response")
                 isInitialized = true
             } catch (ex: Exception) {
-                log.error("Failed to initialize LSP client", ex)
+                log.error("[Ktav LSP Client] Failed to initialize", ex)
                 throw ex
             }
         }
@@ -60,8 +71,10 @@ class KtavLspClient(
      */
     fun notifyInitialized() {
         if (isInitialized) {
-            transport?.sendNotification("initialized", null)
-            log.info("Sent initialized notification")
+            log.info("[Ktav LSP Client] Sending 'initialized' notification")
+            transport?.sendNotification("initialized", JsonObject())
+        } else {
+            log.warn("[Ktav LSP Client] Cannot send 'initialized': not initialized yet")
         }
     }
 
@@ -69,6 +82,11 @@ class KtavLspClient(
      * Notify server about opened document.
      */
     fun didOpen(uri: String, languageId: String, version: Int, text: String) {
+        if (!isInitialized) {
+            log.warn("[Ktav LSP Client] didOpen ignored: not initialized")
+            return
+        }
+        log.info("[Ktav LSP Client] didOpen: uri=$uri, version=$version, textLength=${text.length}")
         val params = JsonObject().apply {
             val textDocument = JsonObject().apply {
                 addProperty("uri", uri)
@@ -85,6 +103,11 @@ class KtavLspClient(
      * Notify server about changed document (full sync).
      */
     fun didChange(uri: String, version: Int, text: String) {
+        if (!isInitialized) {
+            log.warn("[Ktav LSP Client] didChange ignored: not initialized")
+            return
+        }
+        log.debug("[Ktav LSP Client] didChange: uri=$uri, version=$version, textLength=${text.length}")
         val params = JsonObject().apply {
             val textDocument = JsonObject().apply {
                 addProperty("uri", uri)
@@ -106,6 +129,11 @@ class KtavLspClient(
      * Notify server about closed document.
      */
     fun didClose(uri: String) {
+        if (!isInitialized) {
+            log.warn("[Ktav LSP Client] didClose ignored: not initialized")
+            return
+        }
+        log.info("[Ktav LSP Client] didClose: uri=$uri")
         val params = JsonObject().apply {
             val textDocument = JsonObject().apply {
                 addProperty("uri", uri)
@@ -120,40 +148,51 @@ class KtavLspClient(
      */
     override fun close() {
         try {
+            log.info("[Ktav LSP Client] Closing client")
             if (isInitialized) {
-                transport?.sendRequest("shutdown", null)?.get()
-                transport?.sendNotification("exit", null)
-                log.info("LSP client shutdown")
+                try {
+                    transport?.sendRequest("shutdown", null)?.get(2, java.util.concurrent.TimeUnit.SECONDS)
+                } catch (ex: Exception) {
+                    log.warn("[Ktav LSP Client] shutdown request failed: ${ex.message}")
+                }
+                try {
+                    transport?.sendNotification("exit", null)
+                } catch (ex: Exception) {
+                    log.warn("[Ktav LSP Client] exit notification failed: ${ex.message}")
+                }
             }
             transport?.close()
             isInitialized = false
+            log.info("[Ktav LSP Client] Closed successfully")
         } catch (ex: Exception) {
-            log.error("Error closing LSP client", ex)
+            log.error("[Ktav LSP Client] Error during close", ex)
         }
     }
 
     private fun handleNotification(msg: LspIncomingMessage.Notification) {
+        log.debug("[Ktav LSP Client] Received notification: ${msg.method}")
         when (msg.method) {
             "textDocument/publishDiagnostics" -> {
-                log.debug("Received publishDiagnostics")
+                log.info("[Ktav LSP Client] publishDiagnostics received: ${msg.params}")
                 try {
                     onDiagnostics(msg.params)
                     onPostDiagnostics()
                 } catch (ex: Exception) {
-                    log.warn("Failed to handle publishDiagnostics", ex)
+                    log.warn("[Ktav LSP Client] Failed to handle publishDiagnostics", ex)
                 }
             }
             "window/logMessage" -> {
                 val params = msg.params?.asJsonObject ?: return
                 val message = params.get("message")?.asString ?: return
-                log.info("LSP server: $message")
+                val type = params.get("type")?.asInt ?: 4
+                log.info("[Ktav LSP Server log type=$type]: $message")
             }
             "window/showMessage" -> {
                 val params = msg.params?.asJsonObject ?: return
                 val message = params.get("message")?.asString ?: return
-                log.info("LSP server message: $message")
+                log.info("[Ktav LSP Server message]: $message")
             }
-            else -> log.debug("Unhandled notification: ${msg.method}")
+            else -> log.info("[Ktav LSP Client] Unhandled notification: ${msg.method}")
         }
     }
 
@@ -166,19 +205,19 @@ class KtavLspClient(
             addProperty("rootUri", rootUri)
 
             val capabilities = JsonObject().apply {
-                // Text document sync capabilities
                 add("textDocument", JsonObject().apply {
                     add("synchronization", JsonObject().apply {
                         addProperty("didSave", true)
+                        addProperty("dynamicRegistration", false)
+                    })
+                    add("publishDiagnostics", JsonObject().apply {
+                        addProperty("relatedInformation", true)
                     })
                 })
             }
             add("capabilities", capabilities)
 
-            val initOptions = JsonObject().apply {
-                // Any ktav-specific options here
-            }
-            add("initializationOptions", initOptions)
+            add("initializationOptions", JsonObject())
         }
     }
 }
