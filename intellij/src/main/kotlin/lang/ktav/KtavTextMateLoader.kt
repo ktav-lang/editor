@@ -52,22 +52,26 @@ class KtavTextMateLoader : AppLifecycleListener, ProjectManagerListener {
             return
         }
 
-        val bundlePath = resolveBundlePath()
-        if (bundlePath == null) {
-            log.warn("Ktav: could not locate plugin bundle directory; TextMate auto-registration skipped.")
-            return
+        // Try file-system path first (for dev/unpacked mode)
+        val bundlePathFs = resolveBundlePath()
+        if (bundlePathFs != null) {
+            log.info("Ktav: attempting to register TextMate bundle at $bundlePathFs")
+            val ok = tryRegisterBundle(bundlePathFs)
+            if (ok) {
+                log.info("✓ Ktav TextMate bundle registered successfully (file-system mode)")
+                return
+            }
         }
 
-        log.info("Ktav: attempting to register TextMate bundle at $bundlePath")
-        val ok = tryRegisterBundle(bundlePath)
+        // Fallback: extract from JAR and register
+        log.info("Ktav: file-system bundle not found; attempting JAR extraction mode")
+        val ok = tryRegisterBundleFromJar()
         if (ok) {
-            log.info("✓ Ktav TextMate bundle registered successfully")
+            log.info("✓ Ktav TextMate bundle registered successfully (JAR mode)")
         } else {
             log.warn(
-                "⚠ Ktav: TextMate auto-registration failed (platform API not " +
-                    "found via reflection). Users can still add the bundle " +
-                    "manually via Settings -> Editor -> TextMate Bundles, " +
-                    "pointing at: $bundlePath",
+                "⚠ Ktav: TextMate auto-registration failed. Users can add the bundle " +
+                    "manually via Settings → Editor → TextMate Bundles",
             )
         }
     }
@@ -84,6 +88,73 @@ class KtavTextMateLoader : AppLifecycleListener, ProjectManagerListener {
             root.resolve("classes").resolve("grammars").resolve("ktav"),
         )
         return candidates.firstOrNull { Files.isDirectory(it) }
+    }
+
+    /**
+     * Extract TextMate bundle from plugin JAR and register it.
+     * This works for packaged plugins where resources are inside JAR files.
+     */
+    private fun tryRegisterBundleFromJar(): Boolean {
+        return try {
+            val plugin = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID)) ?: return false
+            val root = plugin.pluginPath ?: return false
+
+            // Look for JAR file in lib/ (standard plugin layout)
+            val libDir = root.resolve("lib")
+            if (!Files.isDirectory(libDir)) {
+                log.info("Ktav: lib/ directory not found at $libDir")
+                return false
+            }
+
+            val jarFile = Files.list(libDir).use { stream ->
+                stream.filter { it.fileName.toString().startsWith("ktav-intellij") && it.fileName.toString().endsWith(".jar") }
+                    .findFirst()
+                    .orElse(null)
+            }
+
+            if (jarFile == null) {
+                log.warn("Ktav: No ktav-intellij jar found in $libDir")
+                return false
+            }
+
+            log.info("Ktav: found plugin JAR at $jarFile")
+
+            // Register JAR path as TextMate bundle
+            val cl = KtavTextMateLoader::class.java.classLoader
+            val serviceCls = runCatching {
+                Class.forName("org.jetbrains.plugins.textmate.TextMateService", true, cl)
+            }.getOrNull() ?: return false
+
+            val getInstance = serviceCls.getMethod("getInstance")
+            val service = getInstance.invoke(null) ?: return false
+
+            val method = serviceCls.methods.firstOrNull {
+                it.name == "registerEnabledBundle" && it.parameterCount in 1..2
+            } ?: return false
+
+            // Try to register the JAR file directly
+            val bundleTypeCls = runCatching {
+                Class.forName("org.jetbrains.plugins.textmate.bundles.BundleType", true, cl)
+            }.getOrNull()
+
+            val args: Array<Any?> = when (method.parameterCount) {
+                1 -> arrayOf(jarFile)
+                2 -> {
+                    val second = bundleTypeCls?.let { runCatching {
+                        @Suppress("UNCHECKED_CAST")
+                        java.lang.Enum.valueOf(it as Class<out Enum<*>>, "TextMate")
+                    }.getOrNull() }
+                    arrayOf(jarFile, second)
+                }
+                else -> return false
+            }
+
+            method.invoke(service, *args)
+            true
+        } catch (t: Throwable) {
+            log.warn("Ktav: TextMate JAR-based registration failed", t)
+            false
+        }
     }
 
     /**
