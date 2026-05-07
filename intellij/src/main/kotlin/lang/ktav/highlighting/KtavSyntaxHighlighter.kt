@@ -25,8 +25,12 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
             log.info("KtavSyntaxHighlighter initialized")
         }
         // Keys / metadata
+        // STATIC_FIELD chosen over INSTANCE_FIELD — the default Dark+ scheme
+        // colors INSTANCE_FIELD as plain dim text, while STATIC_FIELD comes
+        // through as yellow/italic, matching the VS Code "entity.name.tag"
+        // tone for Ktav keys.
         private val KEY_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_KEY", DefaultLanguageHighlighterColors.INSTANCE_FIELD
+            "KTAV_KEY", DefaultLanguageHighlighterColors.STATIC_FIELD
         )
         private val KEY_DOT_ATTR = TextAttributesKey.createTextAttributesKey(
             "KTAV_KEY_DOT", DefaultLanguageHighlighterColors.DOT
@@ -130,11 +134,7 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
     }
 
     override fun getTokenHighlights(tokenType: IElementType?): Array<TextAttributesKey> {
-        val attrs = ATTRIBUTES[tokenType] ?: EMPTY_ATTRS
-        if (tokenType != null) {
-            log.debug("KtavSyntaxHighlighter.getTokenHighlights($tokenType) -> ${attrs.size} attributes")
-        }
-        return attrs
+        return ATTRIBUTES[tokenType] ?: EMPTY_ATTRS
     }
 }
 

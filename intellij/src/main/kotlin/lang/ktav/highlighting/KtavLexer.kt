@@ -30,6 +30,8 @@ class KtavLexer : LexerBase() {
         private const val VALUE_INT = 3
         private const val VALUE_FLOAT = 4
         private const val VALUE_RAW = 5     // after `::` — literal text, no keyword recognition
+
+        private val log = com.intellij.openapi.diagnostic.Logger.getInstance(KtavLexer::class.java)
     }
 
     private var myBuffer: CharSequence = ""
@@ -61,8 +63,10 @@ class KtavLexer : LexerBase() {
             myTokenType = null
             return
         }
+        advanceImpl(myBuffer[myTokenStart])
+    }
 
-        val c = myBuffer[myTokenStart]
+    private fun advanceImpl(c: Char) {
 
         // Newlines reset state to LINE_START regardless of previous state.
         if (c == '\n') {
