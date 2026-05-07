@@ -26,9 +26,10 @@ class KtavLexer : LexerBase() {
     companion object {
         private const val LINE_START = 0
         private const val AFTER_KEY = 1
-        private const val VALUE_STRING = 2
+        private const val VALUE_STRING = 2  // after `:` — keywords (true/false/null) recognised
         private const val VALUE_INT = 3
         private const val VALUE_FLOAT = 4
+        private const val VALUE_RAW = 5     // after `::` — literal text, no keyword recognition
     }
 
     private var myBuffer: CharSequence = ""
@@ -80,7 +81,8 @@ class KtavLexer : LexerBase() {
         when (myState) {
             LINE_START -> scanLineStart(c)
             AFTER_KEY -> scanAfterKey(c)
-            VALUE_STRING -> scanValueString(c)
+            VALUE_STRING -> scanValueString(c, asRaw = false)
+            VALUE_RAW -> scanValueString(c, asRaw = true)
             VALUE_INT -> scanValueInt(c)
             VALUE_FLOAT -> scanValueFloat(c)
             else -> scanLineStart(c)
@@ -104,13 +106,34 @@ class KtavLexer : LexerBase() {
             '[' -> { myTokenEnd++; myTokenType = Tokens.LBRACKET; return }
             ']' -> { myTokenEnd++; myTokenType = Tokens.RBRACKET; return }
         }
-        // Identifier (key) — ASCII letters/digits/underscore.
+        // Closing of a multi-line value at line start: `)` / `))`.
+        if (c == ')') {
+            val isDouble = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == ')'
+            myTokenEnd = if (isDouble) myTokenStart + 2 else myTokenStart + 1
+            myTokenType = Tokens.MULTILINE_CLOSE
+            return
+        }
+        // Array item starting with a marker — `::`, `:i`, `:f`, `:` —
+        // interpret right here so the value gets its own colour. (Kept
+        // separate from `AFTER_KEY` because there's no key on this line.)
+        if (c == ':') {
+            scanColonMarker()
+            return
+        }
+        // Identifier — letters/digits/underscore. In top-level / object
+        // context this is a key; in array context it's a string-like
+        // value. The lexer can't tell without nesting tracking, so we
+        // emit KEY: in arrays it shows ident-tone too, but values stay
+        // distinct from numeric/typed siblings.
         if (c.isLetter() || c == '_' || c.isDigit() || c == '-') {
             scanIdentifier(asKey = true)
             myState = AFTER_KEY
             return
         }
-        // Anything else at line start → bad char (unexpected)
+        // Multi-line text content (no leading `:` marker — appears between
+        // `(` and `)` lines). We just paint it as plain string content;
+        // the editor opens a new line which goes back to LINE_START.
+        // Anything else → bad char.
         myTokenEnd++
         myTokenType = Tokens.BAD_CHARACTER
     }
@@ -141,7 +164,7 @@ class KtavLexer : LexerBase() {
         if (rem >= 2 && myBuffer[start + 1] == ':') {
             myTokenEnd = start + 2
             myTokenType = Tokens.DOUBLE_COLON
-            myState = VALUE_STRING
+            myState = VALUE_RAW  // `::` — literal string, no keyword recognition
         } else if (rem >= 2 && myBuffer[start + 1] == 'i'
             && (rem == 2 || isMarkerBoundary(myBuffer[start + 2]))) {
             myTokenEnd = start + 2
@@ -159,26 +182,27 @@ class KtavLexer : LexerBase() {
         }
     }
 
-    private fun scanValueString(c: Char) {
+    private fun scanValueString(c: Char, asRaw: Boolean) {
         if (c == ' ' || c == '\t') {
             scanHorizWhitespace()
             return
         }
-        // Compound openers on value line — let parent state machine handle
-        // `{` `[` `(` (multi-line). Here we just pass them as structural.
-        when (c) {
-            '{' -> { myTokenEnd++; myTokenType = Tokens.LBRACE; return }
-            '[' -> { myTokenEnd++; myTokenType = Tokens.LBRACKET; return }
-            '(' -> {
-                // Multi-line open: `(` or `((`
-                val isDouble = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == '('
-                myTokenEnd = if (isDouble) myTokenStart + 2 else myTokenStart + 1
-                myTokenType = Tokens.MULTILINE_OPEN
-                return
+        // Compound openers only meaningful for plain `:` values, not `::` raw.
+        if (!asRaw) {
+            when (c) {
+                '{' -> { myTokenEnd++; myTokenType = Tokens.LBRACE; return }
+                '[' -> { myTokenEnd++; myTokenType = Tokens.LBRACKET; return }
+                '(' -> {
+                    // Multi-line open: `(` or `((`
+                    val isDouble = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == '('
+                    myTokenEnd = if (isDouble) myTokenStart + 2 else myTokenStart + 1
+                    myTokenType = Tokens.MULTILINE_OPEN
+                    return
+                }
             }
         }
-        // Read string value to end of line (trim newlines via state reset).
-        scanToEndOfLine(asValue = true)
+        // Read value to end of line. Raw form (`::`) skips keyword recognition.
+        scanToEndOfLine(recogniseKeywords = !asRaw)
     }
 
     private fun scanValueInt(c: Char) {
@@ -238,14 +262,14 @@ class KtavLexer : LexerBase() {
         myTokenType = TokenType.WHITE_SPACE
     }
 
-    /** Read until end of line, classify as appropriate value token. */
-    private fun scanToEndOfLine(asValue: Boolean) {
+    /** Read until end of line. If [recogniseKeywords], `true`/`false`/`null` get keyword tokens. */
+    private fun scanToEndOfLine(recogniseKeywords: Boolean) {
         myTokenEnd = myTokenStart
         while (myTokenEnd < myBufferEnd && myBuffer[myTokenEnd] != '\n') {
             myTokenEnd++
         }
         val text = myBuffer.subSequence(myTokenStart, myTokenEnd).toString().trim()
-        myTokenType = if (asValue) {
+        myTokenType = if (recogniseKeywords) {
             when (text) {
                 "true", "false" -> Tokens.BOOLEAN
                 "null" -> Tokens.NULL

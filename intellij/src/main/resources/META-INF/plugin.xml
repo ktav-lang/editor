@@ -36,6 +36,9 @@
     <lang.parserDefinition
       language="ktav"
       implementationClass="lang.ktav.KtavParserDefinition" />
+    <lang.foldingBuilder
+      language="ktav"
+      implementationClass="lang.ktav.KtavFoldingBuilder" />
 
     <!-- Native IntelliJ syntax highlighter for Ktav.
          Always active, works on any IDE without external dependencies. -->

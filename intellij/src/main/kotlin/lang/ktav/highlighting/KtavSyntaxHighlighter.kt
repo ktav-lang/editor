@@ -49,8 +49,10 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
         private val INT_VALUE_ATTR = TextAttributesKey.createTextAttributesKey(
             "KTAV_INT_VALUE", DefaultLanguageHighlighterColors.NUMBER
         )
+        // CONSTANT colour for float — visually distinct from NUMBER
+        // (typical schemes give it a different hue: lighter / teal / italic).
         private val FLOAT_VALUE_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_FLOAT_VALUE", DefaultLanguageHighlighterColors.NUMBER
+            "KTAV_FLOAT_VALUE", DefaultLanguageHighlighterColors.CONSTANT
         )
         private val BOOLEAN_ATTR = TextAttributesKey.createTextAttributesKey(
             "KTAV_BOOLEAN", DefaultLanguageHighlighterColors.KEYWORD

@@ -148,7 +148,7 @@
     },
 
     "pair-float": {
-      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:f)(?=\\s|$)(?:\\s+([+-]?\\d+\\.\\d+(?:[eE][+-]?\\d+)?))?\\s*$",
+      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:f)(?=\\s|$)(?:\\s+([+-]?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?))?\\s*$",
       "captures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "keyword.operator.marker.float.ktav" },
@@ -355,7 +355,7 @@
     },
 
     "array-item-float": {
-      "match": "^(\\s*)(:f)(?=\\s|$)(?:\\s+([+-]?\\d+\\.\\d+(?:[eE][+-]?\\d+)?))?\\s*$",
+      "match": "^(\\s*)(:f)(?=\\s|$)(?:\\s+([+-]?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?))?\\s*$",
       "captures": {
         "2": { "name": "keyword.operator.marker.float.ktav" },
         "3": { "name": "constant.numeric.float.ktav" }
