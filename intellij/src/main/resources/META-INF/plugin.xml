@@ -73,20 +73,14 @@
     <externalAnnotator
       language="ktav"
       implementationClass="lang.ktav.lsp.KtavDiagnosticsAnnotator" />
-  </extensions>
 
-  <!-- Format action: replaces standard `Reformat Code` for .ktav files
-       (delegates to LSP textDocument/formatting → ktav::render). -->
-  <actions>
-    <action
-      id="lang.ktav.FormatDocument"
-      class="lang.ktav.lsp.KtavFormatAction"
-      text="Reformat Ktav File"
-      description="Reformat the current .ktav file via the language server">
-      <keyboard-shortcut keymap="$default" first-keystroke="control alt L" />
-      <add-to-group group-id="EditorPopupMenu" anchor="last" />
-    </action>
-  </actions>
+    <!-- Format service: hooks Ctrl+Alt+L (Reformat Code) into LSP
+         textDocument/formatting for .ktav files. AsyncDocumentFormattingService
+         is the standard extension point — it lets the platform's standard
+         action find our handler instead of falling back to the no-op default. -->
+    <formattingService
+      implementation="lang.ktav.lsp.KtavFormattingService" />
+  </extensions>
 
   <!-- File editor lifecycle listener: starts LSP client and syncs documents -->
   <projectListeners>
