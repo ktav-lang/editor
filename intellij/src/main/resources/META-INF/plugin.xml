@@ -39,6 +39,9 @@
     <lang.foldingBuilder
       language="ktav"
       implementationClass="lang.ktav.KtavFoldingBuilder" />
+    <lang.braceMatcher
+      language="ktav"
+      implementationClass="lang.ktav.KtavBraceMatcher" />
 
     <!-- Native IntelliJ syntax highlighter for Ktav.
          Always active, works on any IDE without external dependencies. -->
