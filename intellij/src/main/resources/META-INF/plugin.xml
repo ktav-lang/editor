@@ -33,6 +33,9 @@
     <lang.commenter
       language="ktav"
       implementationClass="lang.ktav.KtavCommenter" />
+    <lang.parserDefinition
+      language="ktav"
+      implementationClass="lang.ktav.KtavParserDefinition" />
 
     <!-- Native IntelliJ syntax highlighter for Ktav.
          Always active, works on any IDE without external dependencies. -->

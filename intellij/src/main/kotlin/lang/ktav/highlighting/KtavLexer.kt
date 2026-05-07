@@ -1,6 +1,7 @@
 package lang.ktav.highlighting
 
 import com.intellij.lexer.LexerBase
+import com.intellij.psi.TokenType
 import com.intellij.psi.tree.IElementType
 import lang.ktav.highlighting.KtavTokenTypes as Tokens
 
@@ -42,12 +43,12 @@ class KtavLexer : LexerBase() {
 
         val c = myBuffer[myTokenStart]
 
-        // Whitespace
+        // Whitespace (use platform standard so PsiBuilder recognises it)
         if (c.isWhitespace()) {
             while (myTokenEnd < myBufferEnd && myBuffer[myTokenEnd].isWhitespace()) {
                 myTokenEnd++
             }
-            myTokenType = Tokens.WHITESPACE
+            myTokenType = TokenType.WHITE_SPACE
             return
         }
 
@@ -107,10 +108,24 @@ class KtavLexer : LexerBase() {
             return
         }
 
-        // Keywords and identifiers
+        // Keywords and identifiers (with optional dotted segments: foo.bar.baz)
         if (c.isLetter() || c == '_') {
             scanIdentifierOrKeyword()
             return
+        }
+        // Dot at unexpected position — treat as identifier-extender if surrounded by ident chars,
+        // otherwise as bad char. Standalone dot is bad in Ktav.
+        if (c == '.') {
+            // Check if this is part of dotted key path: previous and next are ident chars
+            val prevOk = myTokenStart > 0 &&
+                (myBuffer[myTokenStart - 1].isLetterOrDigit() || myBuffer[myTokenStart - 1] == '_')
+            val nextOk = myTokenStart + 1 < myBufferEnd &&
+                (myBuffer[myTokenStart + 1].isLetter() || myBuffer[myTokenStart + 1] == '_')
+            if (prevOk && nextOk) {
+                myTokenEnd = myTokenStart + 1
+                myTokenType = Tokens.KEY
+                return
+            }
         }
 
         // Bad character
@@ -148,6 +163,9 @@ class KtavLexer : LexerBase() {
 
     private fun scanIdentifierOrKeyword() {
         myTokenEnd = myTokenStart
+        // Identifier characters: letter, digit, underscore. Dots are separate
+        // tokens and handled via advance() so we don't grab them here — but
+        // they bridge ident segments without becoming bad chars (see advance()).
         while (myTokenEnd < myBufferEnd && (myBuffer[myTokenEnd].isLetterOrDigit() || myBuffer[myTokenEnd] == '_')) {
             myTokenEnd++
         }
@@ -156,7 +174,7 @@ class KtavLexer : LexerBase() {
         myTokenType = when (text) {
             "true", "false" -> Tokens.BOOLEAN
             "null" -> Tokens.NULL
-            else -> Tokens.STRING
+            else -> Tokens.KEY  // identifier — most often a key name
         }
     }
 
