@@ -8,30 +8,34 @@
 ┌─────────────────────────────────────────────────────────┐
 │ Ktav IntelliJ Plugin v0.1.5                             │
 ├─────────────────────────────────────────────────────────┤
-│ ✅ LSP Semantic Token Highlighting                      │
-│    - Requires: LSP4IJ plugin + ktav-lsp binary          │
-│    - Exact same as VSCode (both use ktav-lsp)           │
-│    - Context-aware, accurate highlighting              │
+│ ✅ Native Syntax Highlighting                           │
+│    - Via KtavLexer + KtavSyntaxHighlighter              │
+│    - Works on any IDE without dependencies              │
+│    - Tokenizes: keywords, strings, numbers, etc.        │
 │                                                          │
 │ ✅ Comment Toggle (#)                                   │
-│    - Registered via lang.commenter                      │
 │    - Ctrl+/ to toggle # comments                        │
+│    - Works in all IDEs                                  │
 │                                                          │
 │ ✅ File Type Recognition (.ktav)                        │
-│    - Language: ktav                                     │
 │    - Automatic IDE support                              │
+│    - Language dropdown shows "Ktav"                      │
 │                                                          │
-│ ✅ Language Server Features (Optional)                  │
-│    - Diagnostics (error reporting)                      │
-│    - Hover information                                  │
-│    - Code completion                                    │
-│    - Go to definition                                   │
-│    - Discovery: lib/bin/{platform}/ or PATH             │
+│ ✅ Built-in LSP Client                                  │
+│    - NO external LSP4IJ dependency needed               │
+│    - Starts bundled ktav-lsp process                    │
+│    - JSON-RPC stdio transport                           │
+│    - Per-project lifecycle management                   │
 │                                                          │
-│ 📦 LSP Binary Packaging                                 │
-│    - Bundled: Windows x64 (win32-x64)                   │
+│ ✅ Live Diagnostics (MVP)                               │
+│    - Receives textDocument/publishDiagnostics           │
+│    - Shows errors/warnings in editor                    │
+│    - Syncs didOpen/didChange/didClose                   │
+│                                                          │
+│ 📦 Bundled ktav-lsp Binary                              │
+│    - Windows x64: win32-x64, x86_64-pc-windows-msvc    │
 │    - Fallback: ktav-lsp from system PATH                │
-│    - Install: cargo install ktav-lsp                    │
+│    - Unpacked during IDE startup                        │
 └─────────────────────────────────────────────────────────┘
 ```
 

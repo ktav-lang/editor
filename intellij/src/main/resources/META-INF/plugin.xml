@@ -28,11 +28,6 @@
   <depends>com.intellij.modules.platform</depends>
   <depends>org.jetbrains.plugins.textmate</depends>
 
-  <!-- Optional LSP integration: when LSP4IJ is installed, ktav-lsp4ij.xml
-       contributes the language-server factory and language mapping. When
-       it isn't, the plugin still works in TextMate-only mode. -->
-  <depends optional="true" config-file="ktav-lsp4ij.xml">com.redhat.devtools.lsp4ij</depends>
-
   <extensions defaultExtensionNs="com.intellij">
     <fileType
       name="Ktav"
@@ -44,14 +39,12 @@
       language="ktav"
       implementationClass="lang.ktav.KtavCommenter" />
 
-    <!-- Native IntelliJ syntax highlighter for Ktav (disabled when LSP is active).
-         LSP semantic tokens provide much more accurate highlighting via ktav-lsp server,
-         matching VSCode exactly. Native highlighter is kept as emergency fallback only. -->
-    <!-- Uncomment below to enable native lexer-based highlighting (lower quality):
+    <!-- Native IntelliJ syntax highlighter for Ktav.
+         Works on any IDE without external dependencies.
+         LSP4IJ can optionally provide semantic token highlighting if installed separately. -->
     <lang.syntaxHighlighterFactory
       language="ktav"
       implementationClass="lang.ktav.highlighting.KtavSyntaxHighlighterFactory" />
-    -->
 
     <!-- Settings UI is registered unconditionally so users can configure
          the ktav-lsp path even before LSP4IJ is installed (the value is
@@ -67,6 +60,12 @@
     <notificationGroup
       id="Ktav"
       displayType="BALLOON" />
+
+    <!-- LSP client services -->
+    <projectService
+      serviceImplementation="lang.ktav.lsp.KtavLspProjectService" />
+    <fileEditorManagerListener
+      implementation="lang.ktav.lsp.FileOpenListener" />
   </extensions>
 
   <!-- TextMate auto-registration disabled: internal API, breaks IDE state

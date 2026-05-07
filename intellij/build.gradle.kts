@@ -35,15 +35,6 @@ dependencies {
         // `resources/grammars/ktav/`.
         bundledPlugin("org.jetbrains.plugins.textmate")
 
-        // Optional dependency: LSP4IJ provides the LSP client runtime.
-        // Pinned to 0.19.3 — verified on JetBrains Marketplace (plugin id
-        // 23257) as a stable release with since-build 242.0 and no
-        // until-build, so it satisfies our since-build=243 floor and works
-        // forward through 251+ IDEs. The plugin.xml uses
-        // `<depends optional="true">` so the main plugin still loads when
-        // LSP4IJ is absent (TextMate-only fallback).
-        plugin("com.redhat.devtools.lsp4ij", "0.19.3")
-
         pluginVerifier()
         zipSigner()
         instrumentationTools()
