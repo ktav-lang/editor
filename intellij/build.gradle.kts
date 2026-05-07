@@ -227,9 +227,16 @@ tasks.register<Zip>("_repackageWithBinaries") {
     }
 }
 
-// Make buildPlugin task run the repackaging automatically
+// Make buildPlugin task run the repackaging automatically.
+// verifyPlugin reads the same ZIP path our `_repackageWithBinaries`
+// rewrites — declare an explicit dependency so Gradle knows the
+// repackage task must run first (otherwise: "uses this output without
+// declaring dependency" validation error).
 tasks.named("buildPlugin") {
     finalizedBy("_repackageWithBinaries")
+}
+tasks.named("verifyPlugin") {
+    dependsOn("_repackageWithBinaries")
 }
 
 tasks {
