@@ -169,6 +169,7 @@ impl LanguageServer for Backend {
                 }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
+                document_formatting_provider: Some(OneOf::Left(true)),
                 semantic_tokens_provider: Some(
                     SemanticTokensServerCapabilities::SemanticTokensOptions(
                         SemanticTokensOptions {
@@ -356,6 +357,54 @@ impl LanguageServer for Backend {
             convert_symbols_to_utf16(&mut symbols, &text);
         }
         Ok(Some(DocumentSymbolResponse::Nested(symbols)))
+    }
+
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> RpcResult<Option<Vec<TextEdit>>> {
+        // Format = parse → render. If parse fails (file has syntax errors),
+        // we have no canonical Value to render — return None and let the
+        // editor leave the buffer untouched. Diagnostics will still flag
+        // the underlying error.
+        let Some((text, parsed)) = self
+            .docs
+            .get(&params.text_document.uri)
+            .map(|e| (e.text.clone(), e.parsed.clone()))
+        else {
+            return Ok(None);
+        };
+        let Some(value) = parsed else {
+            // Parsing failed — refuse to format malformed content.
+            return Ok(None);
+        };
+
+        let formatted = match ktav::render::render(&value) {
+            Ok(s) => s,
+            Err(_) => return Ok(None),
+        };
+
+        if formatted == text {
+            // Already canonical — no edit needed.
+            return Ok(Some(Vec::new()));
+        }
+
+        // Replace whole document with formatted text. Range covers the entire
+        // current text — line/column count derived from the original.
+        let last_line = text.split('\n').count().saturating_sub(1) as u32;
+        let last_col = text
+            .split('\n')
+            .last()
+            .map(|s| s.chars().count() as u32)
+            .unwrap_or(0);
+        let edit = TextEdit {
+            range: Range {
+                start: Position { line: 0, character: 0 },
+                end: Position { line: last_line, character: last_col },
+            },
+            new_text: formatted,
+        };
+        Ok(Some(vec![edit]))
     }
 
     async fn semantic_tokens_full(

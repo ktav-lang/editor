@@ -144,6 +144,19 @@ class KtavLspClient(
     }
 
     /**
+     * Send `textDocument/formatting` request and return `TextEdit[]` JSON.
+     * Returns null if not initialized.
+     */
+    fun sendFormatting(params: JsonObject): java.util.concurrent.CompletableFuture<com.google.gson.JsonElement> {
+        if (!isInitialized) {
+            log.warn("[Ktav LSP Client] formatting ignored: not initialized")
+            return java.util.concurrent.CompletableFuture.failedFuture(IllegalStateException("LSP not initialized"))
+        }
+        log.info("[Ktav LSP Client] formatting request")
+        return transport!!.sendRequest("textDocument/formatting", params)
+    }
+
+    /**
      * Shutdown and exit.
      */
     override fun close() {
