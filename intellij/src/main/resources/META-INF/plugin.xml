@@ -1,4 +1,4 @@
-<idea-plugin allow-bundled-update="true">
+<idea-plugin package="lang.ktav" allow-bundled-update="true">
   <!-- gradle-intellij-platform will patch this with since-build/until-build from build.gradle.kts -->
   <idea-version />
 
