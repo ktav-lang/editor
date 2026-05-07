@@ -74,6 +74,12 @@
       language="ktav"
       implementationClass="lang.ktav.lsp.KtavDiagnosticsAnnotator" />
 
+    <!-- Highlight non-ASCII characters inside keys (Cyrillic / CJK / emoji)
+         with a subtle red box — analogue of VS Code editor.unicodeHighlight. -->
+    <annotator
+      language="ktav"
+      implementationClass="lang.ktav.highlighting.KtavUnicodeAnnotator" />
+
     <!-- Format service: hooks Ctrl+Alt+L (Reformat Code) into LSP
          textDocument/formatting for .ktav files. AsyncDocumentFormattingService
          is the standard extension point — it lets the platform's standard

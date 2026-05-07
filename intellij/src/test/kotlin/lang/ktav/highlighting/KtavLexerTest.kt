@@ -74,4 +74,19 @@ class KtavLexerTest {
         assertEquals(KtavTokenTypes.KEY_DOT, toks[3].second)
         assertEquals(KtavTokenTypes.KEY, toks[4].second)  // c
     }
+
+    @Test
+    fun array_item_without_separator_is_value_not_key() {
+        // Inside `xx: [ ... ]` items have no `:` — should be STRING_VALUE.
+        val toks = tokens("plainItem\n")
+        assertEquals(KtavTokenTypes.STRING_VALUE, toks[0].second)
+        assertEquals("plainItem", toks[0].first)
+    }
+
+    @Test
+    fun array_item_keyword_recognized() {
+        val toks = tokens("true\n")
+        // `true` on a line with no `:` → keyword, not key
+        assertEquals(KtavTokenTypes.BOOLEAN, toks[0].second)
+    }
 }

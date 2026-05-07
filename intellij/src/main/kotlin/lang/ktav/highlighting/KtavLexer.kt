@@ -130,8 +130,12 @@ class KtavLexer : LexerBase() {
         // way as ASCII does. The Ktav spec only forbids the structural set,
         // not the alphabet.
         if (isKeyChar(c)) {
-            scanIdentifier(asKey = true)
-            myState = AFTER_KEY
+            // Lookahead: if there is no `:` (or `.`) before the next newline,
+            // this isn't a key — it's an array item / value line. Tag it as
+            // STRING_VALUE so the editor uses string colour (not field/key).
+            val isKey = lineHasSeparatorBeforeNewline(myTokenStart)
+            scanIdentifier(asKey = isKey)
+            myState = if (isKey) AFTER_KEY else LINE_START
             return
         }
         // Anything else → bad char.
@@ -167,6 +171,25 @@ class KtavLexer : LexerBase() {
             '{', '}', '[', ']', '(', ')', ':', '#', '.' -> false
             else -> true
         }
+    }
+
+    /**
+     * Lookahead: does the line starting at [from] contain `:` (or `.`)
+     * before the next `\n`? If yes — current ident is a key. If no —
+     * it's an array-item / value line, no key on this line.
+     *
+     * `.` counts because dotted-key paths (`a.b.c:`) still mark the
+     * line as a key-pair — `.` is a key continuation.
+     */
+    private fun lineHasSeparatorBeforeNewline(from: Int): Boolean {
+        var i = from
+        while (i < myBufferEnd) {
+            val ch = myBuffer[i]
+            if (ch == '\n') return false
+            if (ch == ':' || ch == '.') return true
+            i++
+        }
+        return false
     }
 
     private fun scanColonMarker() {
