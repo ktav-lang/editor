@@ -72,9 +72,11 @@ intellijPlatform {
             // breakage on newer builds instead of pinning to a version that
             // blocks newer IDEs.
             sinceBuild = "211"
-            // Explicitly set empty until-build to prevent gradle-intellij-platform
-            // from auto-adding "211.*" constraint
-            untilBuild = ""
+            // No upper bound — `untilBuild` is left as a Provider's default
+            // (no value), so `patchPluginXml` omits the `<until-build>`
+            // attribute entirely. Using `untilBuild = ""` would emit
+            // `until-build=""`, which the verifier rejects as malformed.
+            untilBuild = provider { null }
         }
         description = """
             <p>Editor support for the
