@@ -4,8 +4,11 @@ import com.intellij.lexer.Lexer
 import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
 import com.intellij.openapi.editor.HighlighterColors
 import com.intellij.openapi.editor.colors.TextAttributesKey
+import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.fileTypes.SyntaxHighlighter
 import com.intellij.openapi.fileTypes.SyntaxHighlighterFactory
+import java.awt.Color
+import java.awt.Font
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.tree.IElementType
@@ -24,13 +27,19 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
         init {
             log.info("KtavSyntaxHighlighter initialized")
         }
-        // Keys / metadata
-        // STATIC_FIELD chosen over INSTANCE_FIELD — the default Dark+ scheme
-        // colors INSTANCE_FIELD as plain dim text, while STATIC_FIELD comes
-        // through as yellow/italic, matching the VS Code "entity.name.tag"
-        // tone for Ktav keys.
+        // Keys / metadata — explicit hard-coded colour so the result is
+        // visible regardless of the active color scheme. Orange foreground
+        // matches the VS Code "entity.name.tag" tone (used for HTML tags
+        // and our equivalent — Ktav keys).
+        private val KEY_DEFAULT_ATTRS = TextAttributes(
+            Color(0xCC7832), // foreground: orange
+            null,            // background: theme default
+            null,            // effect color
+            null,            // effect type
+            Font.PLAIN
+        )
         private val KEY_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_KEY", DefaultLanguageHighlighterColors.STATIC_FIELD
+            "KTAV_KEY", KEY_DEFAULT_ATTRS
         )
         private val KEY_DOT_ATTR = TextAttributesKey.createTextAttributesKey(
             "KTAV_KEY_DOT", DefaultLanguageHighlighterColors.DOT
