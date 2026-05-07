@@ -394,7 +394,7 @@ impl LanguageServer for Backend {
         let last_line = text.split('\n').count().saturating_sub(1) as u32;
         let last_col = text
             .split('\n')
-            .last()
+            .next_back()
             .map(|s| s.chars().count() as u32)
             .unwrap_or(0);
         let edit = TextEdit {
