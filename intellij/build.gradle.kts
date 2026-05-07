@@ -67,11 +67,11 @@ intellijPlatform {
         name = "Ktav"
         version = project.version.toString()
         ideaVersion {
-            // IntelliJ 2024.3 is build 243. We deliberately omit
-            // `untilBuild` and rely on `pluginVerifier` (run in CI) to
-            // catch breakage on newer builds, instead of pinning a
-            // wildcard upper bound that the Marketplace warns about and
-            // that blocks loading on the next EAP.
+            // Support IntelliJ/JetBrains IDEs from 2024.3 (build 243) forward.
+            // No upper bound — rely on `pluginVerifier` (run in CI) to catch
+            // breakage on newer builds instead of pinning to a version that
+            // blocks newer IDEs (issue: gradle-intellij-platform adds until-build="243.*"
+            // by default; this is removed by `processPatchedPluginXml` task below).
             sinceBuild = "243"
         }
         description = """
@@ -147,5 +147,21 @@ tasks {
     }
     test {
         useJUnitPlatform()
+    }
+
+    // Remove until-build limitation from generated plugin.xml so it works on newer IDE versions
+    named("buildPlugin") {
+        doLast {
+            val pluginXmlPath = layout.buildDirectory.file("resources/main/META-INF/plugin.xml").get().asFile
+            if (pluginXmlPath.exists()) {
+                val content = pluginXmlPath.readText()
+                val modified = content.replace(
+                    Regex("""<idea-version since-build="(\d+)" until-build="[^"]*" />"""),
+                    """<idea-version since-build="$1" />"""
+                )
+                pluginXmlPath.writeText(modified)
+                println("✓ Removed until-build limitation from plugin.xml")
+            }
+        }
     }
 }
