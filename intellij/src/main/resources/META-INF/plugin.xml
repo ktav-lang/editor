@@ -44,10 +44,14 @@
       language="ktav"
       implementationClass="lang.ktav.KtavCommenter" />
 
-    <!-- Native IntelliJ syntax highlighter for Ktav -->
+    <!-- Native IntelliJ syntax highlighter for Ktav (disabled when LSP is active).
+         LSP semantic tokens provide much more accurate highlighting via ktav-lsp server,
+         matching VSCode exactly. Native highlighter is kept as emergency fallback only. -->
+    <!-- Uncomment below to enable native lexer-based highlighting (lower quality):
     <lang.syntaxHighlighterFactory
       language="ktav"
       implementationClass="lang.ktav.highlighting.KtavSyntaxHighlighterFactory" />
+    -->
 
     <!-- Settings UI is registered unconditionally so users can configure
          the ktav-lsp path even before LSP4IJ is installed (the value is
