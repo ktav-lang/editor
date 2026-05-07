@@ -97,7 +97,15 @@ intellijPlatform {
     }
     pluginVerification {
         ides {
-            recommended()
+            // Pin to known-published IDE versions instead of `recommended()`.
+            // The latter follows JetBrains metadata which sometimes lists
+            // the upcoming release before its artefact is uploaded — that
+            // breaks the verifier with `Could not find idea:ideaIC:X.Y`.
+            // The pinned set covers our since-build floor (2024.3 / 243)
+            // through the latest published stable.
+            ide("IC-2024.3")
+            ide("IC-2025.1")
+            ide("IC-2025.2")
         }
     }
     publishing {
