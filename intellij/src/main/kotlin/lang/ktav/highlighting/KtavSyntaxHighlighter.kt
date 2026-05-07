@@ -24,71 +24,97 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
         init {
             log.info("KtavSyntaxHighlighter initialized")
         }
-        // Color keys
+        // Keys / metadata
         private val KEY_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_KEY",
-            DefaultLanguageHighlighterColors.INSTANCE_FIELD
+            "KTAV_KEY", DefaultLanguageHighlighterColors.INSTANCE_FIELD
+        )
+        private val KEY_DOT_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_KEY_DOT", DefaultLanguageHighlighterColors.DOT
         )
 
-        private val STRING_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_STRING",
-            DefaultLanguageHighlighterColors.STRING
+        // Type markers (`:i`, `:f`, `::`) — keyword-style colour
+        private val MARKER_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_MARKER", DefaultLanguageHighlighterColors.METADATA
         )
 
-        private val NUMBER_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_NUMBER",
-            DefaultLanguageHighlighterColors.NUMBER
-        )
-
-        private val BOOLEAN_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_BOOLEAN",
-            DefaultLanguageHighlighterColors.KEYWORD
-        )
-
-        private val NULL_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_NULL",
-            DefaultLanguageHighlighterColors.KEYWORD
-        )
-
-        private val BRACES_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_BRACES",
-            DefaultLanguageHighlighterColors.BRACES
-        )
-
-        private val BRACKETS_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_BRACKETS",
-            DefaultLanguageHighlighterColors.BRACKETS
-        )
-
+        // Plain `:` separator — operator colour
         private val COLON_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_COLON",
-            DefaultLanguageHighlighterColors.OPERATION_SIGN
+            "KTAV_COLON", DefaultLanguageHighlighterColors.OPERATION_SIGN
         )
 
+        // Values
+        private val STRING_VALUE_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_STRING_VALUE", DefaultLanguageHighlighterColors.STRING
+        )
+        private val INT_VALUE_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_INT_VALUE", DefaultLanguageHighlighterColors.NUMBER
+        )
+        private val FLOAT_VALUE_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_FLOAT_VALUE", DefaultLanguageHighlighterColors.NUMBER
+        )
+        private val BOOLEAN_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_BOOLEAN", DefaultLanguageHighlighterColors.KEYWORD
+        )
+        private val NULL_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_NULL", DefaultLanguageHighlighterColors.KEYWORD
+        )
+
+        // Multi-line text (verbatim/stripped)
+        private val MULTILINE_BRACKET_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_MULTILINE_BRACKET", DefaultLanguageHighlighterColors.PARENTHESES
+        )
+        private val MULTILINE_TEXT_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_MULTILINE_TEXT", DefaultLanguageHighlighterColors.STRING
+        )
+
+        // Structural
+        private val BRACES_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_BRACES", DefaultLanguageHighlighterColors.BRACES
+        )
+        private val BRACKETS_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_BRACKETS", DefaultLanguageHighlighterColors.BRACKETS
+        )
+
+        // Comments + errors
         private val COMMENT_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_COMMENT",
-            DefaultLanguageHighlighterColors.LINE_COMMENT
+            "KTAV_COMMENT", DefaultLanguageHighlighterColors.LINE_COMMENT
         )
-
         private val BAD_CHAR_ATTR = TextAttributesKey.createTextAttributesKey(
-            "KTAV_BAD_CHARACTER",
-            HighlighterColors.BAD_CHARACTER
+            "KTAV_BAD_CHARACTER", HighlighterColors.BAD_CHARACTER
         )
 
         private val EMPTY_ATTRS = emptyArray<TextAttributesKey>()
 
         private val ATTRIBUTES = mapOf(
+            // Keys
             Tokens.KEY to arrayOf(KEY_ATTR),
-            Tokens.STRING to arrayOf(STRING_ATTR),
-            Tokens.NUMBER to arrayOf(NUMBER_ATTR),
+            Tokens.KEY_DOT to arrayOf(KEY_DOT_ATTR),
+
+            // Markers + separator
+            Tokens.MARKER_INT to arrayOf(MARKER_ATTR),
+            Tokens.MARKER_FLOAT to arrayOf(MARKER_ATTR),
+            Tokens.DOUBLE_COLON to arrayOf(MARKER_ATTR),
+            Tokens.COLON to arrayOf(COLON_ATTR),
+
+            // Values
+            Tokens.STRING_VALUE to arrayOf(STRING_VALUE_ATTR),
+            Tokens.INT_VALUE to arrayOf(INT_VALUE_ATTR),
+            Tokens.FLOAT_VALUE to arrayOf(FLOAT_VALUE_ATTR),
             Tokens.BOOLEAN to arrayOf(BOOLEAN_ATTR),
             Tokens.NULL to arrayOf(NULL_ATTR),
+
+            // Multi-line
+            Tokens.MULTILINE_OPEN to arrayOf(MULTILINE_BRACKET_ATTR),
+            Tokens.MULTILINE_CLOSE to arrayOf(MULTILINE_BRACKET_ATTR),
+            Tokens.MULTILINE_TEXT to arrayOf(MULTILINE_TEXT_ATTR),
+
+            // Structural
             Tokens.LBRACE to arrayOf(BRACES_ATTR),
             Tokens.RBRACE to arrayOf(BRACES_ATTR),
             Tokens.LBRACKET to arrayOf(BRACKETS_ATTR),
             Tokens.RBRACKET to arrayOf(BRACKETS_ATTR),
-            Tokens.COLON to arrayOf(COLON_ATTR),
-            Tokens.DOUBLE_COLON to arrayOf(COLON_ATTR),
+
+            // Comments + errors
             Tokens.COMMENT to arrayOf(COMMENT_ATTR),
             Tokens.BAD_CHARACTER to arrayOf(BAD_CHAR_ATTR),
         )
