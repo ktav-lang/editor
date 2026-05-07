@@ -1,4 +1,7 @@
 <idea-plugin>
+  <!-- gradle-intellij-platform will patch this with since-build/until-build from build.gradle.kts -->
+  <idea-version />
+
   <id>lang.ktav</id>
   <name>Ktav</name>
   <vendor email="phpcraftdream@gmail.com" url="https://github.com/ktav-lang">Marat K</vendor>

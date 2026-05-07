@@ -70,9 +70,11 @@ intellijPlatform {
             // Support IntelliJ/JetBrains IDEs from 2024.3 (build 243) forward.
             // No upper bound — rely on `pluginVerifier` (run in CI) to catch
             // breakage on newer builds instead of pinning to a version that
-            // blocks newer IDEs (issue: gradle-intellij-platform adds until-build="243.*"
-            // by default; this is removed by `processPatchedPluginXml` task below).
+            // blocks newer IDEs.
             sinceBuild = "243"
+            // Explicitly set empty until-build to prevent gradle-intellij-platform
+            // from auto-adding "243.*" constraint
+            untilBuild = ""
         }
         description = """
             <p>Editor support for the
@@ -149,19 +151,4 @@ tasks {
         useJUnitPlatform()
     }
 
-    // Remove until-build limitation from generated plugin.xml so it works on newer IDE versions
-    named("buildPlugin") {
-        doLast {
-            val pluginXmlPath = layout.buildDirectory.file("resources/main/META-INF/plugin.xml").get().asFile
-            if (pluginXmlPath.exists()) {
-                val content = pluginXmlPath.readText()
-                val modified = content.replace(
-                    Regex("""<idea-version since-build="(\d+)" until-build="[^"]*" />"""),
-                    """<idea-version since-build="$1" />"""
-                )
-                pluginXmlPath.writeText(modified)
-                println("✓ Removed until-build limitation from plugin.xml")
-            }
-        }
-    }
 }

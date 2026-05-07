@@ -86,7 +86,7 @@
     "compile": "npm run sync-grammars && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "vscode:prepublish": "npm run sync-grammars && npm run compile",
-    "package": "vsce package --no-dependencies",
+    "package": "vsce package",
     "pretest": "npm run compile",
     "test": "node ./out/test/runTest.js",
     "pretest:unit": "npm run compile",
