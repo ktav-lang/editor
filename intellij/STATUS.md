@@ -8,37 +8,41 @@
 ┌─────────────────────────────────────────────────────────┐
 │ Ktav IntelliJ Plugin v0.1.5                             │
 ├─────────────────────────────────────────────────────────┤
-│ ✅ Native Syntax Highlighter (KtavLexer)               │
-│    - Always works on any IDE                            │
-│    - No dependencies on internal APIs                   │
-│    - Registered via lang.syntaxHighlighterFactory       │
+│ ✅ LSP Semantic Token Highlighting                      │
+│    - Requires: LSP4IJ plugin + ktav-lsp binary          │
+│    - Exact same as VSCode (both use ktav-lsp)           │
+│    - Context-aware, accurate highlighting              │
 │                                                          │
 │ ✅ Comment Toggle (#)                                   │
 │    - Registered via lang.commenter                      │
+│    - Ctrl+/ to toggle # comments                        │
 │                                                          │
-│ ✅ File Type Registration (.ktav)                       │
+│ ✅ File Type Recognition (.ktav)                        │
 │    - Language: ktav                                     │
-│    - Maps to native highlighter                         │
+│    - Automatic IDE support                              │
 │                                                          │
-│ ✅ LSP Integration (Optional)                          │
-│    - Requires: LSP4IJ plugin installed in IDE           │
-│    - Bundled LSP binaries: Windows x64 (0.1.5)          │
-│    - Fallback: ktav-lsp from PATH                       │
-│    - Discovery: bin/ or lib/bin/{platform}/             │
+│ ✅ Language Server Features (Optional)                  │
+│    - Diagnostics (error reporting)                      │
+│    - Hover information                                  │
+│    - Code completion                                    │
+│    - Go to definition                                   │
+│    - Discovery: lib/bin/{platform}/ or PATH             │
 │                                                          │
-│ ❌ TextMate (Disabled)                                  │
-│    - Was breaking IDE state (invalid JSON)             │
-│    - Optional fallback: users can manually register     │
+│ 📦 LSP Binary Packaging                                 │
+│    - Bundled: Windows x64 (win32-x64)                   │
+│    - Fallback: ktav-lsp from system PATH                │
+│    - Install: cargo install ktav-lsp                    │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ## What Works ✅
 
-1. **Native Syntax Highlighting**
-   - Tokenizes: keywords, strings, numbers, booleans, null, braces, comments
-   - Applies IntelliJ color scheme automatically
+1. **Syntax Highlighting via LSP Semantic Tokens**
+   - Exact same highlighting as VSCode (both use ktav-lsp)
+   - Provided by Language Server: context-aware, accurate
    - Works on: IntelliJ IDEA, WebStorm, PyCharm, PhpStorm, RubyMine, CLion, GoLand, RustRover, Rider, etc.
    - Version support: 2021.1+
+   - Requirements: LSP4IJ plugin + ktav-lsp binary
 
 2. **File Type Recognition**
    - `.ktav` files recognized automatically
@@ -125,23 +129,28 @@
 ## Next Steps
 
 ### Immediate (must do for 0.1.5 release):
-1. **Test native highlighter** - verify syntax highlighting works for:
-   - Keywords (keys, values)
-   - Strings, numbers, booleans, null
+1. **Install prerequisites**:
+   - LSP4IJ plugin in IDE (from JetBrains Marketplace)
+   - ktav-lsp binary: `cargo install ktav-lsp`
+
+2. **Test LSP semantic highlighting** - verify all elements show correct colors:
+   - Keys (identifiers before `:`)
+   - Values (strings, numbers, booleans, null)
+   - Type markers (`:i`, `:f`, `::`)
    - Comments, braces, brackets
    - IDE color schemes (light, dark, custom)
 
 3. **Test on multiple IDEs**:
-   - WebStorm ✓ (used for dev)
-   - IntelliJ IDEA Community
-   - PyCharm Community
-   - CLion Community
+   - WebStorm 2025.3+ ✓ (used for dev)
+   - IntelliJ IDEA Community 2024.3+
+   - PyCharm Community 2024.3+
+   - CLion Community 2024.3+
    - At least one from each family
 
 4. **Documentation**
-   - Update README.md with: "Syntax highlighting now built-in"
-   - Note about LSP binaries fallback to PATH
-   - Cross-platform binary support status
+   - Update README.md with LSP requirement
+   - Installation steps: LSP4IJ + ktav-lsp
+   - Note: Syntax highlighting matches VSCode exactly
 
 ### Medium (for 0.2.0):
 1. **Add missing platform binaries**
