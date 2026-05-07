@@ -4,12 +4,16 @@ import com.intellij.ide.AppLifecycleListener
 import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.extensions.PluginId
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.project.ProjectManagerListener
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Registers the bundled Ktav TextMate grammar with IntelliJ's TextMate
- * plugin at IDE startup.
+ * plugin at IDE startup (via AppLifecycleListener) and on first project
+ * open (via ProjectManagerListener).
  *
  * The TextMate engine's bundle-registration API (`TextMateService`,
  * `BundleType`, etc.) lives in the bundled `org.jetbrains.plugins.textmate`
@@ -19,11 +23,26 @@ import java.nio.file.Path
  * gracefully (WARN log + the user can still register the bundle by hand
  * via Settings → Editor → TextMate Bundles) if any step fails.
  */
-class KtavTextMateLoader : AppLifecycleListener {
+class KtavTextMateLoader : AppLifecycleListener, ProjectManagerListener {
 
     private val log = Logger.getInstance(KtavTextMateLoader::class.java)
+    private val registered = AtomicBoolean(false)
 
     override fun appFrameCreated(commandLineArgs: List<String>) {
+        log.info("Ktav: appFrameCreated lifecycle hook fired")
+        if (registered.compareAndSet(false, true)) {
+            registerTextMateBundle()
+        }
+    }
+
+    override fun projectOpened(project: Project) {
+        log.info("Ktav: projectOpened lifecycle hook fired")
+        if (registered.compareAndSet(false, true)) {
+            registerTextMateBundle()
+        }
+    }
+
+    private fun registerTextMateBundle() {
         if (!verifyBundleResources()) {
             log.warn(
                 "Ktav TextMate bundle resources not found on the plugin " +
@@ -39,12 +58,13 @@ class KtavTextMateLoader : AppLifecycleListener {
             return
         }
 
+        log.info("Ktav: attempting to register TextMate bundle at $bundlePath")
         val ok = tryRegisterBundle(bundlePath)
         if (ok) {
-            log.info("Ktav TextMate bundle registered at $bundlePath")
+            log.info("✓ Ktav TextMate bundle registered successfully")
         } else {
             log.warn(
-                "Ktav: TextMate auto-registration failed (platform API not " +
+                "⚠ Ktav: TextMate auto-registration failed (platform API not " +
                     "found via reflection). Users can still add the bundle " +
                     "manually via Settings -> Editor -> TextMate Bundles, " +
                     "pointing at: $bundlePath",

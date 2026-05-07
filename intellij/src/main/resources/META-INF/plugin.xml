@@ -64,5 +64,9 @@
     <listener
       class="lang.ktav.KtavTextMateLoader"
       topic="com.intellij.ide.AppLifecycleListener" />
+    <!-- Fallback: register on project open if appFrameCreated didn't fire -->
+    <listener
+      class="lang.ktav.KtavTextMateLoader"
+      topic="com.intellij.openapi.project.ProjectManagerListener" />
   </applicationListeners>
 </idea-plugin>
