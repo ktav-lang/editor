@@ -150,7 +150,7 @@ tasks.named("compileKotlin") {
 }
 
 // Include bin/ directory (with pre-built LSP binaries) in the plugin distribution.
-// Use prepareSandbox hook to copy binaries so they end up in the final ZIP.
+// Copy to sandbox for development (IDE testing).
 tasks.named("prepareSandbox") {
     doLast {
         copy {
@@ -158,6 +158,92 @@ tasks.named("prepareSandbox") {
             into(layout.buildDirectory.dir("idea-sandbox/plugins/ktav-intellij/lib/bin"))
         }
     }
+}
+
+// Post-process the built plugin ZIP to include LSP binaries.
+// gradle-intellij-platform's buildPlugin task doesn't include custom files, so we
+// unzip, add binaries, and re-zip the distribution using a custom task.
+val includeBinariesInDistribution = tasks.register("includeBinariesInDistribution") {
+    group = "distribution"
+    description = "Adds LSP binaries to the final plugin distribution ZIP"
+
+    val originalZip = layout.buildDirectory.file("distributions/ktav-intellij-${project.version}.zip")
+    val tempDir = layout.buildDirectory.dir("plugin-dist-temp")
+    val binDir = layout.projectDirectory.dir("bin")
+
+    dependsOn("buildPlugin")
+
+    inputs.dir(binDir)
+    outputs.file(originalZip)
+
+    doLast {
+        val zipFile = originalZip.get().asFile
+        val tempDirFile = tempDir.get().asFile
+        val binDirFile = binDir.asFile.absolutePath
+
+        println(">>> Including LSP binaries in plugin distribution")
+        println(">>> Original ZIP: ${zipFile.absolutePath}")
+        println(">>> Temp dir: ${tempDirFile.absolutePath}")
+        println(">>> Binaries dir: $binDirFile")
+
+        // Cleanup and prepare temp directory
+        if (tempDirFile.exists()) {
+            tempDirFile.deleteRecursively()
+        }
+        tempDirFile.mkdirs()
+
+        // Extract original ZIP
+        copy {
+            from(zipTree(zipFile))
+            into(tempDirFile)
+        }
+        println(">>> Extracted original ZIP")
+
+        // Copy binaries into extracted structure
+        copy {
+            from(binDir.asFile)
+            into(File(tempDirFile, "ktav-intellij/lib/bin"))
+        }
+        println(">>> Copied binaries to ktav-intellij/lib/bin")
+
+        // Delete original ZIP
+        zipFile.delete()
+
+        // Re-create ZIP with binaries using PowerShell on Windows
+        val command = if (System.getProperty("os.name").lowercase().contains("win")) {
+            listOf(
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "Compress-Archive -Path '${tempDirFile.absolutePath}\\ktav-intellij' -DestinationPath '${zipFile.absolutePath}' -Force"
+            )
+        } else {
+            listOf("zip", "-r", "-q", zipFile.absolutePath, "ktav-intellij")
+        }
+
+        project.exec {
+            if (!System.getProperty("os.name").lowercase().contains("win")) {
+                workingDir(tempDirFile)
+            }
+            commandLine(command)
+        }
+        println(">>> Re-created ZIP with binaries")
+
+        // Verify binaries are in ZIP
+        project.exec {
+            commandLine("unzip", "-l", zipFile.absolutePath)
+            standardOutput = System.out
+        }
+
+        // Cleanup
+        tempDirFile.deleteRecursively()
+        println(">>> Cleaned up temporary directory")
+    }
+}
+
+// Run the binary inclusion after buildPlugin finishes
+tasks.named("buildPlugin") {
+    finalizedBy(includeBinariesInDistribution)
 }
 
 tasks {
