@@ -79,6 +79,15 @@
           "description": "Traces communication between VS Code and the Ktav language server."
         }
       }
+    },
+    "configurationDefaults": {
+      "[ktav]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false,
+        "editor.formatOnSave": false,
+        "editor.defaultFormatter": "ktav-lang.ktav"
+      }
     }
   },
   "scripts": {
