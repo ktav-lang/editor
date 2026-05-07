@@ -58,6 +58,60 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   client = buildClient(context, outputChannel);
 
+  // Register our extension as the formatter for `.ktav` explicitly.
+  // LanguageClient also creates a formatter from LSP capabilities, but VS
+  // Code's `editor.defaultFormatter` lookup needs an extension-owned
+  // provider with our publisher.name ID; the LSP-derived one isn't
+  // attributed to us. Without this, users see "no formatter for ktav".
+  context.subscriptions.push(
+    vscode.languages.registerDocumentFormattingEditProvider(
+      { language: "ktav", scheme: "file" },
+      {
+        async provideDocumentFormattingEdits(
+          document: vscode.TextDocument,
+          options: vscode.FormattingOptions,
+          token: vscode.CancellationToken,
+        ): Promise<vscode.TextEdit[]> {
+          if (!client || !client.isRunning()) {
+            outputChannel.appendLine("[ktav] format requested but client not running");
+            return [];
+          }
+          try {
+            const result: any[] | null = await client.sendRequest(
+              "textDocument/formatting",
+              {
+                textDocument: { uri: document.uri.toString() },
+                options: {
+                  tabSize: options.tabSize,
+                  insertSpaces: options.insertSpaces,
+                },
+              },
+              token,
+            );
+            if (!result || result.length === 0) {
+              return [];
+            }
+            return result.map(
+              (e) =>
+                new vscode.TextEdit(
+                  new vscode.Range(
+                    new vscode.Position(e.range.start.line, e.range.start.character),
+                    new vscode.Position(e.range.end.line, e.range.end.character),
+                  ),
+                  e.newText,
+                ),
+            );
+          } catch (err) {
+            outputChannel.appendLine(
+              `[ktav] format failed: ${(err as Error)?.message ?? err}`,
+            );
+            return [];
+          }
+        },
+      },
+    ),
+  );
+
   try {
     await client.start();
     outputChannel.appendLine("[ktav] language server started");
