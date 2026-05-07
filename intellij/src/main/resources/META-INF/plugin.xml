@@ -12,21 +12,16 @@
 
     <p>Features:</p>
     <ul>
-      <li>Syntax highlighting for <code>.ktav</code> files via TextMate grammar</li>
+      <li>Native syntax highlighting for <code>.ktav</code> files</li>
       <li>Comment toggle (<code>#</code>)</li>
-      <li>Bracket matching for <code>{}</code> <code>[]</code> <code>()</code></li>
-      <li>Live diagnostics via <a href="https://github.com/ktav-lang/editor/tree/main/lsp">ktav-lsp</a> (when installed in PATH; configurable in settings)</li>
+      <li>Live diagnostics via bundled <a href="https://github.com/ktav-lang/editor/tree/main/lsp">ktav-lsp</a> language server</li>
     </ul>
 
     <p>Reference Rust crate: <a href="https://github.com/ktav-lang/rust">ktav-lang/rust</a>.
     Other implementations available — see the <a href="https://github.com/ktav-lang/editor">monorepo README</a>.</p>
   ]]></description>
 
-  <!-- change-notes: single source of truth is CHANGELOG.md, wired via
-       `intellijPlatform.pluginConfiguration.changeNotes` in build.gradle.kts -->
-
   <depends>com.intellij.modules.platform</depends>
-  <depends>org.jetbrains.plugins.textmate</depends>
 
   <extensions defaultExtensionNs="com.intellij">
     <fileType
@@ -40,16 +35,12 @@
       implementationClass="lang.ktav.KtavCommenter" />
 
     <!-- Native IntelliJ syntax highlighter for Ktav.
-         Works on any IDE without external dependencies.
-         LSP4IJ can optionally provide semantic token highlighting if installed separately. -->
+         Always active, works on any IDE without external dependencies. -->
     <lang.syntaxHighlighterFactory
       language="ktav"
       implementationClass="lang.ktav.highlighting.KtavSyntaxHighlighterFactory" />
 
-    <!-- Settings UI is registered unconditionally so users can configure
-         the ktav-lsp path even before LSP4IJ is installed (the value is
-         persisted and consumed by KtavLanguageServerFactory once LSP4IJ
-         loads). -->
+    <!-- Settings UI: Tools -> Ktav. Allows override of bundled ktav-lsp path. -->
     <applicationConfigurable
       parentId="tools"
       instance="lang.ktav.lsp.KtavConfigurable"
@@ -61,22 +52,20 @@
       id="Ktav"
       displayType="BALLOON" />
 
-    <!-- LSP client services -->
+    <!-- Built-in LSP client (per-project) -->
     <projectService
       serviceImplementation="lang.ktav.lsp.KtavLspProjectService" />
-    <fileEditorManagerListener
-      implementation="lang.ktav.lsp.FileOpenListener" />
+
+    <!-- Live diagnostics from LSP server -->
+    <externalAnnotator
+      language="ktav"
+      implementationClass="lang.ktav.lsp.KtavDiagnosticsAnnotator" />
   </extensions>
 
-  <!-- TextMate auto-registration disabled: internal API, breaks IDE state
-       Users can manually register bundle via Settings → Editor → TextMate Bundles
-       if TextMate syntax highlighting is desired alongside native highlighter.
-  <applicationListeners>
+  <!-- File editor lifecycle listener: starts LSP client and syncs documents -->
+  <projectListeners>
     <listener
-      class="lang.ktav.KtavTextMateLoader"
-      topic="com.intellij.ide.AppLifecycleListener" />
-    <listener
-      class="lang.ktav.KtavProjectActivity"
-      topic="com.intellij.openapi.project.ProjectManagerListener" />
-  </applicationListeners> -->
+      class="lang.ktav.lsp.FileOpenListener"
+      topic="com.intellij.openapi.fileEditor.FileEditorManagerListener" />
+  </projectListeners>
 </idea-plugin>

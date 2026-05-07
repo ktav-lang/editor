@@ -1,37 +1,78 @@
 package lang.ktav.lsp
 
-import com.google.gson.JsonObject
-import com.intellij.lang.annotation.AnnotationBuilder
+import com.google.gson.JsonElement
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.ExternalAnnotator
 import com.intellij.lang.annotation.HighlightSeverity
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiFile
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 
 /**
- * Receives textDocument/publishDiagnostics from LSP server
- * and displays them in the editor.
- *
- * Diagnostics are LSP objects with:
- * - range: { start: { line, character }, end: { line, character } }
- * - message: string
- * - severity: 1 (error), 2 (warning), 3 (info), 4 (hint)
- * - code: optional
+ * Diagnostics from LSP server, keyed by file URI.
+ * Application-scoped service so any annotator can read latest diagnostics.
  */
+@Service(Service.Level.APP)
 class DiagnosticsHolder {
-    // diagnostics per file URI
-    private val diagnostics = mutableMapOf<String, List<LspDiagnostic>>()
+
+    private val log = Logger.getInstance(DiagnosticsHolder::class.java)
+    private val diagnostics = ConcurrentHashMap<String, List<LspDiagnostic>>()
 
     fun setDiagnostics(fileUri: String, diags: List<LspDiagnostic>) {
         diagnostics[fileUri] = diags
+        log.debug("Stored ${diags.size} diagnostics for $fileUri")
     }
 
     fun getDiagnostics(fileUri: String): List<LspDiagnostic> =
         diagnostics[fileUri] ?: emptyList()
+
+    fun clear(fileUri: String) {
+        diagnostics.remove(fileUri)
+    }
+
+    companion object {
+        fun getInstance(): DiagnosticsHolder =
+            ApplicationManager.getApplication().getService(DiagnosticsHolder::class.java)
+
+        /**
+         * Parse LSP publishDiagnostics params and store them.
+         * params = { uri: string, diagnostics: Diagnostic[] }
+         */
+        fun handlePublishDiagnostics(params: JsonElement?) {
+            if (params == null || !params.isJsonObject) return
+            val obj = params.asJsonObject
+            val uri = obj.get("uri")?.asString ?: return
+            val diagsArray = obj.getAsJsonArray("diagnostics") ?: return
+
+            val diagnostics = mutableListOf<LspDiagnostic>()
+            for (elem in diagsArray) {
+                val d = elem.asJsonObject
+                val range = d.getAsJsonObject("range")
+                val start = range.getAsJsonObject("start")
+                val end = range.getAsJsonObject("end")
+
+                diagnostics.add(LspDiagnostic(
+                    range = LspRange(
+                        startLine = start.get("line").asInt,
+                        startChar = start.get("character").asInt,
+                        endLine = end.get("line").asInt,
+                        endChar = end.get("character").asInt
+                    ),
+                    message = d.get("message")?.asString ?: "",
+                    severity = d.get("severity")?.asInt,
+                    code = d.get("code")?.asString
+                ))
+            }
+
+            getInstance().setDiagnostics(uri, diagnostics)
+        }
+    }
 }
 
 data class LspDiagnostic(
@@ -49,29 +90,19 @@ data class LspRange(
 )
 
 /**
- * ExternalAnnotator that reads diagnostics from holder
+ * ExternalAnnotator that reads diagnostics from holder (filled by LSP client)
  * and displays them as annotations in editor.
  */
 class KtavDiagnosticsAnnotator : ExternalAnnotator<PsiFile, List<LspDiagnostic>>() {
 
     private val log = Logger.getInstance(KtavDiagnosticsAnnotator::class.java)
-    private val diagnosticsHolder = DiagnosticsHolder()
 
-    fun setDiagnostics(fileUri: String, diags: List<LspDiagnostic>) {
-        diagnosticsHolder.setDiagnostics(fileUri, diags)
-    }
-
-    override fun collectInformation(file: PsiFile): PsiFile? {
-        // We collect diagnostics asynchronously via LSP, not by examining the PSI tree
-        return file
-    }
+    override fun collectInformation(file: PsiFile): PsiFile = file
 
     override fun doAnnotate(collectedInfo: PsiFile?): List<LspDiagnostic> {
         if (collectedInfo == null) return emptyList()
-
         val file = collectedInfo.virtualFile ?: return emptyList()
-        val uri = file.url
-        return diagnosticsHolder.getDiagnostics(uri)
+        return DiagnosticsHolder.getInstance().getDiagnostics(file.url)
     }
 
     override fun apply(
@@ -79,19 +110,24 @@ class KtavDiagnosticsAnnotator : ExternalAnnotator<PsiFile, List<LspDiagnostic>>
         diagnostics: List<LspDiagnostic>,
         holder: AnnotationHolder
     ) {
-        val document = FileDocumentManager.getInstance().getDocument(file.virtualFile ?: return)
-            ?: return
+        val virtualFile = file.virtualFile ?: return
+        val document = FileDocumentManager.getInstance().getDocument(virtualFile) ?: return
 
         for (diagnostic in diagnostics) {
             try {
                 val range = diagnostic.range
-
-                // Convert LSP range (line, char) to IntelliJ offset
                 val startOffset = getOffset(document, range.startLine, range.startChar)
                 val endOffset = getOffset(document, range.endLine, range.endChar)
 
                 if (startOffset >= 0 && endOffset >= startOffset) {
-                    val textRange = TextRange(startOffset, endOffset)
+                    val textRange = if (startOffset == endOffset) {
+                        // Empty range — extend to end of line for visibility
+                        val lineEnd = if (range.startLine < document.lineCount)
+                            document.getLineEndOffset(range.startLine) else startOffset
+                        TextRange(startOffset, lineEnd)
+                    } else {
+                        TextRange(startOffset, endOffset)
+                    }
 
                     val severity = when (diagnostic.severity) {
                         1 -> HighlightSeverity.ERROR
@@ -101,14 +137,9 @@ class KtavDiagnosticsAnnotator : ExternalAnnotator<PsiFile, List<LspDiagnostic>>
                         else -> HighlightSeverity.INFORMATION
                     }
 
-                    val annotation = holder.newAnnotation(severity, diagnostic.message)
+                    holder.newAnnotation(severity, diagnostic.message)
                         .range(textRange)
-
-                    if (diagnostic.code != null) {
-                        annotation.problemGroup { "Ktav: ${diagnostic.code}" }
-                    }
-
-                    annotation.create()
+                        .create()
                 }
             } catch (ex: Exception) {
                 log.warn("Failed to apply diagnostic: ${diagnostic.message}", ex)
@@ -116,17 +147,12 @@ class KtavDiagnosticsAnnotator : ExternalAnnotator<PsiFile, List<LspDiagnostic>>
         }
     }
 
-    /**
-     * Convert (line, char) to document offset.
-     */
     private fun getOffset(document: Document, line: Int, char: Int): Int {
         if (line < 0 || line >= document.lineCount) return -1
-
         val lineStart = document.getLineStartOffset(line)
         val lineEnd = document.getLineEndOffset(line)
         val lineLength = lineEnd - lineStart
         val charOffset = min(char, lineLength)
-
         return lineStart + charOffset
     }
 }

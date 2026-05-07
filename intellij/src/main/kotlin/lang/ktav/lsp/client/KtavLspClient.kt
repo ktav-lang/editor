@@ -16,7 +16,9 @@ import java.util.concurrent.CompletableFuture
  */
 class KtavLspClient(
     private val serverCommand: String,
-    private val workspaceRoot: String
+    private val workspaceRoot: String,
+    private val onDiagnostics: (com.google.gson.JsonElement?) -> Unit = {},
+    private val onPostDiagnostics: () -> Unit = {}
 ) : AutoCloseable {
 
     private val log = Logger.getInstance(KtavLspClient::class.java)
@@ -133,8 +135,23 @@ class KtavLspClient(
     private fun handleNotification(msg: LspIncomingMessage.Notification) {
         when (msg.method) {
             "textDocument/publishDiagnostics" -> {
-                // Handled by DiagnosticsHandler (injected via callback)
-                log.debug("Received publishDiagnostics: ${msg.params}")
+                log.debug("Received publishDiagnostics")
+                try {
+                    onDiagnostics(msg.params)
+                    onPostDiagnostics()
+                } catch (ex: Exception) {
+                    log.warn("Failed to handle publishDiagnostics", ex)
+                }
+            }
+            "window/logMessage" -> {
+                val params = msg.params?.asJsonObject ?: return
+                val message = params.get("message")?.asString ?: return
+                log.info("LSP server: $message")
+            }
+            "window/showMessage" -> {
+                val params = msg.params?.asJsonObject ?: return
+                val message = params.get("message")?.asString ?: return
+                log.info("LSP server message: $message")
             }
             else -> log.debug("Unhandled notification: ${msg.method}")
         }

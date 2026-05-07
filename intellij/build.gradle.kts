@@ -29,12 +29,6 @@ dependencies {
         // too — see `pluginVerification` below.
         intellijIdeaCommunity("2024.3")
 
-        // Bundled TextMate plugin — provides the runtime engine that
-        // tokenises files according to a `.tmLanguage.json` grammar. Our
-        // KtavTextMateLoader registers the grammar shipped under
-        // `resources/grammars/ktav/`.
-        bundledPlugin("org.jetbrains.plugins.textmate")
-
         pluginVerifier()
         zipSigner()
         instrumentationTools()

@@ -39,7 +39,21 @@ class KtavLspProjectService(private val project: Project) : AutoCloseable {
             log.info("Starting LSP client for project: $workspaceRoot")
             log.info("Server command: $serverCommand")
 
-            client = KtavLspClient(serverCommand, workspaceRoot)
+            client = KtavLspClient(
+                serverCommand = serverCommand,
+                workspaceRoot = workspaceRoot,
+                onDiagnostics = { params ->
+                    DiagnosticsHolder.handlePublishDiagnostics(params)
+                },
+                onPostDiagnostics = {
+                    // Trigger annotator re-run after diagnostics arrive
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                        if (!project.isDisposed) {
+                            com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).restart()
+                        }
+                    }
+                }
+            )
             client!!.initialize().thenRun {
                 client!!.notifyInitialized()
                 log.info("LSP client initialized")
