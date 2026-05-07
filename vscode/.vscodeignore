@@ -2,7 +2,11 @@
 .gitignore
 .gitkeep
 **/.gitkeep
-node_modules/
+# Keep node_modules — vscode-languageclient is a runtime dependency
+node_modules/.bin/
+node_modules/*/README
+node_modules/*/*.map
+node_modules/*/.bin/
 out/**/*.map
 src/**
 tsconfig.json
