@@ -44,6 +44,11 @@
       language="ktav"
       implementationClass="lang.ktav.KtavCommenter" />
 
+    <!-- Native IntelliJ syntax highlighter for Ktav -->
+    <syntaxHighlighter
+      language="ktav"
+      implementationClass="lang.ktav.highlighting.KtavSyntaxHighlighterFactory" />
+
     <!-- Settings UI is registered unconditionally so users can configure
          the ktav-lsp path even before LSP4IJ is installed (the value is
          persisted and consumed by KtavLanguageServerFactory once LSP4IJ
