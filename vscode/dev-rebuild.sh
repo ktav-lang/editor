@@ -37,12 +37,21 @@ cp "$LSP_BIN" "$VSC_DIR/bin/win32-x64/ktav-lsp.exe"
 echo "✓ Скопирован"
 
 echo ""
-echo "===== 3. npm compile + vsce package ====="
+echo "===== 3. npm install + compile + vsce package ====="
 cd "$VSC_DIR"
-npm run compile 2>&1 | tail -5
 
-# vsce может ругаться на missing fields, --no-dependencies, --skip-license — попробую прямой путь
-npx vsce package --no-dependencies 2>&1 | tail -5
+# Install runtime deps (vscode-languageclient et al.) so vsce bundles them.
+# We need a real node_modules tree — without it the extension throws
+# "Cannot find module 'vscode-languageclient/node'" at activation.
+if [ ! -d "node_modules/vscode-languageclient" ]; then
+    npm install 2>&1 | tail -3
+fi
+
+npm run compile 2>&1 | tail -3
+
+# Pack with deps (default). NOT --no-dependencies, otherwise the
+# extension can't resolve runtime imports.
+npx vsce package 2>&1 | tail -5
 LATEST_VSIX=$(ls -t ktav-*.vsix | head -1)
 echo "✓ VSIX: $LATEST_VSIX"
 
