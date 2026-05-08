@@ -115,9 +115,11 @@ pub fn reindent(src: &str) -> String {
             multi = Multi::Verbatim;
         } else if ends_with_lone_lparen(trimmed) {
             multi = Multi::Stripped;
-        } else if trimmed == "{" || trimmed.ends_with(": {") {
-            depth += 1;
-        } else if trimmed == "[" || trimmed.ends_with(": [") {
+        } else if trimmed == "{"
+            || trimmed == "["
+            || trimmed.ends_with(": {")
+            || trimmed.ends_with(": [")
+        {
             depth += 1;
         }
     }
