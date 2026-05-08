@@ -57,7 +57,11 @@ fn build_object_at<'a>(
     out
 }
 
-fn build_children(value: &Value, cursor: &mut Cursor<'_>, depth: u32) -> Option<Vec<DocumentSymbol>> {
+fn build_children(
+    value: &Value,
+    cursor: &mut Cursor<'_>,
+    depth: u32,
+) -> Option<Vec<DocumentSymbol>> {
     match value {
         Value::Object(map) => Some(build_object_at(map, cursor, depth)),
         Value::Array(items) => {
@@ -279,9 +283,7 @@ fn collect_key_hits(text: &str) -> Vec<KeyHit<'_>> {
         } else {
             None
         };
-        let opens_compound = pushed_multi.is_some()
-            || tail.ends_with(" {")
-            || tail.ends_with(" [");
+        let opens_compound = pushed_multi.is_some() || tail.ends_with(" {") || tail.ends_with(" [");
 
         if opens_compound {
             compound_pushes.push(seg_count);

@@ -187,9 +187,7 @@ fn canonicalise_paren_scalar(trimmed: &str) -> std::borrow::Cow<'_, str> {
 
     // The value starts after the leading whitespace.
     let mut value_start = colon + 1;
-    while value_start < bytes.len()
-        && (bytes[value_start] == b' ' || bytes[value_start] == b'\t')
-    {
+    while value_start < bytes.len() && (bytes[value_start] == b' ' || bytes[value_start] == b'\t') {
         value_start += 1;
     }
     let value = &trimmed[value_start..];
