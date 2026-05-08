@@ -363,10 +363,22 @@ impl LanguageServer for Backend {
         &self,
         params: DocumentFormattingParams,
     ) -> RpcResult<Option<Vec<TextEdit>>> {
-        // Format = parse → render. If parse fails (file has syntax errors),
-        // we have no canonical Value to render — return None and let the
-        // editor leave the buffer untouched. Diagnostics will still flag
-        // the underlying error.
+        // Format = line-based canonical re-indent. We DO NOT round-trip
+        // through `parse → render(value)` because that would discard
+        // user-controlled formatting that the parser doesn't store in
+        // the `Value` tree:
+        //   * blank lines (visual section separators)
+        //   * `#` comments
+        //   * choice of multi-line form (`( ... )` vs `(( ... ))`)
+        //
+        // Instead [`crate::reindent::reindent`] walks the source line by
+        // line, tracks nesting depth from structural tokens, and emits
+        // each line at canonical depth. Inside `( ... )` / `(( ... ))`
+        // blocks lines are copied verbatim.
+        //
+        // Format still requires the document to parse cleanly — if it
+        // doesn't we leave the buffer untouched (diagnostics will flag
+        // the underlying error).
         let Some((text, parsed)) = self
             .docs
             .get(&params.text_document.uri)
@@ -374,15 +386,12 @@ impl LanguageServer for Backend {
         else {
             return Ok(None);
         };
-        let Some(value) = parsed else {
+        if parsed.is_none() {
             // Parsing failed — refuse to format malformed content.
             return Ok(None);
-        };
+        }
 
-        let formatted = match ktav::render::render(&value) {
-            Ok(s) => s,
-            Err(_) => return Ok(None),
-        };
+        let formatted = crate::reindent::reindent(&text);
 
         if formatted == text {
             // Already canonical — no edit needed.

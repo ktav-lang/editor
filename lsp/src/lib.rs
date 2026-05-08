@@ -6,6 +6,7 @@
 //! requests by walking the parsed [`ktav::Value`] tree.
 
 pub mod diagnostics;
+pub mod reindent;
 pub mod semantic;
 pub mod server;
 pub mod symbols;
