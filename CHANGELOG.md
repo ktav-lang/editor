@@ -17,7 +17,52 @@ the Ktav format itself — for the latter see
 
 ## Unreleased
 
-(no changes since 0.2.0)
+(no changes since 0.3.0)
+
+
+## [0.3.0] — 2026-05-08
+
+Tracks `ktav` Rust crate `0.3.0`. Picks up the parser-strictness
+change (inline `(value)` / `((value))` now an error), duplicate-key
+span fix, and hot-path micro-optimisations. Plus one user-visible
+LSP win:
+
+### LSP server (`ktav-lsp`)
+
+- **`build_symbols` rewritten as O(N) single-pass scanner** — the
+  IDE document outline previously stalled the language server for
+  ~11.5 seconds on a 500 KiB document because every top-level key
+  triggered a full-document text scan. The new scanner walks the
+  text once, recording `(virtual_depth, key, line_range)` for every
+  pair, and the DFS over the parsed `Value` advances a sequential
+  cursor through the hits. Wall-clock: 11.5 s → 13.2 ms (871×
+  faster). Outline-aware editors (JetBrains, VSCode) no longer
+  hang on large config files.
+
+- **Format pipeline: line-based reindent runs unconditionally**
+  instead of gating on a successful parse. With the `ktav` 0.3.0
+  parser strictness rejecting inline `(value)`, the previous
+  "format only when parses" gate locked users out of formatting
+  exactly when formatting would have repaired the issue.
+  `canonicalise_paren_scalar` rewrites `key: (value)` →
+  `key:: (value)` on save. 22-test integration suite added in
+  `tests/format_pipeline.rs` covering indentation normalisation,
+  blank-line preservation, comment preservation, multi-line
+  stripped/verbatim forms (byte-exact), auto-fix of inline paren
+  scalars, edge cases (CRLF, no trailing newline, empty doc).
+
+### IntelliJ plugin
+
+- Picks up the `ktav-lsp` 0.3.0 binary with the symbols speed-up
+  and the format-without-parse change. No standalone IntelliJ
+  changes in this release; build-time-stamped version
+  `0.3.0+YYYYMMDD-HHMM` keeps the IDE-visible version
+  distinguishable across iterative rebuilds.
+
+### VS Code extension
+
+- Picks up the `ktav-lsp` 0.3.0 binary. No standalone VS Code
+  changes in this release.
 
 
 ## [0.2.0] — 2026-05-07
