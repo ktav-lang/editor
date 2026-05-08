@@ -103,8 +103,16 @@ pub fn reindent(src: &str) -> String {
         }
 
         // ---- Regular line: emit at current depth ----
+        // Auto-disambiguate values that visually look like multi-line
+        // openers but aren't: `name: (value)` and `name: ((value))`
+        // are inline scalars starting with `(` / `((`. The parser
+        // accepts them, but the reader is left to wonder whether `(`
+        // is the start of a multi-line block. Canonical form is the
+        // raw marker `::`, which carries the same semantics
+        // (`name:: (value)` parses identically). Rewrite on format.
+        let line_to_emit = canonicalise_paren_scalar(trimmed);
         push_indent(&mut out, depth);
-        out.push_str(trimmed);
+        out.push_str(&line_to_emit);
         out.push('\n');
 
         // ---- Update depth / detect multi-line opener for the NEXT line ----
@@ -131,6 +139,85 @@ pub fn reindent(src: &str) -> String {
     }
 
     out
+}
+
+/// If [trimmed] is `<key>: <value>` where `<value>` is an inline
+/// scalar starting with `(` or `((` (i.e. NOT a multi-line opener:
+/// the line has more text after the open paren on the same line),
+/// rewrite the separator to `::` so the value is unambiguous.
+///
+/// Examples (input → output):
+///     `name: (value)`     → `name:: (value)`
+///     `name: ((value))`   → `name:: ((value))`
+///     `name: (value`      → `name:: (value`     (still ambiguous, but
+///                                                we make the `::`
+///                                                intent explicit)
+///     `name: (`           → unchanged (multi-line stripped opener)
+///     `name: ((`          → unchanged (multi-line verbatim opener)
+///     `name: text`        → unchanged
+///     `# name: (value)`   → unchanged (caller handled comments)
+///
+/// Semantically `name: (value)` and `name:: (value)` produce identical
+/// values via the current parser — both yield `String("(value)")`. So
+/// this rewrite is safe (no observable behaviour change), it only
+/// removes visual confusion with multi-line openers.
+fn canonicalise_paren_scalar(trimmed: &str) -> std::borrow::Cow<'_, str> {
+    // Find the FIRST `:` separator. We accept `:`, `::`, `:i`, `:f` as
+    // markers; only the plain `:` is the case we rewrite (the others
+    // already mean something specific and aren't ambiguous).
+    let bytes = trimmed.as_bytes();
+    let colon = match bytes.iter().position(|&b| b == b':') {
+        Some(p) => p,
+        None => return std::borrow::Cow::Borrowed(trimmed),
+    };
+
+    // Reject `::` / `:i` / `:f` markers — they're already explicit.
+    if colon + 1 < bytes.len() {
+        let next = bytes[colon + 1];
+        if next == b':' || next == b'i' || next == b'f' {
+            return std::borrow::Cow::Borrowed(trimmed);
+        }
+    }
+
+    // The `:` must be followed by at least one whitespace character to
+    // be a valid pair separator (Ktav § 6.10).
+    if colon + 1 >= bytes.len() || bytes[colon + 1] != b' ' && bytes[colon + 1] != b'\t' {
+        return std::borrow::Cow::Borrowed(trimmed);
+    }
+
+    // The value starts after the leading whitespace.
+    let mut value_start = colon + 1;
+    while value_start < bytes.len()
+        && (bytes[value_start] == b' ' || bytes[value_start] == b'\t')
+    {
+        value_start += 1;
+    }
+    let value = &trimmed[value_start..];
+
+    // Empty value — leave alone (Ktav represents this as `name:` /
+    // `name: ` and the parser keeps the empty-string semantics).
+    if value.is_empty() {
+        return std::borrow::Cow::Borrowed(trimmed);
+    }
+
+    // Must start with `(` (single or double).
+    if !value.starts_with('(') {
+        return std::borrow::Cow::Borrowed(trimmed);
+    }
+
+    // Detect multi-line opener: the opener is the WHOLE value (just `(`
+    // or `((`, possibly trailing whitespace already trimmed by caller).
+    // In that case we leave it alone — `:` + multi-line block is the
+    // canonical multi-line form.
+    if value == "(" || value == "((" {
+        return std::borrow::Cow::Borrowed(trimmed);
+    }
+
+    // Inline `(`-starting value: rewrite `:` → `::`. Keep the same
+    // whitespace shape: replace exactly the single `:` token.
+    let key_part = &trimmed[..colon];
+    let after_colon = &trimmed[colon + 1..];
+    std::borrow::Cow::Owned(format!("{}::{}", key_part, after_colon))
 }
 
 /// Does the line end with a single `(` (stripped multi-line opener)
@@ -222,6 +309,55 @@ mod tests {
     fn crlf_normalised_to_lf() {
         let src = "a: 1\r\nb: 2\r\n";
         let want = "a: 1\nb: 2\n";
+        assert_eq!(reindent(src), want);
+    }
+
+    #[test]
+    fn inline_paren_scalar_gets_raw_marker() {
+        // `name: (value)` is an inline scalar starting with `(` — visually
+        // confusing with multi-line opener. Format rewrites to `::`.
+        let src = "name: (value)\n";
+        let want = "name:: (value)\n";
+        assert_eq!(reindent(src), want);
+    }
+
+    #[test]
+    fn inline_double_paren_scalar_gets_raw_marker() {
+        let src = "name: ((value))\n";
+        let want = "name:: ((value))\n";
+        assert_eq!(reindent(src), want);
+    }
+
+    #[test]
+    fn multi_line_opener_paren_is_not_touched() {
+        // Just `(` at end of line — that's the multi-line opener.
+        let src = "name: (\n    body\n)\n";
+        let want = "name: (\n    body\n)\n";
+        assert_eq!(reindent(src), want);
+    }
+
+    #[test]
+    fn multi_line_opener_double_paren_is_not_touched() {
+        let src = "name: ((\nbody\n))\n";
+        let want = "name: ((\nbody\n))\n";
+        assert_eq!(reindent(src), want);
+    }
+
+    #[test]
+    fn raw_marker_paren_value_unchanged() {
+        // Already explicit raw — leave alone.
+        let src = "name:: (value)\n";
+        let want = "name:: (value)\n";
+        assert_eq!(reindent(src), want);
+    }
+
+    #[test]
+    fn typed_marker_paren_value_unchanged() {
+        // `:i` / `:f` are typed markers, not a plain `:` — don't rewrite.
+        // (Such bodies would fail typed-scalar validation, but that's
+        //  the parser's job to flag, not the formatter's.)
+        let src = "x:i (5)\n";
+        let want = "x:i (5)\n";
         assert_eq!(reindent(src), want);
     }
 }

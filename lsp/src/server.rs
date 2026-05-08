@@ -376,20 +376,21 @@ impl LanguageServer for Backend {
         // each line at canonical depth. Inside `( ... )` / `(( ... ))`
         // blocks lines are copied verbatim.
         //
-        // Format still requires the document to parse cleanly — if it
-        // doesn't we leave the buffer untouched (diagnostics will flag
-        // the underlying error).
-        let Some((text, parsed)) = self
+        // Format runs the text-level reindent unconditionally — it
+        // operates on lines (no parse needed) and one of its jobs is
+        // exactly to auto-fix forms that the parser rejects, e.g.
+        // `name: (value)` → `name:: (value)`. After that, the result
+        // is canonical Ktav and parses cleanly. If the document has
+        // unrelated syntax errors (unclosed compound, bad typed
+        // literal, etc.) reindent still produces a sensible re-indent
+        // and the underlying error stays in diagnostics.
+        let Some(text) = self
             .docs
             .get(&params.text_document.uri)
-            .map(|e| (e.text.clone(), e.parsed.clone()))
+            .map(|e| e.text.clone())
         else {
             return Ok(None);
         };
-        if parsed.is_none() {
-            // Parsing failed — refuse to format malformed content.
-            return Ok(None);
-        }
 
         let formatted = crate::reindent::reindent(&text);
 
