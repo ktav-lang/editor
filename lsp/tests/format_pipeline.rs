@@ -122,7 +122,7 @@ fn already_raw_paren_scalar_unchanged() {
 }
 
 #[test]
-fn typed_marker_with_paren_body_NOT_rewritten() {
+fn typed_marker_with_paren_body_not_rewritten() {
     // `:i` / `:f` are typed markers — leave them alone. Their bodies
     // are validated by the parser, not by the formatter.
     let src = "x:i (5)\n";

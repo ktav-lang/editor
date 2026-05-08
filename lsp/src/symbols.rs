@@ -34,8 +34,8 @@ pub fn build_symbols(value: &Value, text: &str) -> Vec<DocumentSymbol> {
     build_object_at(map, &mut cursor, 0)
 }
 
-fn build_object_at<'a>(
-    map: &'a ktav::value::ObjectMap,
+fn build_object_at(
+    map: &ktav::value::ObjectMap,
     cursor: &mut Cursor<'_>,
     depth: u32,
 ) -> Vec<DocumentSymbol> {
