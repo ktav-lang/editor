@@ -17,7 +17,41 @@ the Ktav format itself — for the latter see
 
 ## Unreleased
 
-(no changes since 0.3.0)
+(no changes since 0.3.1)
+
+
+## [0.3.1] — 2026-05-10
+
+Tracks `ktav` Rust crate `0.3.1` and `ktav-lang/spec` `0.1.1`. The
+spec change adds top-level Array as a recognised root kind (additive,
+existing Object documents parse identically); the editor surfaces it
+in the LSP outline and pins the formatter.
+
+### LSP server (`ktav-lsp`)
+
+- **Top-level Array** (spec § 5.0.1) is now first-class in
+  `build_symbols`: when the parsed root is an Array, items render as
+  `[0]`, `[1]`, … entries in the document outline (mirroring how
+  nested arrays already render). For object items the symbol's range
+  points at the line of the item's first key; for bare-scalar items
+  the range covers the item's own line.
+- `reindent` is verified to preserve bare top-level Array form — the
+  formatter does not synthesise `[ ... ]` brackets at the document
+  root. Pinned by new test cases in `tests/format_pipeline.rs`.
+- The 0.3.0 `name: (value)` → `name:: (value)` auto-disambiguation in
+  `reindent` is preserved.
+- Existing diagnostic / pinning tests updated to use a leading anchor
+  pair (`anchor: 1\n…`) for inputs that were previously
+  bare-pair-shaped at the document start — under spec 0.1.1 those
+  bare lines now parse as top-level Array string items, so the
+  fixtures are anchored explicitly to keep the malformed-pair branch
+  exercised.
+
+### Sync
+
+- `lsp/Cargo.toml`: `ktav = "0.3.1"` (was a path-dep during local
+  development of 0.3.0 → 0.3.1).
+- `editor/spec` submodule pinned at `7256816` (spec 0.1.1).
 
 
 ## [0.3.0] — 2026-05-08

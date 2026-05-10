@@ -21,17 +21,149 @@
 use ktav::Value;
 use tower_lsp::lsp_types::{DocumentSymbol, Position, Range, SymbolKind};
 
-/// Build a tree of `DocumentSymbol`s for the top-level object.
+/// Build a tree of `DocumentSymbol`s for the top-level value.
+///
+/// Per Ktav spec § 5.0.1, the top-level value may be an Object or an
+/// Array. For Object roots the outline is built from key hits; for
+/// Array roots the items render as `[0]`, `[1]`, … entries — same
+/// shape we already use for nested arrays.
 pub fn build_symbols(value: &Value, text: &str) -> Vec<DocumentSymbol> {
-    let Value::Object(map) = value else {
-        return Vec::new();
-    };
     let hits = collect_key_hits(text);
     let mut cursor = Cursor {
         hits: &hits,
         pos: 0,
     };
-    build_object_at(map, &mut cursor, 0)
+    match value {
+        Value::Object(map) => build_object_at(map, &mut cursor, 0),
+        Value::Array(items) => build_array_items(items, &mut cursor, 0, text),
+        _ => Vec::new(),
+    }
+}
+
+/// Build symbols for a top-level Array, where items appear at depth 0
+/// (no enclosing `[ ... ]` brackets in the source). Each item renders
+/// as `[i]`. For object items the line range is the line of the first
+/// key (depth 0); for bare-scalar items we fall back to the i-th
+/// non-blank, non-comment, non-closer line.
+fn build_array_items(
+    items: &[Value],
+    cursor: &mut Cursor<'_>,
+    depth: u32,
+    text: &str,
+) -> Vec<DocumentSymbol> {
+    let item_lines = collect_top_array_item_lines(text);
+    let mut out = Vec::with_capacity(items.len());
+    for (i, v) in items.iter().enumerate() {
+        // Default range covers the i-th item line if we found one.
+        let range = item_lines
+            .get(i)
+            .copied()
+            .map(|(line, line_len)| Range {
+                start: Position { line, character: 0 },
+                end: Position {
+                    line,
+                    character: line_len,
+                },
+            })
+            .unwrap_or_else(zero_range);
+        #[allow(deprecated)]
+        out.push(DocumentSymbol {
+            name: format!("[{}]", i),
+            detail: Some(value_kind(v).to_string()),
+            kind: kind_for(v),
+            tags: None,
+            deprecated: None,
+            range,
+            selection_range: range,
+            children: build_children(v, cursor, depth + 1),
+        });
+    }
+    out
+}
+
+/// Walk the source line by line and collect `(line, line_len)` for
+/// each top-level Array item — i.e. lines at virtual depth 0 that are
+/// not blank, comments, or lone closers.
+///
+/// This is a separate pass from `collect_key_hits` because top-level
+/// Array items may be bare scalars without keys (e.g. `foo` on a line
+/// of its own), which `collect_key_hits` skips.
+fn collect_top_array_item_lines(text: &str) -> Vec<(u32, u32)> {
+    let mut out: Vec<(u32, u32)> = Vec::new();
+    let mut multi = Multi::None;
+    let mut depth: u32 = 0;
+    let mut compound_pushes: Vec<u32> = Vec::new();
+
+    for (i, line) in text.split('\n').enumerate() {
+        if multi != Multi::None {
+            let trimmed = line.trim();
+            let is_term = match multi {
+                Multi::Stripped => trimmed == ")",
+                Multi::Verbatim => trimmed == "))",
+                Multi::None => false,
+            };
+            if is_term {
+                multi = Multi::None;
+                if let Some(n) = compound_pushes.pop() {
+                    depth = depth.saturating_sub(n);
+                }
+            }
+            continue;
+        }
+
+        let trimmed = line.trim_start();
+
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        let tail = trimmed.trim_end();
+
+        if tail == "}" || tail == "]" {
+            if let Some(n) = compound_pushes.pop() {
+                depth = depth.saturating_sub(n);
+            }
+            continue;
+        }
+
+        // Record this line as a top-level item if we're at depth 0.
+        if depth == 0 {
+            out.push((i as u32, line.len() as u32));
+        }
+
+        // Now apply depth changes for the NEXT line.
+        if matches!(tail, "{" | "[" | "(" | "((") {
+            match tail {
+                "(" => multi = Multi::Stripped,
+                "((" => multi = Multi::Verbatim,
+                _ => {}
+            }
+            compound_pushes.push(1);
+            depth += 1;
+            continue;
+        }
+
+        // Pair with trailing opener? Push compound depth for it.
+        let pushed_multi = if tail.ends_with(" ((") {
+            Some(Multi::Verbatim)
+        } else if tail.ends_with(" (") {
+            Some(Multi::Stripped)
+        } else {
+            None
+        };
+        let opens_compound = pushed_multi.is_some() || tail.ends_with(" {") || tail.ends_with(" [");
+        if opens_compound {
+            // For top-level item tracking we only care about physical
+            // depth, so push 1 regardless of dotted-key segment count.
+            compound_pushes.push(1);
+            depth += 1;
+            if let Some(m) = pushed_multi {
+                multi = m;
+            }
+        }
+    }
+
+    out
 }
 
 fn build_object_at(

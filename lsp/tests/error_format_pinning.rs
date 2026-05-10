@@ -27,10 +27,13 @@ fn err(text: &str) -> String {
 
 #[test]
 fn pin_missing_separator_space() {
-    let msg = err("key:value\n");
+    // First line forces Object root (per spec 0.1.1 a bare
+    // `key:value` at the document start parses as a top-level Array
+    // string item — by spec design — so we anchor with a real pair).
+    let msg = err("anchor: 1\nkey:value\n");
     assert_eq!(
         msg,
-        "Line 1: MissingSeparatorSpace: separator must be followed by whitespace or end of line"
+        "Line 2: MissingSeparatorSpace: separator must be followed by whitespace or end of line"
     );
 }
 
@@ -62,8 +65,10 @@ fn pin_key_path_conflict() {
 
 #[test]
 fn pin_empty_key() {
-    let msg = err(": value\n");
-    assert_eq!(msg, "Empty key at line 1");
+    // First line forces Object root (per spec 0.1.1 a bare `: value`
+    // at the document start parses as a top-level Array string item).
+    let msg = err("anchor: 1\n: value\n");
+    assert_eq!(msg, "Empty key at line 2");
 }
 
 #[test]

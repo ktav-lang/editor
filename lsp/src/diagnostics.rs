@@ -364,14 +364,18 @@ mod tests {
 
     #[test]
     fn missing_separator_space_tight_range() {
-        let text = "key:value\n";
+        // First line forces Object root (per spec 0.1.1 a bare
+        // `key:value` at the document start is a top-level Array
+        // string item, not a malformed pair). The malformed pair on
+        // line 2 then yields MissingSeparatorSpace.
+        let text = "anchor: 1\nkey:value\n";
         let diags = parse_for_diagnostics(text);
         assert_eq!(diags.len(), 1);
         let r = diags[0].range;
-        assert_eq!(r.start.line, 0);
-        // Structured span covers the glued body `value` (bytes 4..9), not
-        // the separator itself. The legacy classifier-derived range used
-        // to start at the colon (col 3); the structured span is tighter.
+        assert_eq!(r.start.line, 1);
+        // Structured span covers the glued body `value` on line 2,
+        // bytes 14..19 of the document, which converts to columns
+        // 4..9 on the line.
         assert_eq!(r.start.character, 4);
         assert_eq!(r.end.character, 9);
         assert!(diags[0].message.contains("MissingSeparatorSpace"));

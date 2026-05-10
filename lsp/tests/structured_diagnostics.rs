@@ -73,11 +73,15 @@ fn assert_diag_matches_kind(text: &str, kind: &ErrorKind) -> tower_lsp::lsp_type
 
 #[test]
 fn missing_separator_space_variant() {
-    let text = "key:value\n";
+    // First line forces Object root (per spec 0.1.1 a bare
+    // `key:value` at the document start is a top-level Array string
+    // item, not a malformed pair).
+    let text = "anchor: 1\nkey:value\n";
     let k = structured(text);
     assert!(matches!(k, ErrorKind::MissingSeparatorSpace { .. }));
     let d = assert_diag_matches_kind(text, &k);
-    // Concrete fixture: span covers `value` (bytes 4..9, line 1).
+    // Concrete fixture: span covers `value` on line 2 (cols 4..9).
+    assert_eq!(d.range.start.line, 1);
     assert_eq!(d.range.start.character, 4);
     assert_eq!(d.range.end.character, 9);
 }
@@ -109,7 +113,8 @@ fn key_path_conflict_variant() {
 
 #[test]
 fn empty_key_variant() {
-    let text = ": value\n";
+    // First line forces Object root (per spec 0.1.1).
+    let text = "anchor: 1\n: value\n";
     let k = structured(text);
     assert!(matches!(k, ErrorKind::EmptyKey { .. }));
     assert_diag_matches_kind(text, &k);
@@ -170,15 +175,22 @@ fn cyrillic_key_diagnostic_byte_columns() {
     // `имя:значение` — `имя` is 6 bytes (3 chars × 2 bytes each); `:`
     // is at byte 6; the glued body `значение` starts at byte 7.
     // MissingSeparatorSpace span is `body_off..trimmed_span.end`.
-    let text = "имя:значение\n";
+    // First line forces Object root (per spec 0.1.1).
+    let text = "anchor: 1\nимя:значение\n";
     let k = structured(text);
     let span = k.span();
     let d = assert_diag_matches_kind(text, &k);
 
     // Sanity: byte columns match the structured span's line/col.
-    let line = text.lines().next().unwrap();
-    let start_byte = span.start as usize;
-    let end_byte = span.end as usize;
+    // The diagnostic is on line 2 (1-indexed), so we extract that line.
+    let line = text.lines().nth(1).unwrap();
+
+    // The span is in document-byte offsets; convert to line-relative
+    // bytes by subtracting the byte offset where line 2 starts. Line 1
+    // is "anchor: 1\n" = 10 bytes.
+    let line2_start = "anchor: 1\n".len() as u32;
+    let start_byte = (span.start - line2_start) as usize;
+    let end_byte = (span.end - line2_start) as usize;
     assert_eq!(d.range.start.character as usize, start_byte);
     assert_eq!(d.range.end.character as usize, end_byte);
 

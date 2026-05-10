@@ -12,6 +12,12 @@ twenty lines are forwarded by the build (see `build.gradle.kts`
 `changeNotes` mapping), so keep recent releases at the top and prefer
 short bullet points.
 
+## 0.3.1
+
+- Bundles `ktav-lsp 0.3.1` (sync to ktav 0.3.1 + spec 0.1.1).
+- Document-symbols outline now lists top-level Array items as
+  `[0]`, `[1]`, … entries.
+
 ## 0.1.0
 
 - Initial release of the Ktav IntelliJ Platform plugin.

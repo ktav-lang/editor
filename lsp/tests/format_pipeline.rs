@@ -210,3 +210,22 @@ fn mixed_indent_in_input_normalised() {
     let want = "a: {\n    b: 1\n    c: 2\n    d: 3\n}\n";
     assert_eq!(reindent(src), want);
 }
+
+// ---- Top-level Array (spec § 5.0.1) ----
+
+#[test]
+fn top_level_array_of_scalars_preserved() {
+    // Bare scalar items at the document root form a top-level Array.
+    // The formatter must NOT add `[ ... ]` brackets around them.
+    let src = "foo\nbar\nbaz\n";
+    assert_eq!(reindent(src), src);
+}
+
+#[test]
+fn top_level_array_of_objects_preserved() {
+    // `{ ... }` blocks at the root are items of the top-level Array;
+    // they should keep their indentation and no enclosing `[]` is
+    // synthesised.
+    let src = "{\n    name: alice\n}\n{\n    name: bob\n}\n";
+    assert_eq!(reindent(src), src);
+}

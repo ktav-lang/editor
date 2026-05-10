@@ -7,6 +7,30 @@ the Cargo convention that a minor bump is breaking while pre-1.0.
 
 **Languages:** **English** · [Русский](CHANGELOG.ru.md) · [简体中文](CHANGELOG.zh.md)
 
+## [0.3.1] — 2026-05-10
+
+Sync to `ktav 0.3.1` and spec `0.1.1`. Adds top-level Array support
+in the document-symbols outline.
+
+### Changed
+
+- `build_symbols` now recognises a top-level Array root (per spec
+  § 5.0.1) and renders its items as `[0]`, `[1]`, … outline entries.
+  Object roots are unchanged.
+- `Cargo.toml`: `ktav = "0.3.1"` (was `"0.3.0"`).
+
+### Tests
+
+- New: `document_symbols_built_from_top_level_array_of_scalars`,
+  `document_symbols_top_level_array_of_objects_have_children` (in
+  `tests/integration.rs`).
+- New: `top_level_array_of_scalars_preserved`,
+  `top_level_array_of_objects_preserved` (in
+  `tests/format_pipeline.rs`).
+- Updated: pre-existing `MissingSeparatorSpace` / `EmptyKey` /
+  Cyrillic byte-column fixtures use a leading anchor pair so the
+  malformed-pair branch is still exercised under spec 0.1.1.
+
 ## [0.1.5] — 2026-05-01
 
 Internal refactor of the diagnostic pipeline. No public API changes.

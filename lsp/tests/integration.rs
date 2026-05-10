@@ -21,14 +21,18 @@ fn valid_document_yields_no_diagnostics() {
 
 #[test]
 fn missing_separator_space_tight_range_covers_marker_and_glued_body() {
-    let text = "key:value\n";
+    // First line forces Object root (per spec 0.1.1 a bare
+    // `key:value` at the document start is a top-level Array string
+    // item, not a malformed pair). The malformed pair on line 2 then
+    // yields MissingSeparatorSpace.
+    let text = "anchor: 1\nkey:value\n";
     let d = parse_for_diagnostics(text);
     assert_eq!(d.len(), 1);
     let r = d[0].range;
-    assert_eq!(r.start.line, 0);
-    // Structured span: just the glued body `value` (bytes 4..9). The
-    // legacy classifier-derived range used to start at the colon
-    // (col 3); the structured span is even tighter.
+    assert_eq!(r.start.line, 1);
+    // Structured span: just the glued body `value` (bytes 4..9 on
+    // line 2). The legacy classifier-derived range used to start at
+    // the colon (col 3); the structured span is even tighter.
     assert_eq!(r.start.character, 4);
     assert_eq!(r.end.character, 9);
     assert!(d[0].message.contains("MissingSeparatorSpace"));
@@ -36,14 +40,15 @@ fn missing_separator_space_tight_range_covers_marker_and_glued_body() {
 
 #[test]
 fn missing_separator_space_for_typed_marker() {
-    let text = "port:i8080\n";
+    // First line forces Object root (per spec 0.1.1).
+    let text = "anchor: 1\nport:i8080\n";
     let d = parse_for_diagnostics(text);
     assert_eq!(d.len(), 1);
     // `:i` is NOT classified as TypedInt because no whitespace follows
     // — it's a Plain marker covering just `:`. The diagnostic still
     // tightens to the marker + glued body.
     let r = d[0].range;
-    assert_eq!(r.start.line, 0);
+    assert_eq!(r.start.line, 1);
     assert!(r.end.character > r.start.character);
 }
 
@@ -259,11 +264,14 @@ fn diagnostics_byte_columns_for_cyrillic_pre_conversion() {
     // `имя:значение` → MissingSeparatorSpace. `имя` = 6 bytes, `:` at
     // byte 6, glued body `значение` starts at byte 7. Structured span
     // covers the body alone, so start column = 7 in BYTES.
-    let text = "имя:значение\n";
+    // First line forces Object root (per spec 0.1.1 a bare
+    // `имя:значение` at the document start would parse as a
+    // top-level Array string item).
+    let text = "anchor: 1\nимя:значение\n";
     let d = parse_for_diagnostics(text);
     assert_eq!(d.len(), 1);
     let r = d[0].range;
-    assert_eq!(r.start.line, 0);
+    assert_eq!(r.start.line, 1);
     assert_eq!(r.start.character, 7);
 }
 
@@ -294,6 +302,37 @@ fn symbols_locate_key_skips_nested_same_name() {
     let top_host = syms.iter().find(|s| s.name == "host").unwrap();
     // The top-level `host` lives on line 3 (0-indexed).
     assert_eq!(top_host.range.start.line, 3);
+}
+
+// ---- Top-level Array (spec § 5.0.1) ----
+
+#[test]
+fn document_symbols_built_from_top_level_array_of_scalars() {
+    // Bare scalar items at the document root. Per spec 0.1.1 these
+    // form a top-level Array; the outline should expose `[0]`, `[1]`,
+    // `[2]` with each item's range pointing to its own line.
+    let text = "first\nsecond\nthird\n";
+    let value = ktav::parse(text).expect("parse");
+    let syms = build_symbols(&value, text);
+    assert_eq!(syms.len(), 3, "three top-level array items");
+    assert_eq!(syms[0].name, "[0]");
+    assert_eq!(syms[1].name, "[1]");
+    assert_eq!(syms[2].name, "[2]");
+    assert_eq!(syms[0].range.start.line, 0);
+    assert_eq!(syms[1].range.start.line, 1);
+    assert_eq!(syms[2].range.start.line, 2);
+}
+
+#[test]
+fn document_symbols_top_level_array_of_objects_have_children() {
+    // Each `{ ... }` block is one item of the top-level Array.
+    let text = "{\n    name: alice\n}\n{\n    name: bob\n}\n";
+    let value = ktav::parse(text).expect("parse");
+    let syms = build_symbols(&value, text);
+    assert_eq!(syms.len(), 2);
+    assert_eq!(syms[0].name, "[0]");
+    let kids = syms[0].children.as_ref().expect("[0] has children");
+    assert!(kids.iter().any(|k| k.name == "name"));
 }
 
 // ---- Encoding-aware completion prefix + hover via classifier ----
