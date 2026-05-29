@@ -1,0 +1,30 @@
+<scheme name="Darcula" version="142" parent_scheme="Darcula">
+  <!-- Ktav value-type palette (parity with the VS Code extension). Same hues
+       as the light scheme; only the key colour differs — a near-black key is
+       unreadable on a dark background, so keys use a neutral light gray. -->
+  <attributes>
+    <!-- strings — bright blue -->
+    <option name="KTAV_STRING_VALUE">
+      <value><option name="FOREGROUND" value="1fb0ff" /></value>
+    </option>
+    <!-- numbers — saturated blue -->
+    <option name="KTAV_INT_VALUE">
+      <value><option name="FOREGROUND" value="2563eb" /></value>
+    </option>
+    <option name="KTAV_FLOAT_VALUE">
+      <value><option name="FOREGROUND" value="2563eb" /></value>
+    </option>
+    <!-- booleans — dark orange -->
+    <option name="KTAV_BOOLEAN">
+      <value><option name="FOREGROUND" value="c26a12" /></value>
+    </option>
+    <!-- null — dark red -->
+    <option name="KTAV_NULL">
+      <value><option name="FOREGROUND" value="b11a1a" /></value>
+    </option>
+    <!-- keys — neutral light gray (near-black is unreadable on dark) -->
+    <option name="KTAV_KEY">
+      <value><option name="FOREGROUND" value="a9b7c6" /></value>
+    </option>
+  </attributes>
+</scheme>

@@ -12,6 +12,13 @@ twenty lines are forwarded by the build (see `build.gradle.kts`
 `changeNotes` mapping), so keep recent releases at the top and prefer
 short bullet points.
 
+## 0.5.0
+
+- Bundles `ktav-lsp 0.5.0` (sync to ktav 0.5.0 + spec 0.5.0).
+- TextMate grammar: comment pattern updated to `##`, removed `:i`/`:f`
+  typed-marker patterns, added inline-compound and number-literal patterns.
+- License: dual `MIT OR Apache-2.0`.
+
 ## 0.3.1
 
 - Bundles `ktav-lsp 0.3.1` (sync to ktav 0.3.1 + spec 0.1.1).

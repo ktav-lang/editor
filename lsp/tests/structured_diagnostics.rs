@@ -86,13 +86,9 @@ fn missing_separator_space_variant() {
     assert_eq!(d.range.end.character, 9);
 }
 
-#[test]
-fn invalid_typed_scalar_variant() {
-    let text = "port:i abc\n";
-    let k = structured(text);
-    assert!(matches!(k, ErrorKind::InvalidTypedScalar { .. }));
-    assert_diag_matches_kind(text, &k);
-}
+// NOTE: `invalid_typed_scalar_variant` removed for spec 0.5.0 — typed
+// scalar markers (`:i`/`:f`) are gone, so `InvalidTypedScalar` is never
+// produced (`port:i abc` now errors as `MissingSeparatorSpace`).
 
 #[test]
 fn duplicate_key_variant() {
@@ -121,10 +117,13 @@ fn empty_key_variant() {
 }
 
 #[test]
-fn invalid_key_variant() {
+fn empty_key_trailing_dot_variant() {
+    // A trailing dot leaves an empty final key segment. ktav 0.5.0 reports
+    // this as `EmptyKey` (the legacy `InvalidKey` wording is no longer used
+    // for this case).
     let text = "a.: 1\n";
     let k = structured(text);
-    assert!(matches!(k, ErrorKind::InvalidKey { .. }));
+    assert!(matches!(k, ErrorKind::EmptyKey { .. }));
     assert_diag_matches_kind(text, &k);
 }
 
@@ -146,14 +145,10 @@ fn unbalanced_bracket_variant() {
     assert_diag_matches_kind(text, &k);
 }
 
-#[test]
-fn inline_nonempty_compound_variant() {
-    // Object with inline non-empty entries — forbidden by spec § 6.7.
-    let text = "obj: { a: 1, b: 2 }\n";
-    let k = structured(text);
-    assert!(matches!(k, ErrorKind::InlineNonEmptyCompound { .. }));
-    assert_diag_matches_kind(text, &k);
-}
+// NOTE: `inline_nonempty_compound_variant` removed for spec 0.5.0 — inline
+// non-empty compounds (`obj: { a: 1, b: 2 }`) are now VALID, so the
+// `InlineNonEmptyCompound` restriction (old spec § 6.7) no longer applies
+// and the parser accepts the document.
 
 #[test]
 fn missing_separator_variant() {

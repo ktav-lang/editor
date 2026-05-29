@@ -6,9 +6,22 @@ name: Release
 # notes from CHANGELOG.md). Each subproject's publish step is gated
 # on its own verify step.
 #
-# Required secrets (set per subproject's environment):
+# Build vs. publish: the build/package steps always run and produce
+# universal artifacts — a fat VSIX bundling all 6 platform LSP binaries
+# and a single IntelliJ plugin zip that loads on every JetBrains IDE on
+# every OS. Publishing is OFF for tag pushes — a `git push origin v*`
+# only builds artifacts and attaches them to the GH Release. Registry
+# publishes run ONLY on a manual `workflow_dispatch` with `publish: true`
+# (re-run the same tag once tokens are configured, version unchanged).
+# Even then each publish is BEST-EFFORT: skipped when its token is unset
+# and marked `continue-on-error`, so a missing token, an Open VSX read-
+# only window, or a pending JetBrains first-upload moderation never
+# blocks the run or the artifact upload.
+#
+# Optional secrets (set per subproject's environment). Absent → that
+# registry publish is skipped, artifacts still ship to the GH Release:
 #   • crates-io  → CARGO_REGISTRY_TOKEN
-#   • npm-vscode → VSCE_PAT, OVSX_PAT
+#   • npm-vscode → VSCE_PAT (VS Code Marketplace), OVSX_PAT (Open VSX)
 #   • intellij   → INTELLIJ_PUBLISH_TOKEN
 
 on:
@@ -18,8 +31,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to publish (e.g. v0.1.0). Must already exist."
+        description: "Tag to build/publish (e.g. v0.1.0). Must already exist."
         required: true
+      publish:
+        description: "Publish to registries (crates.io / Marketplace / Open VSX / JetBrains). Tag pushes NEVER publish — they only build artifacts."
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -75,6 +92,10 @@ jobs:
     needs: [verify-versions, lsp-binaries]
     runs-on: ubuntu-latest
     environment: crates-io
+    env:
+      # Job-level so the publish step's `if:` can detect whether the token
+      # is configured (secrets are only visible to `if:` via the env context).
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
     defaults:
       run:
         working-directory: lsp
@@ -90,8 +111,12 @@ jobs:
       - run: cargo clippy --release --all-targets -- -D warnings
       - run: cargo test --release
       - name: cargo publish
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        # Publishes only on a manual dispatch with publish=true; tag pushes
+        # build only. Best-effort: skip without a token, and don't fail the
+        # run if this version was already published. fmt/clippy/test above
+        # still gate the build, so a genuinely broken crate blocks the run.
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && env.CARGO_REGISTRY_TOKEN != '' }}
+        continue-on-error: true
         run: cargo publish
 
   # ------------------------------------------------------------------
@@ -183,6 +208,11 @@ jobs:
     needs: [verify-versions, lsp-binaries]
     runs-on: ubuntu-latest
     environment: npm-vscode
+    env:
+      # Job-level so each publish step's `if:` can detect whether the token
+      # is configured (secrets reach `if:` only through the env context).
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
     defaults:
       run:
         working-directory: vscode
@@ -202,14 +232,25 @@ jobs:
       - name: Organize binaries
         shell: bash
         run: |
-          mkdir -p ../vscode/bin/{linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64,win32-arm64}
-          [ -d "binaries/ktav-lsp-linux-amd64" ] && cp binaries/ktav-lsp-linux-amd64/ktav-lsp ../vscode/bin/linux-x64/
-          [ -d "binaries/ktav-lsp-linux-arm64" ] && cp binaries/ktav-lsp-linux-arm64/ktav-lsp ../vscode/bin/linux-arm64/
-          [ -d "binaries/ktav-lsp-darwin-amd64" ] && cp binaries/ktav-lsp-darwin-amd64/ktav-lsp ../vscode/bin/darwin-x64/
-          [ -d "binaries/ktav-lsp-darwin-arm64" ] && cp binaries/ktav-lsp-darwin-arm64/ktav-lsp ../vscode/bin/darwin-arm64/
-          [ -d "binaries/ktav-lsp-windows-amd64.exe" ] && cp binaries/ktav-lsp-windows-amd64.exe/ktav-lsp.exe ../vscode/bin/win32-x64/
-          [ -d "binaries/ktav-lsp-windows-arm64.exe" ] && cp binaries/ktav-lsp-windows-arm64.exe/ktav-lsp.exe ../vscode/bin/win32-arm64/
-          ls -lhR ../vscode/bin/
+          # `download-artifact` placed the artifacts at $GITHUB_WORKSPACE/binaries
+          # (workspace-root relative — NOT relative to this step's vscode
+          # working-directory). Each artifact dir holds ONE file named after the
+          # asset (lsp-binaries stages it as `$asset`, not `ktav-lsp`). Copy each
+          # into the platform dir the extension probes, renamed to `ktav-lsp[.exe]`.
+          # Absolute $GITHUB_WORKSPACE paths avoid any cwd ambiguity; no `[ -d ]`
+          # guards so a missing binary fails the release loudly instead of
+          # silently shipping a partial (Windows-only) VSIX.
+          B="$GITHUB_WORKSPACE/binaries"
+          D="$GITHUB_WORKSPACE/vscode/bin"
+          mkdir -p "$D"/{linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64,win32-arm64}
+          cp "$B/ktav-lsp-linux-amd64/ktav-lsp-linux-amd64"           "$D/linux-x64/ktav-lsp"
+          cp "$B/ktav-lsp-linux-arm64/ktav-lsp-linux-arm64"           "$D/linux-arm64/ktav-lsp"
+          cp "$B/ktav-lsp-darwin-amd64/ktav-lsp-darwin-amd64"         "$D/darwin-x64/ktav-lsp"
+          cp "$B/ktav-lsp-darwin-arm64/ktav-lsp-darwin-arm64"         "$D/darwin-arm64/ktav-lsp"
+          cp "$B/ktav-lsp-windows-amd64.exe/ktav-lsp-windows-amd64.exe" "$D/win32-x64/ktav-lsp.exe"
+          cp "$B/ktav-lsp-windows-arm64.exe/ktav-lsp-windows-arm64.exe" "$D/win32-arm64/ktav-lsp.exe"
+          chmod +x "$D/linux-x64/ktav-lsp" "$D/linux-arm64/ktav-lsp" "$D/darwin-x64/ktav-lsp" "$D/darwin-arm64/ktav-lsp"
+          ls -lhR "$D"
 
       - uses: actions/setup-node@v6
         with:
@@ -227,13 +268,25 @@ jobs:
       - name: Package .vsix
         run: npx vsce package --no-dependencies
       - name: Publish to VS Code Marketplace
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        # Publishes only on a manual dispatch with publish=true; tag pushes
+        # build only. The Marketplace PAT requires an Azure DevOps org (behind
+        # an Azure subscription wall) — when VSCE_PAT is unset the step skips
+        # and the fat VSIX still ships as a GH Release artifact for manual
+        # upload. continue-on-error keeps a failed publish from blocking the run.
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && env.VSCE_PAT != '' }}
+        continue-on-error: true
         run: npx vsce publish --no-dependencies --pat "$VSCE_PAT"
       - name: Publish to Open VSX
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        # Publishes only on a manual dispatch with publish=true; tag pushes
+        # build only. Skipped when OVSX_PAT is unset. continue-on-error so an
+        # Open VSX read-only maintenance window, or a namespace not yet
+        # created, doesn't fail the run — re-run later with
+        # `ovsx publish ktav-<ver>.vsix --pat <token>` (no rebuild needed).
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && env.OVSX_PAT != '' }}
+        continue-on-error: true
         run: npx ovsx publish --pat "$OVSX_PAT" *.vsix
+      # The universal VSIX always ships, regardless of whether either publish
+      # ran — this is the artifact for manual Marketplace / Open VSX upload.
       - uses: actions/upload-artifact@v5
         with:
           name: vscode-vsix
@@ -248,6 +301,10 @@ jobs:
     needs: [verify-versions, lsp-binaries]
     runs-on: ubuntu-latest
     environment: intellij
+    env:
+      # Job-level so the publish step's `if:` can detect whether the token
+      # is configured (secrets reach `if:` only through the env context).
+      INTELLIJ_PUBLISH_TOKEN: ${{ secrets.INTELLIJ_PUBLISH_TOKEN }}
     defaults:
       run:
         working-directory: intellij
@@ -267,14 +324,21 @@ jobs:
       - name: Organize binaries
         shell: bash
         run: |
-          mkdir -p ../intellij/bin/{linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64,win32-arm64}
-          [ -d "binaries/ktav-lsp-linux-amd64" ] && cp binaries/ktav-lsp-linux-amd64/ktav-lsp ../intellij/bin/linux-x64/
-          [ -d "binaries/ktav-lsp-linux-arm64" ] && cp binaries/ktav-lsp-linux-arm64/ktav-lsp ../intellij/bin/linux-arm64/
-          [ -d "binaries/ktav-lsp-darwin-amd64" ] && cp binaries/ktav-lsp-darwin-amd64/ktav-lsp ../intellij/bin/darwin-x64/
-          [ -d "binaries/ktav-lsp-darwin-arm64" ] && cp binaries/ktav-lsp-darwin-arm64/ktav-lsp ../intellij/bin/darwin-arm64/
-          [ -d "binaries/ktav-lsp-windows-amd64.exe" ] && cp binaries/ktav-lsp-windows-amd64.exe/ktav-lsp.exe ../intellij/bin/win32-x64/
-          [ -d "binaries/ktav-lsp-windows-arm64.exe" ] && cp binaries/ktav-lsp-windows-arm64.exe/ktav-lsp.exe ../intellij/bin/win32-arm64/
-          ls -lhR ../intellij/bin/
+          # Same as vscode-publish: artifacts live at $GITHUB_WORKSPACE/binaries
+          # (workspace-root relative), each dir holding one file named after the
+          # asset. Copy into the per-platform dir as `ktav-lsp[.exe]`. Absolute
+          # paths avoid cwd ambiguity; fail loudly on any missing binary.
+          B="$GITHUB_WORKSPACE/binaries"
+          D="$GITHUB_WORKSPACE/intellij/bin"
+          mkdir -p "$D"/{linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64,win32-arm64}
+          cp "$B/ktav-lsp-linux-amd64/ktav-lsp-linux-amd64"           "$D/linux-x64/ktav-lsp"
+          cp "$B/ktav-lsp-linux-arm64/ktav-lsp-linux-arm64"           "$D/linux-arm64/ktav-lsp"
+          cp "$B/ktav-lsp-darwin-amd64/ktav-lsp-darwin-amd64"         "$D/darwin-x64/ktav-lsp"
+          cp "$B/ktav-lsp-darwin-arm64/ktav-lsp-darwin-arm64"         "$D/darwin-arm64/ktav-lsp"
+          cp "$B/ktav-lsp-windows-amd64.exe/ktav-lsp-windows-amd64.exe" "$D/win32-x64/ktav-lsp.exe"
+          cp "$B/ktav-lsp-windows-arm64.exe/ktav-lsp-windows-arm64.exe" "$D/win32-arm64/ktav-lsp.exe"
+          chmod +x "$D/linux-x64/ktav-lsp" "$D/linux-arm64/ktav-lsp" "$D/darwin-x64/ktav-lsp" "$D/darwin-arm64/ktav-lsp"
+          ls -lhR "$D"
 
       - uses: actions/setup-java@v5
         with:
@@ -283,9 +347,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew test verifyPlugin buildPlugin --no-daemon
       - name: Publish to JetBrains Marketplace
-        env:
-          INTELLIJ_PUBLISH_TOKEN: ${{ secrets.INTELLIJ_PUBLISH_TOKEN }}
+        # Publishes only on a manual dispatch with publish=true; tag pushes
+        # build only. The FIRST version must be uploaded manually via
+        # https://plugins.jetbrains.com/plugin/add and pass moderation before
+        # token publishing works. Skipped when the token is unset, and
+        # continue-on-error so a rejected/blocked publishPlugin doesn't fail
+        # the run — the universal plugin zip ships as a GH Release artifact
+        # for that manual first upload.
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && env.INTELLIJ_PUBLISH_TOKEN != '' }}
+        continue-on-error: true
         run: ./gradlew publishPlugin --no-daemon
+      # The universal plugin zip (loads on all JetBrains IDEs / all OSes,
+      # bundling every platform LSP binary) always ships.
       - uses: actions/upload-artifact@v5
         with:
           name: intellij-zip

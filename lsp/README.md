@@ -125,4 +125,4 @@ Logs go to stderr (stdout is reserved for LSP traffic). Set
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT OR Apache-2.0. See [LICENSE-MIT](./LICENSE-MIT) and [LICENSE-APACHE](./LICENSE-APACHE).

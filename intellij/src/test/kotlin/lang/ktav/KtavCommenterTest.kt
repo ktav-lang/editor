@@ -9,8 +9,9 @@ class KtavCommenterTest {
     private val commenter = KtavCommenter()
 
     @Test
-    fun `line comment prefix is hash with trailing space`() {
-        assertEquals("# ", commenter.lineCommentPrefix)
+    fun `line comment prefix is double hash with trailing space`() {
+        // Spec 0.5.0: comments use `##` (a single `#` is content).
+        assertEquals("## ", commenter.lineCommentPrefix)
     }
 
     @Test

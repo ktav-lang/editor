@@ -6,18 +6,19 @@
 
 use tower_lsp::lsp_types::{SemanticToken, SemanticTokenType};
 
-use crate::tokens::{classify_line, split_dotted, LineKind, ValueKind};
+use crate::tokens::{classify_line, classify_value, split_dotted, LineKind, Marker, ValueKind};
 
 /// Token types we expose, in the order their indices are referenced
 /// from the deltas.
 pub fn token_types() -> Vec<SemanticTokenType> {
     vec![
-        SemanticTokenType::COMMENT,  // 0
-        SemanticTokenType::KEYWORD,  // 1
-        SemanticTokenType::NUMBER,   // 2
-        SemanticTokenType::STRING,   // 3
-        SemanticTokenType::PROPERTY, // 4
-        SemanticTokenType::OPERATOR, // 5
+        SemanticTokenType::COMMENT,     // 0
+        SemanticTokenType::KEYWORD,     // 1  — booleans (true / false)
+        SemanticTokenType::NUMBER,      // 2
+        SemanticTokenType::STRING,      // 3
+        SemanticTokenType::PROPERTY,    // 4  — keys
+        SemanticTokenType::OPERATOR,    // 5
+        SemanticTokenType::new("null"), // 6  — null literal (distinct hue)
     ]
 }
 
@@ -27,6 +28,7 @@ const TOK_NUMBER: u32 = 2;
 const TOK_STRING: u32 = 3;
 const TOK_PROPERTY: u32 = 4;
 const TOK_OPERATOR: u32 = 5;
+const TOK_NULL: u32 = 6;
 
 #[derive(Clone, Copy)]
 struct AbsToken {
@@ -95,6 +97,7 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) {
             value_start,
             value_length,
             value_kind,
+            value_text,
             ..
         } => {
             // Emit dotted-key segments as PROPERTY tokens (one per segment).
@@ -121,19 +124,31 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) {
                 token_type: TOK_OPERATOR,
             });
             if value_length > 0 {
-                let tt = match value_kind {
-                    ValueKind::Null | ValueKind::Bool => TOK_KEYWORD,
-                    ValueKind::Number => TOK_NUMBER,
-                    ValueKind::String => TOK_STRING,
-                    ValueKind::CompoundOpen => TOK_OPERATOR,
-                    ValueKind::CompoundClose => TOK_OPERATOR,
-                };
-                out.push(AbsToken {
-                    line,
-                    start: value_start,
-                    length: value_length,
-                    token_type: tt,
-                });
+                // An inline compound value (`{…}` / `[…]` on a `:` line) is
+                // tokenized structurally so its brackets read as operators
+                // (and thus bracket-match) rather than disappearing into one
+                // opaque string. `::` (Raw) bodies stay literal per spec.
+                if marker == Marker::Plain
+                    && value_kind == ValueKind::String
+                    && starts_inline_compound(value_text)
+                {
+                    emit_inline(line, value_start, value_text, out);
+                } else {
+                    let tt = match value_kind {
+                        ValueKind::Bool => TOK_KEYWORD,
+                        ValueKind::Null => TOK_NULL,
+                        ValueKind::Number => TOK_NUMBER,
+                        ValueKind::String => TOK_STRING,
+                        ValueKind::CompoundOpen => TOK_OPERATOR,
+                        ValueKind::CompoundClose => TOK_OPERATOR,
+                    };
+                    out.push(AbsToken {
+                        line,
+                        start: value_start,
+                        length: value_length,
+                        token_type: tt,
+                    });
+                }
             }
         }
         LineKind::ArrayItem {
@@ -141,18 +156,131 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) {
             length,
             kind,
         } => {
-            let tt = match kind {
-                ValueKind::Null | ValueKind::Bool => TOK_KEYWORD,
-                ValueKind::Number => TOK_NUMBER,
-                ValueKind::CompoundOpen | ValueKind::CompoundClose => TOK_OPERATOR,
-                _ => TOK_STRING,
-            };
+            let item_text = &raw[start as usize..start as usize + length as usize];
+            if matches!(kind, ValueKind::String) && starts_inline_compound(item_text) {
+                emit_inline(line, start, item_text, out);
+            } else {
+                let tt = match kind {
+                    ValueKind::Bool => TOK_KEYWORD,
+                    ValueKind::Null => TOK_NULL,
+                    ValueKind::Number => TOK_NUMBER,
+                    ValueKind::CompoundOpen | ValueKind::CompoundClose => TOK_OPERATOR,
+                    _ => TOK_STRING,
+                };
+                out.push(AbsToken {
+                    line,
+                    start,
+                    length,
+                    token_type: tt,
+                });
+            }
+        }
+    }
+}
+
+/// True if `text` (already trimmed) opens an inline compound — begins with
+/// `{` or `[`. Callers gate this on `ValueKind::String` so the lone multiline
+/// openers (`{`, `[`, `(`, `((`) and empty forms (`{}`, `[]`) — classified
+/// [`ValueKind::CompoundOpen`] — never reach the inline tokenizer.
+fn starts_inline_compound(text: &str) -> bool {
+    matches!(text.as_bytes().first(), Some(b'{') | Some(b'['))
+}
+
+/// Tokenize a single-line inline compound (`{k: v, …}` / `[v1, v2]`, nesting
+/// allowed) into structural + scalar sub-tokens. `base` is the absolute
+/// (byte) column of `text[0]`.
+///
+/// Brackets, commas and `:` / `::` separators become OPERATOR tokens so the
+/// editor treats them as real brackets (enabling bracket matching) instead of
+/// folding the whole value into one opaque string. Object keys become
+/// PROPERTY; scalar values are classified (STRING / NUMBER / KEYWORD).
+///
+/// The grammar's head/rest rule is preserved: `{` / `[` open a nested compound
+/// only at a value position; once a scalar run has begun they are ordinary
+/// literal content (`hello{world`).
+fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
+    let b = text.as_bytes();
+    let mut i = 0usize;
+    // Container stack: true = object, false = array.
+    let mut stack: Vec<bool> = Vec::new();
+    // Inside an object, the next scalar-shaped run is a key until the `:`.
+    let mut expect_key = false;
+
+    let push = |out: &mut Vec<AbsToken>, start: usize, len: usize, tt: u32| {
+        if len > 0 {
             out.push(AbsToken {
                 line,
-                start,
-                length,
+                start: base + start as u32,
+                length: len as u32,
                 token_type: tt,
             });
+        }
+    };
+
+    while i < b.len() {
+        match b[i] {
+            b' ' | b'\t' => i += 1,
+            c @ (b'{' | b'[') => {
+                push(out, i, 1, TOK_OPERATOR);
+                let is_obj = c == b'{';
+                stack.push(is_obj);
+                expect_key = is_obj;
+                i += 1;
+            }
+            b'}' | b']' => {
+                push(out, i, 1, TOK_OPERATOR);
+                stack.pop();
+                expect_key = false;
+                i += 1;
+            }
+            b',' => {
+                push(out, i, 1, TOK_OPERATOR);
+                expect_key = matches!(stack.last(), Some(true));
+                i += 1;
+            }
+            b':' if expect_key => {
+                // Pair separator inside an object (`:` or `::`).
+                let len = if i + 1 < b.len() && b[i + 1] == b':' {
+                    2
+                } else {
+                    1
+                };
+                push(out, i, len, TOK_OPERATOR);
+                expect_key = false;
+                i += len;
+            }
+            _ => {
+                let start = i;
+                if expect_key {
+                    // Key run: up to the separator / structural delimiters.
+                    while i < b.len() && !matches!(b[i], b':' | b',' | b'{' | b'}' | b'[' | b']') {
+                        i += 1;
+                    }
+                    let run = &text[start..i];
+                    push(out, start, run.trim_end().len(), TOK_PROPERTY);
+                    // expect_key stays set; the `:` arm clears it.
+                } else {
+                    // Scalar value: run until an unescaped `,` / `}` / `]`.
+                    // `{` / `[` mid-run are literal content (head/rest rule).
+                    while i < b.len() {
+                        match b[i] {
+                            b'\\' => i = (i + 2).min(b.len()),
+                            b',' | b'}' | b']' => break,
+                            _ => i += 1,
+                        }
+                    }
+                    let run = &text[start..i];
+                    let lead = run.len() - run.trim_start().len();
+                    let body = run.trim();
+                    let tt = match classify_value(body) {
+                        ValueKind::Bool => TOK_KEYWORD,
+                        ValueKind::Null => TOK_NULL,
+                        ValueKind::Number => TOK_NUMBER,
+                        _ => TOK_STRING,
+                    };
+                    push(out, start + lead, body.len(), tt);
+                }
+            }
         }
     }
 }

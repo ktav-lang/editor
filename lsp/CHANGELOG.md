@@ -7,6 +7,21 @@ the Cargo convention that a minor bump is breaking while pre-1.0.
 
 **Languages:** **English** · [Русский](CHANGELOG.ru.md) · [简体中文](CHANGELOG.zh.md)
 
+## [0.5.0] — 2026-05-27
+
+Sync to `ktav 0.5.0` and spec `0.5.0`.
+
+### Changed
+
+- `Cargo.toml`: `ktav = "0.5.0"` (was `"0.3.1"`).
+- License: dual `MIT OR Apache-2.0` (was MIT-only).
+- `tokens`: comments now require `##`; single `#` is an ordinary character.
+- `tokens`: typed markers `:i` and `:f` removed (spec 0.5.0 drop); type is
+  inferred from the lexical form of the scalar.
+- `tokens`: `looks_numeric` extended with hex (`0x`), octal (`0o`), binary
+  (`0b`) prefixes and underscore separators (spec 0.5.0 number literals).
+- `diagnostics`: removed legacy `InvalidTypedScalar` range heuristic.
+
 ## [0.3.1] — 2026-05-10
 
 Sync to `ktav 0.3.1` and spec `0.1.1`. Adds top-level Array support

@@ -130,10 +130,6 @@ fn compute_range_legacy(text: &str, msg: &str) -> Range {
         if let Some(r) = range_for_missing_separator(line, line_text) {
             return r;
         }
-    } else if msg.contains("InvalidTypedScalar") {
-        if let Some(r) = range_for_value_span(line, line_text) {
-            return r;
-        }
     } else if msg.contains("duplicate key")
         || msg.contains("Duplicate key")
         || msg.contains("conflicts with")
@@ -190,29 +186,6 @@ fn range_for_missing_separator(line: u32, line_text: &str) -> Option<Range> {
             character: marker_start + mlen + extra,
         },
     })
-}
-
-fn range_for_value_span(line: u32, line_text: &str) -> Option<Range> {
-    if let LineKind::Pair {
-        value_start,
-        value_length,
-        ..
-    } = classify_line(line_text)
-    {
-        if value_length > 0 {
-            return Some(Range {
-                start: Position {
-                    line,
-                    character: value_start,
-                },
-                end: Position {
-                    line,
-                    character: value_start + value_length,
-                },
-            });
-        }
-    }
-    None
 }
 
 fn range_for_key(line: u32, line_text: &str) -> Option<Range> {

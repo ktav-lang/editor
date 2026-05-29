@@ -77,4 +77,4 @@ endpoints: {
 
 ## License
 
-[MIT](./LICENSE)
+MIT OR Apache-2.0. See [LICENSE-MIT](./LICENSE-MIT) and [LICENSE-APACHE](./LICENSE-APACHE).

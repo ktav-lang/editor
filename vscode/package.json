@@ -2,7 +2,7 @@
   "name": "ktav",
   "displayName": "Ktav",
   "description": "Ktav configuration format — syntax highlighting and language support",
-  "version": "0.3.1",
+  "version": "0.5.0",
   "publisher": "ktav-lang",
   "repository": {
     "type": "git",
@@ -13,7 +13,7 @@
   "bugs": {
     "url": "https://github.com/ktav-lang/editor/issues"
   },
-  "license": "MIT",
+  "license": "MIT OR Apache-2.0",
   "author": "Marat K <phpcraftdream@gmail.com>",
   "engines": {
     "vscode": "^1.85.0"
@@ -87,6 +87,49 @@
         "editor.detectIndentation": false,
         "editor.formatOnSave": false,
         "editor.defaultFormatter": "ktav-lang.ktav"
+      },
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "scope": [
+              "string.unquoted.ktav",
+              "string.unquoted.raw.ktav",
+              "string.quoted.multiline.stripped.ktav",
+              "string.quoted.multiline.verbatim.ktav"
+            ],
+            "settings": { "foreground": "#1FB0FF" }
+          },
+          {
+            "scope": [
+              "constant.numeric.ktav",
+              "constant.numeric.integer.ktav",
+              "constant.numeric.float.ktav"
+            ],
+            "settings": { "foreground": "#2563EB" }
+          },
+          {
+            "scope": ["constant.language.boolean.ktav"],
+            "settings": { "foreground": "#C26A12" }
+          },
+          {
+            "scope": ["constant.language.null.ktav"],
+            "settings": { "foreground": "#B11A1A" }
+          },
+          {
+            "scope": ["entity.name.tag.ktav"],
+            "settings": { "foreground": "#333333" }
+          }
+        ]
+      },
+      "editor.semanticTokenColorCustomizations": {
+        "enabled": true,
+        "rules": {
+          "string:ktav": "#1FB0FF",
+          "number:ktav": "#2563EB",
+          "keyword:ktav": "#C26A12",
+          "null:ktav": "#B11A1A",
+          "property:ktav": "#333333"
+        }
       }
     }
   },

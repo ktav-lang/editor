@@ -33,6 +33,7 @@ object KtavTokenTypes {
     // Structural
     val LBRACE = IElementType("KTAV_LBRACE", KtavLanguage)
     val RBRACE = IElementType("KTAV_RBRACE", KtavLanguage)
+    val COMMA = IElementType("KTAV_COMMA", KtavLanguage)  // separator inside inline compounds
     val LBRACKET = IElementType("KTAV_LBRACKET", KtavLanguage)
     val RBRACKET = IElementType("KTAV_RBRACKET", KtavLanguage)
 

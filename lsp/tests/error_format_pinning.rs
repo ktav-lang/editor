@@ -37,14 +37,10 @@ fn pin_missing_separator_space() {
     );
 }
 
-#[test]
-fn pin_invalid_typed_scalar() {
-    let msg = err("port:i abc\n");
-    assert!(
-        msg.starts_with("Line 1: InvalidTypedScalar: "),
-        "got: {msg}"
-    );
-}
+// NOTE: `pin_invalid_typed_scalar` was removed for spec 0.5.0 — typed
+// scalar markers (`:i` / `:f`) and the `InvalidTypedScalar` error kind no
+// longer exist. `port:i abc` is now a valid Plain pair (value string
+// `i abc`), so there is no error to pin.
 
 #[test]
 fn pin_duplicate_key() {
@@ -73,9 +69,10 @@ fn pin_empty_key() {
 
 #[test]
 fn pin_invalid_key() {
-    // Trailing dot is an invalid key.
+    // A trailing dot yields an empty final key segment. ktav 0.5.0 reports
+    // this as an empty key.
     let msg = err("a.: 1\n");
-    assert!(msg.starts_with("Invalid key at line 1: '"), "got: {msg}");
+    assert_eq!(msg, "Empty key at line 1");
 }
 
 #[test]

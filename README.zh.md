@@ -130,7 +130,7 @@ require("lspconfig").ktav.setup({})
 
 ## 许可证
 
-MIT。详见 [LICENSE](LICENSE)。
+MIT OR Apache-2.0。详见 [LICENSE-MIT](LICENSE-MIT) 和 [LICENSE-APACHE](LICENSE-APACHE)。
 
 ## 其他 Ktav 实现
 

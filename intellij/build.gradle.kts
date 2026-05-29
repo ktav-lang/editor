@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//
 // Ktav IntelliJ Platform plugin — build configuration.
 //
 // Uses the modern `org.jetbrains.intellij.platform` Gradle plugin (the

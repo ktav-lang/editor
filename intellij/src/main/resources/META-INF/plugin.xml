@@ -49,6 +49,11 @@
       language="ktav"
       implementationClass="lang.ktav.highlighting.KtavSyntaxHighlighterFactory" />
 
+    <!-- Default colours: Ktav string values are bright blue out of the box
+         (parity with the VS Code extension), for light and dark schemes. -->
+    <additionalTextAttributes scheme="Default" file="colors/ktav-default.xml" />
+    <additionalTextAttributes scheme="Darcula" file="colors/ktav-darcula.xml" />
+
     <!-- Settings UI: Tools -> Ktav. Allows override of bundled ktav-lsp path. -->
     <applicationConfigurable
       parentId="tools"

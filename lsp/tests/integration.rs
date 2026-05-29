@@ -67,20 +67,10 @@ fn empty_input_is_valid() {
     assert!(parse_for_diagnostics("").is_empty());
 }
 
-#[test]
-fn invalid_typed_scalar_value_span_tightened() {
-    // `:i NaN` — typed-int body is invalid.
-    let text = "port:i abc\n";
-    let d = parse_for_diagnostics(text);
-    assert_eq!(d.len(), 1);
-    let r = d[0].range;
-    assert_eq!(r.start.line, 0);
-    // Structured span covers the body region (incl. leading space):
-    // `port:i abc` — body starts at byte 6, ends at 10.
-    assert_eq!(r.start.character, 6);
-    assert_eq!(r.end.character, 10);
-    assert!(d[0].message.contains("InvalidTypedScalar"));
-}
+// NOTE: `invalid_typed_scalar_value_span_tightened` was removed for spec
+// 0.5.0 — there are no typed scalars and no `InvalidTypedScalar` error kind.
+// (`port:i abc` now errors as `MissingSeparatorSpace`; that wording is pinned
+// in error_format_pinning.rs.)
 
 // ---- Semantic tokens ----
 
@@ -96,11 +86,13 @@ fn token_types_index_layout_stable() {
     assert_eq!(names[3], "string");
     assert_eq!(names[4], "property");
     assert_eq!(names[5], "operator");
+    assert_eq!(names[6], "null");
 }
 
 #[test]
 fn semantic_tokens_emit_for_simple_doc() {
-    let text = "# comment\nname: alice\nflag: true\ncount:i 42\n";
+    // Spec 0.5.0: comments require `##`; a single `#` is ordinary content.
+    let text = "## comment\nname: alice\nflag: true\ncount: 42\n";
     let toks = semantic_tokens(text);
     assert!(!toks.is_empty());
     assert_eq!(toks[0].delta_line, 0);
@@ -121,7 +113,8 @@ fn semantic_tokens_dotted_key_emits_one_property_per_segment() {
 
 #[test]
 fn semantic_tokens_typed_value_is_number() {
-    let text = "n:i 42\n";
+    // Spec 0.5.0: a number is inferred from the value's surface form.
+    let text = "n: 42\n";
     let toks = semantic_tokens(text);
     // Last token should be NUMBER (index 2).
     assert_eq!(toks.last().unwrap().token_type, 2);
@@ -153,13 +146,14 @@ fn semantic_tokens_compound_open_is_operator() {
 
 #[test]
 fn semantic_tokens_for_keywords() {
-    for (text, _) in [
+    // Booleans are KEYWORD (1); null gets its own distinct type NULL (6).
+    for (text, expected) in [
         ("flag: true\n", 1u32),
         ("flag: false\n", 1),
-        ("flag: null\n", 1),
+        ("flag: null\n", 6),
     ] {
         let toks = semantic_tokens(text);
-        assert_eq!(toks.last().unwrap().token_type, 1, "for {}", text);
+        assert_eq!(toks.last().unwrap().token_type, expected, "for {}", text);
     }
 }
 
@@ -181,7 +175,7 @@ fn document_symbols_built_from_object() {
 
 #[test]
 fn document_symbols_dotted_key_creates_nested_outline() {
-    let text = "db.host: localhost\ndb.port:i 5432\n";
+    let text = "db.host: localhost\ndb.port: 5432\n";
     let value = ktav::parse(text).expect("parse");
     let syms = build_symbols(&value, text);
     // Top-level should expose `db`.
@@ -196,11 +190,28 @@ fn document_symbols_dotted_key_creates_nested_outline() {
 
 #[test]
 fn tokens_pair_basic() {
+    // Spec 0.5.0: typed markers (`:i`/`:f`) are gone. `port:i 8080` is a
+    // Plain `:` whose value is the string `i 8080`.
     match classify_line("port:i 8080") {
+        LineKind::Pair {
+            marker,
+            value_kind,
+            value_text,
+            ..
+        } => {
+            assert_eq!(marker, Marker::Plain);
+            assert_eq!(value_kind, ValueKind::String);
+            assert_eq!(value_text, "i 8080");
+        }
+        other => panic!("expected pair, got {:?}", other),
+    }
+
+    // A genuine number infers `ValueKind::Number` from its surface form.
+    match classify_line("port: 8080") {
         LineKind::Pair {
             marker, value_kind, ..
         } => {
-            assert_eq!(marker, Marker::TypedInt);
+            assert_eq!(marker, Marker::Plain);
             assert_eq!(value_kind, ValueKind::Number);
         }
         other => panic!("expected pair, got {:?}", other),
@@ -325,8 +336,9 @@ fn document_symbols_built_from_top_level_array_of_scalars() {
 
 #[test]
 fn document_symbols_top_level_array_of_objects_have_children() {
-    // Each `{ ... }` block is one item of the top-level Array.
-    let text = "{\n    name: alice\n}\n{\n    name: bob\n}\n";
+    // Spec 0.5.0: a top-level array of objects is written with an explicit
+    // `[ … ]` wrapper (bare consecutive `{}` blocks are an orphan-line error).
+    let text = "[\n{\n    name: alice\n}\n{\n    name: bob\n}\n]\n";
     let value = ktav::parse(text).expect("parse");
     let syms = build_symbols(&value, text);
     assert_eq!(syms.len(), 2);
@@ -405,8 +417,9 @@ fn hover_classifier_skips_raw_array_item() {
 
 #[test]
 fn hover_classifier_skips_comment_line() {
+    // Spec 0.5.0: comments require `##`.
     assert!(matches!(
-        classify_line("# just a note"),
+        classify_line("## just a note"),
         LineKind::Comment { .. }
     ));
 }

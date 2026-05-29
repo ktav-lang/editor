@@ -9,9 +9,13 @@
 //! tightening all share one classifier.
 //!
 //! The tokenizer is purely line-oriented — Ktav's grammar is too
-//! (`# comment`, `key: value`, `key:: value`, `key:i N`, `key:f N`,
+//! (`## comment`, `key: value`, `key:: value`,
 //! `:: value` array literal-string item, lone `}` / `]` / `)` closers,
 //! compound openers `{` `[` `(` `((` `{}` `[]` `()`).
+//!
+//! Spec 0.5.0: typed markers `:i` and `:f` are removed; type is inferred
+//! from the lexical form of the scalar. Comments now require `##` (two `#`
+//! bytes); a single `#` is an ordinary character.
 //!
 //! It does NOT track the brace stack: a tokenizer that needs to know
 //! "am I inside an array?" already lost — for our purposes (highlighting
@@ -19,16 +23,15 @@
 //! what `ktav::parse` accepts.
 
 /// Marker shape on a `key:` line, matching `ktav`'s `Separator` enum.
+///
+/// Spec 0.5.0: `:i` and `:f` typed markers are removed. Only `Plain` (`:`)
+/// and `Raw` (`::`) remain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Marker {
     /// Plain `:`.
     Plain,
     /// `::` — raw / literal-string body.
     Raw,
-    /// `:i` — typed integer body.
-    TypedInt,
-    /// `:f` — typed float body.
-    TypedFloat,
 }
 
 impl Marker {
@@ -37,7 +40,7 @@ impl Marker {
     pub fn len(self) -> usize {
         match self {
             Marker::Plain => 1,
-            _ => 2,
+            Marker::Raw => 2,
         }
     }
 }
@@ -123,7 +126,9 @@ pub fn classify_line(raw: &str) -> LineKind<'_> {
         return LineKind::Blank;
     }
 
-    if trimmed.starts_with('#') {
+    // Spec 0.5.0: comments require `##` (two `#` bytes). A single `#` is
+    // an ordinary character in keys and values.
+    if trimmed.starts_with("##") {
         return LineKind::Comment {
             start: leading_ws as u32,
             length: trimmed.len() as u32,
@@ -147,6 +152,26 @@ pub fn classify_line(raw: &str) -> LineKind<'_> {
             marker_start: leading_ws as u32,
             value_start: (body_offset + inner_ws) as u32,
             value_length: value.len() as u32,
+        };
+    }
+
+    // A line that *begins* with `{` or `[` is an inline-compound value (an
+    // array item such as `{name: alice, age: 30}` or `[1, 2, 3]`), NOT a
+    // `key: value` pair — even though it contains a `:`. Keys can never start
+    // with a bracket, so the leading bracket is decisive. Route it through
+    // `ArrayItem` so the semantic emitter tokenizes it structurally via
+    // `emit_inline` instead of folding the whole line into one string.
+    // Lone openers (`{`, `[`, `{}`, `[]`) stay `CompoundOpen`.
+    if matches!(trimmed.as_bytes()[0], b'{' | b'[') {
+        let kind = if matches!(trimmed, "{" | "[" | "{}" | "[]") {
+            ValueKind::CompoundOpen
+        } else {
+            ValueKind::String
+        };
+        return LineKind::ArrayItem {
+            start: leading_ws as u32,
+            length: trimmed.len() as u32,
+            kind,
         };
     }
 
@@ -179,7 +204,6 @@ pub fn classify_line(raw: &str) -> LineKind<'_> {
     } else {
         match marker {
             Marker::Raw => ValueKind::String,
-            Marker::TypedInt | Marker::TypedFloat => ValueKind::Number,
             Marker::Plain => classify_value(value),
         }
     };
@@ -198,19 +222,11 @@ pub fn classify_line(raw: &str) -> LineKind<'_> {
 
 /// Mirror of `ktav::parser::parser::classify_separator`. `after_colon`
 /// is the slice after the first `:`.
+///
+/// Spec 0.5.0: only `::` (Raw) and `:` (Plain) are recognised.
 fn classify_marker(after_colon: &str) -> Marker {
     if after_colon.starts_with(':') {
         return Marker::Raw;
-    }
-    if let Some(rest) = after_colon.strip_prefix('i') {
-        if rest.is_empty() || rest.starts_with(char::is_whitespace) {
-            return Marker::TypedInt;
-        }
-    }
-    if let Some(rest) = after_colon.strip_prefix('f') {
-        if rest.is_empty() || rest.starts_with(char::is_whitespace) {
-            return Marker::TypedFloat;
-        }
     }
     Marker::Plain
 }
@@ -225,6 +241,9 @@ pub fn classify_value(v: &str) -> ValueKind {
     }
 }
 
+/// Spec 0.5.0 number literal heuristic — covers decimal, hex (`0x`), octal
+/// (`0o`), binary (`0b`), and float (requires `.` or exponent). Underscore
+/// separators between digits are allowed.
 fn looks_numeric(s: &str) -> bool {
     let bytes = s.as_bytes();
     if bytes.is_empty() {
@@ -238,9 +257,48 @@ fn looks_numeric(s: &str) -> bool {
     if start >= bytes.len() {
         return false;
     }
-    bytes[start..].iter().all(|b| {
-        b.is_ascii_digit() || *b == b'.' || *b == b'e' || *b == b'E' || *b == b'+' || *b == b'-'
-    }) && bytes[start..].iter().any(|b| b.is_ascii_digit())
+    let rest = &bytes[start..];
+    // Prefixed bases: 0x, 0o, 0b
+    if rest.len() >= 2 && rest[0] == b'0' {
+        match rest[1] {
+            b'x' => {
+                return rest[2..]
+                    .iter()
+                    .all(|b| b.is_ascii_hexdigit() || *b == b'_')
+                    && rest.len() > 2
+            }
+            b'o' => {
+                return rest[2..]
+                    .iter()
+                    .all(|b| matches!(b, b'0'..=b'7') || *b == b'_')
+                    && rest.len() > 2
+            }
+            b'b' => {
+                return rest[2..]
+                    .iter()
+                    .all(|b| matches!(b, b'0' | b'1') || *b == b'_')
+                    && rest.len() > 2
+            }
+            _ => {}
+        }
+    }
+    // Decimal integer or float. A well-formed float carries at most one `.`
+    // and at most one exponent marker — so dotted runs like an IPv4 address
+    // (`127.0.0.1`) or a version (`1.2.3`) are NOT numbers; they fall through
+    // to `String`. At least one digit is still required.
+    let mut dots = 0u32;
+    let mut exps = 0u32;
+    let mut has_digit = false;
+    for b in rest {
+        match b {
+            b'0'..=b'9' => has_digit = true,
+            b'_' | b'+' | b'-' => {}
+            b'.' => dots += 1,
+            b'e' | b'E' => exps += 1,
+            _ => return false,
+        }
+    }
+    has_digit && dots <= 1 && exps <= 1
 }
 
 fn trim_trailing_ws(s: &str) -> &str {
@@ -324,6 +382,8 @@ pub fn prefix_by_encoding(
 /// True if a `key: ` form on this line indicates the cursor is positioned
 /// AFTER the separator (used by completion to switch from key-mode to
 /// value-mode). `upto` is the line text up to the cursor column.
+///
+/// Spec 0.5.0: only `::` and `:` are markers; `:i`/`:f` are gone.
 pub fn cursor_is_after_separator(upto: &str) -> bool {
     let trimmed = upto.trim_start();
     let Some(i) = trimmed.find(':') else {
@@ -333,11 +393,8 @@ pub fn cursor_is_after_separator(upto: &str) -> bool {
     if let Some(rest) = after.strip_prefix(':') {
         rest.chars().all(char::is_whitespace)
     } else {
-        // Plain `:`, `:i`, `:f` — accept any whitespace tail (and the
-        // typed-marker letter itself).
-        after
-            .chars()
-            .all(|c| c == ' ' || c == '\t' || c == 'i' || c == 'f')
+        // Plain `:` — accept any whitespace tail.
+        after.chars().all(char::is_whitespace)
     }
 }
 
@@ -351,13 +408,20 @@ mod tests {
 
     #[test]
     fn comment() {
-        match pair("  # hello") {
+        // Spec 0.5.0: `##` required. Single `#` is not a comment.
+        match pair("  ## hello") {
             LineKind::Comment { start, length } => {
                 assert_eq!(start, 2);
-                assert_eq!(length, 7);
+                assert_eq!(length, 8);
             }
             other => panic!("got {:?}", other),
         }
+    }
+
+    #[test]
+    fn single_hash_is_not_comment() {
+        // Spec 0.5.0: a lone `#` is an ordinary character.
+        assert!(!matches!(pair("  # hello"), LineKind::Comment { .. }));
     }
 
     #[test]
@@ -382,24 +446,13 @@ mod tests {
     }
 
     #[test]
-    fn typed_int() {
+    fn typed_int_removed_spec050() {
+        // Spec 0.5.0: `:i` is no longer a typed marker — it is treated as a
+        // Plain marker whose value starts with `i`.
         match pair("port:i 8080") {
-            LineKind::Pair {
-                marker, value_kind, ..
-            } => {
-                assert_eq!(marker, Marker::TypedInt);
-                assert_eq!(value_kind, ValueKind::Number);
+            LineKind::Pair { marker, .. } => {
+                assert_eq!(marker, Marker::Plain);
             }
-            other => panic!("got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn typed_int_eol() {
-        // `port:i` with no body — still a TypedInt marker (parser will
-        // reject the empty body, but classification is the same).
-        match pair("port:i") {
-            LineKind::Pair { marker, .. } => assert_eq!(marker, Marker::TypedInt),
             other => panic!("got {:?}", other),
         }
     }
@@ -452,6 +505,40 @@ mod tests {
     fn compound_open() {
         match pair("server: {") {
             LineKind::Pair { value_kind, .. } => assert_eq!(value_kind, ValueKind::CompoundOpen),
+            other => panic!("got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn ipv4_and_versions_are_not_numeric() {
+        // More than one `.` ⇒ not a number; classified as String.
+        assert!(!looks_numeric("127.0.0.1"));
+        assert!(!looks_numeric("1.2.3"));
+        assert!(!looks_numeric("1.2.3.4"));
+        // Well-formed numbers still recognised.
+        assert!(looks_numeric("42"));
+        assert!(looks_numeric("1.3"));
+        assert!(looks_numeric("1.5e3"));
+        assert!(looks_numeric("0xFF_00"));
+        assert_eq!(classify_value("127.0.0.1"), ValueKind::String);
+        assert_eq!(classify_value("1.3"), ValueKind::Number);
+    }
+
+    #[test]
+    fn line_starting_with_bracket_is_array_item_not_pair() {
+        // `{name: alice, age: 30}` is an inline-object array item, not a
+        // `key: value` pair keyed on `{name`.
+        match pair("{name: alice, age: 30}") {
+            LineKind::ArrayItem { kind, .. } => assert_eq!(kind, ValueKind::String),
+            other => panic!("got {:?}", other),
+        }
+        match pair("[1, 2, 3]") {
+            LineKind::ArrayItem { kind, .. } => assert_eq!(kind, ValueKind::String),
+            other => panic!("got {:?}", other),
+        }
+        // Lone opener stays CompoundOpen.
+        match pair("{") {
+            LineKind::ArrayItem { kind, .. } => assert_eq!(kind, ValueKind::CompoundOpen),
             other => panic!("got {:?}", other),
         }
     }
@@ -567,7 +654,6 @@ mod tests {
     fn cursor_after_sep() {
         assert!(cursor_is_after_separator("name: "));
         assert!(cursor_is_after_separator("name:: "));
-        assert!(cursor_is_after_separator("name:i "));
         assert!(!cursor_is_after_separator("name"));
         assert!(!cursor_is_after_separator("nam"));
     }

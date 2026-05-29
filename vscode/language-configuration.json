@@ -1,6 +1,6 @@
 {
   "comments": {
-    "lineComment": "#"
+    "lineComment": "##"
   },
   "brackets": [
     ["{", "}"],
@@ -35,5 +35,5 @@
       "action": { "indent": "indent" }
     }
   ],
-  "wordPattern": "[^\\s\\[\\]{}:#.]+"
+  "wordPattern": "[^\\s{}\\[\\]():#.,]+"
 }

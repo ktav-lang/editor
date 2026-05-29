@@ -79,6 +79,9 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
         private val BRACKETS_ATTR = TextAttributesKey.createTextAttributesKey(
             "KTAV_BRACKETS", DefaultLanguageHighlighterColors.BRACKETS
         )
+        private val COMMA_ATTR = TextAttributesKey.createTextAttributesKey(
+            "KTAV_COMMA", DefaultLanguageHighlighterColors.COMMA
+        )
 
         // Comments + errors
         private val COMMENT_ATTR = TextAttributesKey.createTextAttributesKey(
@@ -114,6 +117,7 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
             Tokens.MULTILINE_TEXT to arrayOf(MULTILINE_TEXT_ATTR),
 
             // Structural
+            Tokens.COMMA to arrayOf(COMMA_ATTR),
             Tokens.LBRACE to arrayOf(BRACES_ATTR),
             Tokens.RBRACE to arrayOf(BRACES_ATTR),
             Tokens.LBRACKET to arrayOf(BRACKETS_ATTR),
@@ -125,12 +129,11 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
         )
     }
 
-    private val lexer = KtavLexer()
-
-    override fun getHighlightingLexer(): Lexer {
-        log.info("KtavSyntaxHighlighter.getHighlightingLexer() called")
-        return lexer
-    }
+    // A `LexerBase` is stateful (buffer, offsets, packed state). IntelliJ may
+    // run the highlighting lexer re-entrantly / off the EDT, so a single shared
+    // instance corrupts mid-scan and makes colours flicker / jump. Hand out a
+    // fresh lexer on every request.
+    override fun getHighlightingLexer(): Lexer = KtavLexer()
 
     override fun getTokenHighlights(tokenType: IElementType?): Array<TextAttributesKey> {
         return ATTRIBUTES[tokenType] ?: EMPTY_ATTRS

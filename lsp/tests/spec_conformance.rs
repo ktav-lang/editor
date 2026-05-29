@@ -50,7 +50,10 @@ fn spec_tests_dir() -> Option<PathBuf> {
     // `CARGO_MANIFEST_DIR` for this crate is `<repo>/lsp`, so the
     // submodule lives one level up.
     let manifest = env!("CARGO_MANIFEST_DIR");
-    let p = Path::new(manifest).join("../spec/versions/0.1/tests");
+    // Spec 0.5.0 conformance corpus (the crate is ktav 0.5.0). The 0.1
+    // fixtures use removed syntax (`:i`/`:f` typed markers, single-`#`
+    // comments, the old top-level-array forms) and no longer parse.
+    let p = Path::new(manifest).join("../spec/versions/0.5/tests");
     if p.join("valid").is_dir() && p.join("invalid").is_dir() {
         Some(p)
     } else {
