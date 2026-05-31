@@ -1,7 +1,9 @@
 package lang.ktav.lsp
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
@@ -97,7 +99,7 @@ class FileOpenListener(private val project: Project) : FileEditorManagerListener
  */
 object ChangeTracker {
     private val log = Logger.getInstance(ChangeTracker::class.java)
-    private val attached = ConcurrentHashMap<String, DocumentListener>()
+    private val attached = ConcurrentHashMap<String, Disposable>()
 
     fun getInstance(project: Project): ChangeTracker = this
 
@@ -108,14 +110,20 @@ object ChangeTracker {
             return
         }
         val listener = FileChangeListener(uri, document)
-        document.addDocumentListener(listener)
-        attached[uri] = listener
+        // Tie the listener to a Disposable: detach() disposes it, which
+        // removes the listener. The single-arg addDocumentListener is
+        // deprecated and also leaked the listener (it was never removed on
+        // file close).
+        val disposable = Disposer.newDisposable("KtavChangeTracker:$uri")
+        document.addDocumentListener(listener, disposable)
+        attached[uri] = disposable
         log.info("[Ktav ChangeTracker] Attached change listener: $uri")
     }
 
     fun detach(file: VirtualFile) {
         val uri = UriUtil.fromVirtualFile(file)
-        attached.remove(uri) ?: return
+        val disposable = attached.remove(uri) ?: return
+        Disposer.dispose(disposable)
         log.info("[Ktav ChangeTracker] Detached change listener: $uri")
     }
 }

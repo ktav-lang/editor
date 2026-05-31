@@ -1,8 +1,7 @@
 package lang.ktav.lsp
 
-import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.ide.plugins.cl.PluginAwareClassLoader
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.util.SystemInfo
 import java.nio.file.Files
 import java.nio.file.Path
@@ -67,16 +66,17 @@ object KtavServerDiscovery {
     private fun bundledPath(): Path? {
         log.info("[Ktav Discovery] Looking for plugin: $PLUGIN_ID")
 
-        val plugin = runCatching {
-            PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))
-        }.getOrNull()
+        // Resolve our own plugin descriptor from the class loader that loaded
+        // this class — avoids the now-internal PluginManagerCore.getPlugin(id).
+        val descriptor = (KtavServerDiscovery::class.java.classLoader as? PluginAwareClassLoader)
+            ?.pluginDescriptor
 
-        if (plugin == null) {
-            log.warn("[Ktav Discovery] Plugin not found via PluginManagerCore")
+        if (descriptor == null) {
+            log.warn("[Ktav Discovery] Plugin descriptor not available from class loader")
             return null
         }
 
-        val root = plugin.pluginPath
+        val root: Path? = descriptor.pluginPath
         if (root == null) {
             log.warn("[Ktav Discovery] Plugin has no pluginPath")
             return null

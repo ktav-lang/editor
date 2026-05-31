@@ -85,7 +85,17 @@ class KtavLspProjectService(private val project: Project) : AutoCloseable {
                     log.info("[Ktav LSP] Triggering DaemonCodeAnalyzer restart")
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                         if (!project.isDisposed) {
-                            com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project).restart()
+                            // Restart highlighting per open .ktav file: the no-arg
+                            // DaemonCodeAnalyzer.restart() is deprecated, and a
+                            // per-file restart is more targeted than a global one.
+                            val daemon = com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project)
+                            val psiManager = com.intellij.psi.PsiManager.getInstance(project)
+                            com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFiles
+                                .filter { it.extension == "ktav" }
+                                .forEach { vf ->
+                                    val psiFile = psiManager.findFile(vf) ?: return@forEach
+                                    daemon.restart(psiFile)
+                                }
                         }
                     }
                 }

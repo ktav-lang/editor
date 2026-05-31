@@ -16,11 +16,14 @@ MINOR 递进视为破坏性变更。
 - 兼容范围提升至 IntelliJ 2023.1+(`since-build 231`)。
   Marketplace 验证器在 2022.1–2022.3 上报告了硬性不兼容;所有 231+ 构建
   均验证为 Compatible,范围现已与实际情况一致。
-- 清理弃用 API(行为不变):`CodeInsightColors.INFO_ATTRIBUTES`
-  → `WEAK_WARNING_ATTRIBUTES`;`TextFieldWithBrowseButton.addBrowseFolderListener(title, …)`
-  → 手动 `FileChooser.chooseFile`,标题放在 descriptor 上;
-  `TextAttributesKey.createTextAttributesKey(String, TextAttributes)` →
-  `enforcedTextAttributes`。插件在 2023.1–2024.3 上验证零警告。
+- 清理弃用 / 内部 API(行为不变):`INFO_ATTRIBUTES` → `WEAK_WARNING_ATTRIBUTES`;
+  `addBrowseFolderListener(title, …)` → 手动 `FileChooser.chooseFile`;
+  `createTextAttributesKey(String, TextAttributes)` → `enforcedTextAttributes`;
+  `createSingleFileDescriptor()` → `FileChooserDescriptor` 构造函数;
+  `Document.addDocumentListener(l)` → 带 `Disposable` 的重载(顺带修复监听器泄漏);
+  `DaemonCodeAnalyzer.restart()` → 按文件 `restart(PsiFile)`;内部
+  `PluginManagerCore.getPlugin(id)` → 经插件自身 class-loader 获取描述符。
+  在 2023.1–2024.3 上验证零警告。
 - 仍捆绑相同的 `ktav-lsp 0.5.0`。
 
 ## 0.1.0

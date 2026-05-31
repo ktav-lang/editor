@@ -1,7 +1,7 @@
 package lang.ktav.lsp
 
 import com.intellij.openapi.fileChooser.FileChooser
-import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.TextFieldWithBrowseButton
 import com.intellij.ui.components.JBLabel
@@ -34,7 +34,10 @@ class KtavConfigurable : Configurable {
         // This avoids the scheduled-for-removal
         // `addBrowseFolderListener(title, description, project, descriptor)`
         // overload while staying compatible from 2023.1 (231) onward.
-        val descriptor = FileChooserDescriptorFactory.createSingleFileDescriptor()
+        // Single regular file. Built via the constructor (the no-arg
+        // FileChooserDescriptorFactory.createSingleFileDescriptor() helper is
+        // deprecated in newer SDKs); title/description live on the descriptor.
+        val descriptor = FileChooserDescriptor(true, false, false, false, false, false)
             .withTitle("Select ktav-lsp Binary")
             .withDescription("Path to the Ktav language-server executable")
         val field = TextFieldWithBrowseButton()

@@ -19,11 +19,14 @@
   Верификатор Marketplace выдавал жёсткую несовместимость на 2022.1–2022.3;
   все сборки 231+ проходят как Compatible, теперь диапазон соответствует
   реальности.
-- Чистка устаревших API (без изменения поведения): `CodeInsightColors.INFO_ATTRIBUTES`
-  → `WEAK_WARNING_ATTRIBUTES`; `TextFieldWithBrowseButton.addBrowseFolderListener(title, …)`
-  → ручной `FileChooser.chooseFile` с заголовком на дескрипторе;
-  `TextAttributesKey.createTextAttributesKey(String, TextAttributes)` →
-  `enforcedTextAttributes`. Плагин верифицируется без предупреждений на 2023.1–2024.3.
+- Чистка устаревших / внутренних API (без изменения поведения): `INFO_ATTRIBUTES`
+  → `WEAK_WARNING_ATTRIBUTES`; `addBrowseFolderListener(title, …)` → ручной
+  `FileChooser.chooseFile`; `createTextAttributesKey(String, TextAttributes)` →
+  `enforcedTextAttributes`; `createSingleFileDescriptor()` → конструктор
+  `FileChooserDescriptor`; `Document.addDocumentListener(l)` → overload с `Disposable`
+  (заодно чинит утечку слушателя); `DaemonCodeAnalyzer.restart()` → пофайловый
+  `restart(PsiFile)`; внутренний `PluginManagerCore.getPlugin(id)` → дескриптор
+  через class-loader плагина. Верифицируется без предупреждений на 2023.1–2024.3.
 - Бандлит тот же `ktav-lsp 0.5.0`.
 
 ## 0.1.0
