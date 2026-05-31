@@ -52,7 +52,7 @@ class KtavParserDefinition : ParserDefinition {
     companion object {
         val FILE = IFileElementType(KtavLanguage)
         val COMMENTS = TokenSet.create(KtavTokenTypes.COMMENT)
-        val STRINGS = TokenSet.create(KtavTokenTypes.STRING)
+        val STRINGS = TokenSet.create(KtavTokenTypes.STRING_VALUE)
     }
 }
 

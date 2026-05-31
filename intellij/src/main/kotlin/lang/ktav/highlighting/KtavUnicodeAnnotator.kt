@@ -3,7 +3,6 @@ package lang.ktav.highlighting
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.annotation.HighlightSeverity
-import com.intellij.openapi.editor.colors.TextAttributesKey
 import com.intellij.openapi.editor.markup.EffectType
 import com.intellij.openapi.editor.markup.TextAttributes
 import com.intellij.openapi.util.TextRange
@@ -72,7 +71,7 @@ class KtavUnicodeAnnotator : Annotator {
                 val range = TextRange(baseOffset + start, baseOffset + i)
                 holder.newSilentAnnotation(HighlightSeverity.INFORMATION)
                     .range(range)
-                    .textAttributes(MIXED_SCRIPT_ATTR)
+                    .enforcedTextAttributes(MIXED_SCRIPT_ATTRS)
                     .create()
             } else {
                 i++
@@ -102,17 +101,18 @@ class KtavUnicodeAnnotator : Annotator {
     }
 
     companion object {
-        /** Muted red box around mixed-script characters. */
-        private val MIXED_SCRIPT_DEFAULT_ATTRS = TextAttributes(
+        /**
+         * Muted red box around mixed-script characters. Applied directly via
+         * `enforcedTextAttributes` (not registered as a themeable
+         * `TextAttributesKey`) so we avoid the deprecated
+         * `createTextAttributesKey(String, TextAttributes)` overload.
+         */
+        private val MIXED_SCRIPT_ATTRS = TextAttributes(
             null,                       // foreground: theme default
             null,                       // background: theme default
             Color(0xCC, 0x66, 0x66),    // effect color: muted red
             EffectType.BOXED,
             Font.PLAIN,
-        )
-
-        val MIXED_SCRIPT_ATTR: TextAttributesKey = TextAttributesKey.createTextAttributesKey(
-            "KTAV_MIXED_SCRIPT_KEY", MIXED_SCRIPT_DEFAULT_ATTRS,
         )
     }
 }

@@ -17,9 +17,12 @@ short bullet points.
 - Compatibility range raised to IntelliJ 2023.1+ (`since-build 231`).
   The Marketplace verifier reported a hard incompatibility on 2022.1–2022.3;
   every build 231+ verifies as Compatible, so the range now matches reality.
-- Replaced scheduled-for-removal `CodeInsightColors.INFO_ATTRIBUTES` with
-  `WEAK_WARNING_ATTRIBUTES` for info/hint diagnostics.
-- No functional changes; bundles the same `ktav-lsp 0.5.0`.
+- API-deprecation cleanup (no behaviour change): `CodeInsightColors.INFO_ATTRIBUTES`
+  → `WEAK_WARNING_ATTRIBUTES`; `TextFieldWithBrowseButton.addBrowseFolderListener(title, …)`
+  → manual `FileChooser.chooseFile` with the title on the descriptor;
+  `TextAttributesKey.createTextAttributesKey(String, TextAttributes)` →
+  `enforcedTextAttributes`. The plugin now verifies warning-free on 2023.1–2024.3.
+- Bundles the same `ktav-lsp 0.5.0`.
 
 ## 0.5.0
 

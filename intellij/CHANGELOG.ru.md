@@ -19,9 +19,12 @@
   Верификатор Marketplace выдавал жёсткую несовместимость на 2022.1–2022.3;
   все сборки 231+ проходят как Compatible, теперь диапазон соответствует
   реальности.
-- Замена scheduled-for-removal `CodeInsightColors.INFO_ATTRIBUTES` на
-  `WEAK_WARNING_ATTRIBUTES` для диагностик уровня info/hint.
-- Функциональных изменений нет; бандлит тот же `ktav-lsp 0.5.0`.
+- Чистка устаревших API (без изменения поведения): `CodeInsightColors.INFO_ATTRIBUTES`
+  → `WEAK_WARNING_ATTRIBUTES`; `TextFieldWithBrowseButton.addBrowseFolderListener(title, …)`
+  → ручной `FileChooser.chooseFile` с заголовком на дескрипторе;
+  `TextAttributesKey.createTextAttributesKey(String, TextAttributes)` →
+  `enforcedTextAttributes`. Плагин верифицируется без предупреждений на 2023.1–2024.3.
+- Бандлит тот же `ktav-lsp 0.5.0`.
 
 ## 0.1.0
 
