@@ -11,6 +11,15 @@ MINOR 递进视为破坏性变更。
 (见 `build.gradle.kts` 中的 `changeNotes` 映射),所以请把最新版本
 放在最上面,并使用简短的项目符号。
 
+## 0.5.1
+
+- 兼容范围提升至 IntelliJ 2023.1+(`since-build 231`)。
+  Marketplace 验证器在 2022.1–2022.3 上报告了硬性不兼容;所有 231+ 构建
+  均验证为 Compatible,范围现已与实际情况一致。
+- 将计划移除的 `CodeInsightColors.INFO_ATTRIBUTES` 替换为
+  `WEAK_WARNING_ATTRIBUTES`(用于 info/hint 级别诊断)。
+- 无功能变更;仍捆绑相同的 `ktav-lsp 0.5.0`。
+
 ## 0.1.0
 
 - Ktav IntelliJ Platform 插件首发。

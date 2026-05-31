@@ -12,6 +12,15 @@ twenty lines are forwarded by the build (see `build.gradle.kts`
 `changeNotes` mapping), so keep recent releases at the top and prefer
 short bullet points.
 
+## 0.5.1
+
+- Compatibility range raised to IntelliJ 2023.1+ (`since-build 231`).
+  The Marketplace verifier reported a hard incompatibility on 2022.1–2022.3;
+  every build 231+ verifies as Compatible, so the range now matches reality.
+- Replaced scheduled-for-removal `CodeInsightColors.INFO_ATTRIBUTES` with
+  `WEAK_WARNING_ATTRIBUTES` for info/hint diagnostics.
+- No functional changes; bundles the same `ktav-lsp 0.5.0`.
+
 ## 0.5.0
 
 - Bundles `ktav-lsp 0.5.0` (sync to ktav 0.5.0 + spec 0.5.0).

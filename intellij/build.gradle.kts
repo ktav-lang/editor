@@ -60,20 +60,26 @@ intellijPlatform {
         name = "Ktav"
         version = project.version.toString()
         ideaVersion {
-            // Support IntelliJ/JetBrains IDEs from 2021.1 (build 211) forward.
+            // Support IntelliJ/JetBrains IDEs from 2023.1 (build 231) forward.
             // This includes: IntelliJ IDEA, WebStorm, PyCharm, PhpStorm, RubyMine,
             // CLion, GoLand, RustRover, Rider, and all other platform-based IDEs
-            // from 2021.1 through 2025.x (251+).
+            // from 2023.1 through 2026.x (262+).
+            //
+            // Floor is 231 (not lower): the Marketplace Plugin Verifier reports
+            // a hard compatibility problem on 2022.1-2022.3 (211-223) — the
+            // plugin relies on platform APIs unavailable there — while every
+            // build 231+ verifies as Compatible. Declaring 211 over-claimed the
+            // range, which the reviewer flagged; 231 makes the range honest.
             //
             // Note on dynamic plugin loading (unload without IDE restart):
             // - Supported in 2023.2+ (build 232)
-            // - For 2021.1-2023.1, plugins require IDE restart to unload
+            // - For 2023.1 (231), plugins require IDE restart to unload
             // - This is an IDE limitation, not a plugin limitation
             //
             // No upper bound — rely on `pluginVerifier` (run in CI) to catch
             // breakage on newer builds instead of pinning to a version that
             // blocks newer IDEs.
-            sinceBuild = "211"
+            sinceBuild = "231"
             // No upper bound — `untilBuild` is left as a Provider's default
             // (no value), so `patchPluginXml` omits the `<until-build>`
             // attribute entirely. Using `untilBuild = ""` would emit

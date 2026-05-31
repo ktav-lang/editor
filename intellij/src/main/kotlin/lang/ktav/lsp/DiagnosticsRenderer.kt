@@ -106,9 +106,9 @@ object DiagnosticsRenderer {
                 val severityKey = when (diag.severity) {
                     1 -> CodeInsightColors.ERRORS_ATTRIBUTES
                     2 -> CodeInsightColors.WARNINGS_ATTRIBUTES
-                    3 -> CodeInsightColors.INFO_ATTRIBUTES
+                    3 -> CodeInsightColors.WEAK_WARNING_ATTRIBUTES
                     4 -> CodeInsightColors.WEAK_WARNING_ATTRIBUTES
-                    else -> CodeInsightColors.INFO_ATTRIBUTES
+                    else -> CodeInsightColors.WEAK_WARNING_ATTRIBUTES
                 }
                 val attrs: TextAttributes = colorsScheme.getAttributes(severityKey)
                     ?: TextAttributes()
