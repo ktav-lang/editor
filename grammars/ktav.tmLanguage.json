@@ -124,13 +124,14 @@
 
     "key-name": {
       "patterns": [
+        { "match": "\\\\.", "name": "constant.character.escape.ktav" },
         { "match": "\\.", "name": "punctuation.accessor.dot.ktav" },
-        { "match": "[^\\s\\[\\]{}:#.]+", "name": "entity.name.tag.ktav" }
+        { "match": "(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+", "name": "entity.name.tag.ktav" }
       ]
     },
 
     "pair-raw": {
-      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(::)(?:(\\s+)(.*?))?\\s*$",
+      "match": "^(\\s*)((?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+)*)(::)(?:(\\s+)(.*?))?\\s*$",
       "captures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "keyword.operator.marker.raw.ktav" },
@@ -139,7 +140,7 @@
     },
 
     "pair-object-empty": {
-      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\{)\\s*(\\})\\s*$",
+      "match": "^(\\s*)((?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+)*)(:)\\s+(\\{)\\s*(\\})\\s*$",
       "captures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "punctuation.separator.key-value.ktav" },
@@ -149,7 +150,7 @@
     },
 
     "pair-array-empty": {
-      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\[)\\s*(\\])\\s*$",
+      "match": "^(\\s*)((?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+)*)(:)\\s+(\\[)\\s*(\\])\\s*$",
       "captures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "punctuation.separator.key-value.ktav" },
@@ -159,7 +160,7 @@
     },
 
     "pair-inline-object": {
-      "begin": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(?=\\{[^\\r\\n]*\\})",
+      "begin": "^(\\s*)((?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+)*)(:)\\s+(?=\\{[^\\r\\n]*\\})",
       "beginCaptures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "punctuation.separator.key-value.ktav" }
@@ -169,7 +170,7 @@
     },
 
     "pair-inline-array": {
-      "begin": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(?=\\[[^\\r\\n]*\\])",
+      "begin": "^(\\s*)((?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+)*)(:)\\s+(?=\\[[^\\r\\n]*\\])",
       "beginCaptures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "punctuation.separator.key-value.ktav" }
@@ -209,7 +210,7 @@
     },
 
     "inline-pair": {
-      "begin": "([^\\s\\[\\]{}:#.,]+(?:\\.[^\\s\\[\\]{}:#.,]+)*)\\s*(::?)",
+      "begin": "((?:[^\\s\\[\\]{}:#.,\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.,\\\\]|\\\\.)+)*)\\s*(::?)",
       "beginCaptures": {
         "1": { "patterns": [ { "include": "#key-name" } ] },
         "2": { "name": "punctuation.separator.key-value.ktav" }
@@ -242,7 +243,7 @@
     },
 
     "pair-object-open": {
-      "begin": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\{)\\s*$",
+      "begin": "^(\\s*)((?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+)*)(:)\\s+(\\{)\\s*$",
       "beginCaptures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "punctuation.separator.key-value.ktav" },
@@ -263,7 +264,7 @@
     },
 
     "pair-array-open": {
-      "begin": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\[)\\s*$",
+      "begin": "^(\\s*)((?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+)*)(:)\\s+(\\[)\\s*$",
       "beginCaptures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "punctuation.separator.key-value.ktav" },
@@ -284,7 +285,7 @@
     },
 
     "pair-multiline-verbatim": {
-      "begin": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\(\\()\\s*$",
+      "begin": "^(\\s*)((?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+)*)(:)\\s+(\\(\\()\\s*$",
       "beginCaptures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "punctuation.separator.key-value.ktav" },
@@ -301,7 +302,7 @@
     },
 
     "pair-multiline-stripped": {
-      "begin": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)\\s+(\\()\\s*$",
+      "begin": "^(\\s*)((?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+)*)(:)\\s+(\\()\\s*$",
       "beginCaptures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "punctuation.separator.key-value.ktav" },
@@ -318,7 +319,7 @@
     },
 
     "pair-string": {
-      "match": "^(\\s*)([^\\s\\[\\]{}:#.]+(?:\\.[^\\s\\[\\]{}:#.]+)*)(:)(?:(\\s+)(.*?))?\\s*$",
+      "match": "^(\\s*)((?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+(?:\\.(?:[^\\s\\[\\]{}:#.\\\\]|\\\\.)+)*)(:)(?:(\\s+)(.*?))?\\s*$",
       "captures": {
         "2": { "patterns": [ { "include": "#key-name" } ] },
         "3": { "name": "punctuation.separator.key-value.ktav" },

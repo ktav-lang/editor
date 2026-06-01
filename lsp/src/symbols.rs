@@ -372,8 +372,10 @@ fn collect_key_hits(text: &str) -> Vec<KeyHit<'_>> {
             continue;
         }
 
-        // Pair / array-item lines: anything else.
-        let Some(colon) = trimmed.find(':') else {
+        // Pair / array-item lines: anything else. Spec 0.6.0: the
+        // separator is the first UNESCAPED `:`; `\:` inside the key is
+        // literal content.
+        let Some(colon) = find_unescaped_byte(trimmed, b':') else {
             // Array item without `:` — no key recorded.
             continue;
         };
@@ -385,11 +387,13 @@ fn collect_key_hits(text: &str) -> Vec<KeyHit<'_>> {
 
         // Split dotted key into segments. Empty segments (from `..`)
         // would be invalid input — the parser would have already
-        // failed, so we just defensively filter them out.
+        // failed, so we just defensively filter them out. Spec 0.6.0:
+        // a `\.` inside a segment is a literal dot, not a separator;
+        // split on UNESCAPED `.` only.
         let line_len = line.len() as u32;
         let line_no = i as u32;
         let mut seg_count: u32 = 0;
-        for seg in key_part.split('.') {
+        for seg in split_key_segments(key_part) {
             if seg.is_empty() {
                 continue;
             }
@@ -429,4 +433,50 @@ fn collect_key_hits(text: &str) -> Vec<KeyHit<'_>> {
     }
 
     hits
+}
+
+/// Escape-aware byte search (spec 0.6.0): `\\` consumes two bytes (the
+/// escape lead and the escaped byte), so `\:` and `\\` are NOT separator
+/// candidates.
+fn find_unescaped_byte(s: &str, b: u8) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b'\\' {
+            i += 2;
+            continue;
+        }
+        if c == b {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+/// Split a key on UNESCAPED `.` (spec 0.6.0). `\.` stays inside its
+/// segment as a literal dot; the returned segments still carry their
+/// escape leads — the symbol layer only uses them as opaque names.
+fn split_key_segments(key: &str) -> Vec<&str> {
+    let bytes = key.as_bytes();
+    let mut out: Vec<&str> = Vec::new();
+    let mut start = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b'\\' {
+            i += 2;
+            continue;
+        }
+        if c == b'.' {
+            out.push(&key[start..i]);
+            start = i + 1;
+            i += 1;
+            continue;
+        }
+        i += 1;
+    }
+    out.push(&key[start..]);
+    out
 }

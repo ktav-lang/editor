@@ -17,6 +17,16 @@
 //! from the lexical form of the scalar. Comments now require `##` (two `#`
 //! bytes); a single `#` is an ordinary character.
 //!
+//! Spec 0.6.0: keys process the full §3.7 escape set. `\.` keeps a literal
+//! dot inside a key segment (does NOT split a dotted path), `\:` keeps a
+//! literal colon inside a key (does NOT act as the key/value separator),
+//! `\\` is a literal backslash, and any other `\x` from the §3.7 table
+//! is an escape sequence in the key. The line classifier therefore finds
+//! the first UNESCAPED `:` as the marker, and dotted-path segmentation
+//! splits only on UNESCAPED `.`. The escape lead `\` is itself a regular
+//! key character (highlight stays on the key scope; structured decoding
+//! is the parser's job).
+//!
 //! It does NOT track the brace stack: a tokenizer that needs to know
 //! "am I inside an array?" already lost — for our purposes (highlighting
 //! and column ranges) per-line classification is sufficient and matches
@@ -175,8 +185,9 @@ pub fn classify_line(raw: &str) -> LineKind<'_> {
         };
     }
 
-    // key: ... line — colon must exist for a Pair.
-    let Some(colon_rel) = trimmed.find(':') else {
+    // key: ... line — colon must exist for a Pair. Spec 0.6.0: the colon
+    // counts only when UNESCAPED (a preceding lone `\` escapes it).
+    let Some(colon_rel) = find_unescaped(trimmed, b':') else {
         // Bare scalar item line (inside an array).
         return LineKind::ArrayItem {
             start: leading_ws as u32,
@@ -305,15 +316,60 @@ fn trim_trailing_ws(s: &str) -> &str {
     s.trim_end_matches([' ', '\t', '\r'])
 }
 
+/// Find the first UNESCAPED occurrence of byte `b` in `s`. A backslash
+/// escapes the next byte (so `\\` is two consumed bytes that do NOT
+/// expose the second `\` as an escape lead, and `\:` is NOT a separator).
+/// `b` must be an ASCII byte.
+fn find_unescaped(s: &str, b: u8) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b'\\' {
+            // Skip the escape lead AND the escaped byte (if any). If the
+            // line ends with a dangling `\`, treat it as a literal byte —
+            // the parser will report it; the classifier just keeps going.
+            i += 2;
+            continue;
+        }
+        if c == b {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
 /// Yield `(segment_start, segment_text)` for each dotted segment of a key.
 /// `key_start` is the absolute column where the key text begins.
+///
+/// Spec 0.6.0: the separator is an UNESCAPED `.`. A `\.` inside a segment
+/// is a literal dot (part of the segment text); `\\` escapes a single
+/// backslash and does not protect the following byte from being a
+/// separator. Segments are returned with their escape sequences still
+/// embedded — callers that need the decoded text must unescape themselves
+/// (highlighting / column ranges only need byte positions).
 pub fn split_dotted(key_start: u32, key: &str) -> impl Iterator<Item = (u32, &str)> {
-    let mut col = key_start;
-    key.split('.').map(move |seg| {
-        let here = col;
-        col += seg.len() as u32 + 1; // +1 for the '.'
-        (here, seg)
-    })
+    let bytes = key.as_bytes();
+    let mut segs: Vec<(u32, &str)> = Vec::new();
+    let mut seg_start = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b'\\' {
+            i += 2;
+            continue;
+        }
+        if c == b'.' {
+            segs.push((key_start + seg_start as u32, &key[seg_start..i]));
+            seg_start = i + 1;
+            i += 1;
+            continue;
+        }
+        i += 1;
+    }
+    segs.push((key_start + seg_start as u32, &key[seg_start..]));
+    segs.into_iter()
 }
 
 /// Convert a byte index into a `line` to a UTF-16 code-unit offset.
@@ -386,7 +442,9 @@ pub fn prefix_by_encoding(
 /// Spec 0.5.0: only `::` and `:` are markers; `:i`/`:f` are gone.
 pub fn cursor_is_after_separator(upto: &str) -> bool {
     let trimmed = upto.trim_start();
-    let Some(i) = trimmed.find(':') else {
+    // Spec 0.6.0: only an UNESCAPED `:` is the separator (`\:` is a
+    // literal colon inside the key).
+    let Some(i) = find_unescaped(trimmed, b':') else {
         return false;
     };
     let after = &trimmed[i + 1..];
@@ -547,6 +605,78 @@ mod tests {
     fn dotted_split() {
         let segs: Vec<_> = split_dotted(2, "a.bb.ccc").collect();
         assert_eq!(segs, vec![(2, "a"), (4, "bb"), (7, "ccc")]);
+    }
+
+    #[test]
+    fn key_escape_literal_dot_is_one_segment() {
+        // Spec 0.6.0: `a\.b` is ONE segment (the `\.` is a literal dot).
+        let segs: Vec<_> = split_dotted(0, r"a\.b").collect();
+        assert_eq!(segs, vec![(0, r"a\.b")]);
+    }
+
+    #[test]
+    fn key_escape_mixed_path_and_literal() {
+        // `x.y\.z` → `x`, `y\.z` (split on first dot, second dot is escaped).
+        let segs: Vec<_> = split_dotted(0, r"x.y\.z").collect();
+        assert_eq!(segs, vec![(0, "x"), (2, r"y\.z")]);
+    }
+
+    #[test]
+    fn key_escape_double_backslash_does_not_protect_dot() {
+        // `a\\.b` → `\\` is an escape sequence (literal `\`), then the
+        // following `.` is UNESCAPED and splits the path. Two segments:
+        // `a\\` and `b`.
+        let segs: Vec<_> = split_dotted(0, r"a\\.b").collect();
+        assert_eq!(segs, vec![(0, r"a\\"), (4, "b")]);
+    }
+
+    #[test]
+    fn pair_with_escaped_dot_in_key() {
+        // `a\.b: v` — key is `a\.b` (one slice), marker Plain, value `v`.
+        match pair(r"a\.b: v") {
+            LineKind::Pair {
+                key_start,
+                key_length,
+                marker,
+                value_text,
+                ..
+            } => {
+                assert_eq!(key_start, 0);
+                assert_eq!(key_length, 4); // a \ . b
+                assert_eq!(marker, Marker::Plain);
+                assert_eq!(value_text, "v");
+            }
+            other => panic!("got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn pair_with_escaped_colon_in_key() {
+        // `a\:b: v` — first `:` is escaped; key is `a\:b`, marker is the
+        // SECOND `:`.
+        match pair(r"a\:b: v") {
+            LineKind::Pair {
+                key_length,
+                marker_start,
+                marker,
+                value_text,
+                ..
+            } => {
+                assert_eq!(key_length, 4); // a \ : b
+                assert_eq!(marker_start, 4);
+                assert_eq!(marker, Marker::Plain);
+                assert_eq!(value_text, "v");
+            }
+            other => panic!("got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn find_unescaped_basic() {
+        assert_eq!(find_unescaped("a:b", b':'), Some(1));
+        assert_eq!(find_unescaped(r"a\:b:c", b':'), Some(4));
+        assert_eq!(find_unescaped(r"a\\:b", b':'), Some(3));
+        assert_eq!(find_unescaped(r"a\:b", b':'), None);
     }
 
     #[test]

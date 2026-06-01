@@ -6,10 +6,10 @@ import com.intellij.psi.tree.IElementType
 import lang.ktav.highlighting.KtavTokenTypes as Tokens
 
 /**
- * State-machine lexer for Ktav syntax highlighting (spec 0.5.0).
+ * State-machine lexer for Ktav syntax highlighting (spec 0.6.0).
  *
  * Ktav is line-oriented (`key: text`, `key:: raw`, `key.sub: {`, `## comment`).
- * Spec 0.5.0 changes baked in here:
+ * Spec 0.5.0 baseline:
  *   - Comments require `##` (two hashes); a single `#` is ordinary content
  *     (allowed in keys and values).
  *   - Typed markers `:i` / `:f` are gone. Only `:` (string/value) and `::`
@@ -18,6 +18,17 @@ import lang.ktav.highlighting.KtavTokenTypes as Tokens
  *   - Inline compounds (`{k: v, ...}`, `[v1, v2]`, nesting allowed) are
  *     tokenised structurally so their brackets become LBRACE/LBRACKET/…
  *     tokens — that is what powers brace-matching for inline objects.
+ *
+ * Spec 0.6.0 additions baked in here:
+ *   - Keys process §3.7 escapes; the new pair separator is the first
+ *     UNESCAPED `:` on the line and dotted-path segmentation splits only
+ *     on UNESCAPED `.`.
+ *   - `\` is an escape lead inside a key: it is a regular key char (its
+ *     scope stays KEY) and the immediately following byte is consumed
+ *     together with it. So `a\.b` and `a\:b` are one KEY token, and
+ *     `path\\to` is one KEY token whose `\\` is a literal backslash.
+ *   - KEY_DOT is emitted only on an UNESCAPED `.`; a `\.` stays embedded
+ *     in the preceding KEY token. Same for the inline-mode key scanner.
  *
  * Line states: LINE_START, AFTER_KEY, VALUE_STRING, VALUE_RAW.
  *
@@ -170,10 +181,16 @@ class KtavLexer : LexerBase() {
 
     private fun scanAfterKey(c: Char) {
         when {
+            // Spec 0.6.0: an UNESCAPED `.` is the dotted-path separator.
             c == '.' -> {
                 myTokenEnd++
                 myTokenType = Tokens.KEY_DOT
             }
+            // Spec 0.6.0: `\` begins an escape inside the key — it is a
+            // regular key character (no special highlight) and the next
+            // byte is folded into the same KEY token. `\.` and `\:` thus
+            // do NOT trigger KEY_DOT / COLON here.
+            c == '\\' -> scanIdentifier(asKey = true)
             c == ':' -> scanColonMarker()
             c == ' ' || c == '\t' -> scanHorizWhitespace()
             isKeyChar(c) -> scanIdentifier(asKey = true)
@@ -189,6 +206,11 @@ class KtavLexer : LexerBase() {
      * the structural delimiters. `#` IS a key char in 0.5.0 (a lone `#` is
      * content); only `##` at line start opens a comment. Non-ASCII letters
      * (Cyrillic / CJK / emoji) belong to keys just like ASCII.
+     *
+     * Spec 0.6.0: `\` is also a key char — it is the escape lead. The
+     * scanner handles `\x` as a two-char unit, so `\.` and `\:` stay
+     * inside the KEY token. (The escaped byte itself does not need to
+     * be a key char; it is admitted unconditionally by the escape rule.)
      */
     private fun isKeyChar(c: Char): Boolean {
         if (c == ' ' || c == '\t' || c == '\n' || c == '\r') return false
@@ -203,9 +225,16 @@ class KtavLexer : LexerBase() {
         while (i < myBufferEnd) {
             val ch = myBuffer[i]
             if (ch == '\n') return false
-            // Only `:` makes a line a `key: value` pair. A `.` alone does not
-            // (a bare dotted run like `1.2.3.4` is a string array item, not a
-            // dotted key — the dotted key still needs its `:`).
+            // Spec 0.6.0: `\` escapes the next byte, so a `\:` does NOT
+            // act as the separator — skip over the pair and keep looking.
+            if (ch == '\\') {
+                i = (i + 2).coerceAtMost(myBufferEnd)
+                continue
+            }
+            // Only an UNESCAPED `:` makes a line a `key: value` pair. A `.`
+            // alone does not (a bare dotted run like `1.2.3.4` is a string
+            // array item, not a dotted key — the dotted key still needs its
+            // `:`).
             if (ch == ':') return true
             i++
         }
@@ -295,10 +324,13 @@ class KtavLexer : LexerBase() {
             }
         }
         if (expectKey) {
-            // Key run: up to a structural delimiter.
+            // Key run: up to an UNESCAPED structural delimiter. Spec 0.6.0:
+            // `\:` and `\.` (and `\,` etc.) inside an inline key stay part
+            // of the KEY token — the escape lead consumes the next byte.
             var e = myTokenStart
             while (e < myBufferEnd) {
                 val ch = myBuffer[e]
+                if (ch == '\\') { e = (e + 2).coerceAtMost(myBufferEnd); continue }
                 if (ch == '\n' || ch == ':' || ch == ',' || ch == '{' || ch == '}' || ch == '[' || ch == ']') break
                 e++
             }
@@ -345,7 +377,16 @@ class KtavLexer : LexerBase() {
     private fun scanIdentifier(asKey: Boolean) {
         myTokenEnd = myTokenStart
         while (myTokenEnd < myBufferEnd) {
-            if (isKeyChar(myBuffer[myTokenEnd])) myTokenEnd++ else break
+            val ch = myBuffer[myTokenEnd]
+            // Spec 0.6.0: in a key, `\` is the escape lead — consume it
+            // AND the following byte (whatever it is) as part of the key,
+            // so `a\.b`, `a\:b`, `path\\to` stay one KEY token. A dangling
+            // `\` at end-of-buffer is consumed as a lone byte.
+            if (asKey && ch == '\\') {
+                myTokenEnd = (myTokenEnd + 2).coerceAtMost(myBufferEnd)
+                continue
+            }
+            if (isKeyChar(ch)) myTokenEnd++ else break
         }
         myTokenType = if (asKey) Tokens.KEY else {
             classifyScalar(myBuffer.subSequence(myTokenStart, myTokenEnd).toString())

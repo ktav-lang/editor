@@ -17,7 +17,36 @@ the Ktav format itself — for the latter see
 
 ## Unreleased
 
-(no changes since 0.3.1)
+
+## [0.6.0] — 2026-06-01
+
+Tracks `ktav` Rust crate `0.6.0` and `ktav-lang/spec` `0.6.0`. The
+version is realigned to move in lockstep with the format/core (the
+previous editor release was `0.3.1`). The spec change is **key
+escaping**: keys now process the § 3.7 escape set and add `\.` (a
+literal dot that does *not* split a dotted path) and `\:` (a literal
+colon that is *not* a pair separator); a literal backslash in a key is
+now written `\\`. Editor support is updated end-to-end so highlighting,
+tokens and diagnostics treat escaped key bytes correctly.
+
+### LSP server (`ktav-lsp`)
+
+- Semantic tokens, document symbols and diagnostics are now
+  **escape-aware**: the pair separator is the first *unescaped* `:` / `::`
+  and dotted-path splitting happens only on *unescaped* `.`. So
+  `a\.b: v` is the single key `a.b`, and `a\:: v` is the key `a:` with
+  value `v`.
+- Depends on `ktav` 0.6.0.
+
+### IntelliJ plugin
+
+- `KtavLexer` lexes escaped key segments (`\\ \. \: \, \} \] \{ \[ \n \r`),
+  so a key containing an escaped dot or colon highlights as one key.
+
+### TextMate grammar (VS Code + shared `grammars/`)
+
+- The key-segment pattern accepts `\`-escapes, matching the spec's key
+  escape set.
 
 
 ## [0.3.1] — 2026-05-10

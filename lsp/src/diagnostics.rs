@@ -246,20 +246,41 @@ fn range_for_key_segment(line: u32, line_text: &str, key: &str) -> Option<Range>
     None
 }
 
+/// Locate a key segment inside a dotted key (spec 0.6.0: split on
+/// UNESCAPED `.` only; `\.` stays inside its segment).
 fn find_segment(dotted: &str, seg: &str) -> Option<usize> {
+    let bytes = dotted.as_bytes();
     let mut col = 0usize;
-    for s in dotted.split('.') {
-        if s == seg {
-            return Some(col);
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b'\\' {
+            i += 2;
+            continue;
         }
-        col += s.len() + 1;
+        if c == b'.' {
+            if &dotted[col..i] == seg {
+                return Some(col);
+            }
+            col = i + 1;
+            i += 1;
+            continue;
+        }
+        i += 1;
     }
-    None
+    if &dotted[col..] == seg {
+        Some(col)
+    } else {
+        None
+    }
 }
 
 fn range_for_leading_to_colon(line: u32, line_text: &str) -> Option<Range> {
     let leading_ws = line_text.len() - line_text.trim_start().len();
-    let colon = line_text.find(':')?;
+    // Spec 0.6.0: first UNESCAPED `:` only.
+    let trimmed = &line_text[leading_ws..];
+    let rel = find_unescaped_byte(trimmed, b':')?;
+    let colon = leading_ws + rel;
     Some(Range {
         start: Position {
             line,
@@ -270,6 +291,23 @@ fn range_for_leading_to_colon(line: u32, line_text: &str) -> Option<Range> {
             character: colon as u32 + 1,
         },
     })
+}
+
+fn find_unescaped_byte(s: &str, b: u8) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == b'\\' {
+            i += 2;
+            continue;
+        }
+        if c == b {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
 }
 
 fn extract_line_number(msg: &str) -> Option<u32> {

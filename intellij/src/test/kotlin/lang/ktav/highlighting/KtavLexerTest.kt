@@ -247,4 +247,74 @@ class KtavLexerTest {
         assertEquals(KtavTokenTypes.STRING_VALUE, toks[0].second)
         assertEquals("1.2.3.4", toks[0].first)
     }
+
+    // ---------------------------------------------------------------
+    // Spec 0.6.0: key escaping
+    // ---------------------------------------------------------------
+
+    @Test
+    fun escaped_dot_in_key_stays_in_KEY_token() {
+        // `a\.b: v` — `\.` is a literal dot inside the key, NOT a path
+        // separator. Expect ONE KEY token (no KEY_DOT), then COLON, then
+        // the value.
+        val toks = tokens("a\\.b: v\n")
+        assertEquals(KtavTokenTypes.KEY, toks[0].second)
+        assertEquals("a\\.b", toks[0].first)
+        assertEquals(KtavTokenTypes.COLON, toks[1].second)
+        assertEquals(KtavTokenTypes.STRING_VALUE, toks[2].second)
+        assertEquals("v", toks[2].first)
+        // No KEY_DOT anywhere.
+        assertEquals(false, toks.any { it.second == KtavTokenTypes.KEY_DOT })
+    }
+
+    @Test
+    fun escaped_colon_in_key_is_not_separator() {
+        // `a\:b: v` — the first `:` is escaped; the SECOND `:` is the
+        // separator. KEY token must cover `a\:b`.
+        val toks = tokens("a\\:b: v\n")
+        assertEquals(KtavTokenTypes.KEY, toks[0].second)
+        assertEquals("a\\:b", toks[0].first)
+        assertEquals(KtavTokenTypes.COLON, toks[1].second)
+        assertEquals(KtavTokenTypes.STRING_VALUE, toks[2].second)
+        assertEquals("v", toks[2].first)
+    }
+
+    @Test
+    fun escaped_backslash_in_key() {
+        // `path\\to: v` — `\\` is an escape sequence for a literal `\`.
+        // The whole `path\\to` is one KEY token.
+        val toks = tokens("path\\\\to: v\n")
+        assertEquals(KtavTokenTypes.KEY, toks[0].second)
+        assertEquals("path\\\\to", toks[0].first)
+        assertEquals(KtavTokenTypes.COLON, toks[1].second)
+    }
+
+    @Test
+    fun mixed_path_with_escaped_dot_splits_only_unescaped() {
+        // `x.y\.z: v` — first `.` is UNESCAPED (KEY_DOT), second `.` is
+        // escaped (stays inside KEY `y\.z`).
+        val toks = tokens("x.y\\.z: v\n")
+        assertEquals(KtavTokenTypes.KEY, toks[0].second)
+        assertEquals("x", toks[0].first)
+        assertEquals(KtavTokenTypes.KEY_DOT, toks[1].second)
+        assertEquals(KtavTokenTypes.KEY, toks[2].second)
+        assertEquals("y\\.z", toks[2].first)
+        assertEquals(KtavTokenTypes.COLON, toks[3].second)
+    }
+
+    @Test
+    fun escaped_key_in_inline_object() {
+        // `obj: {a\.b: 1}` — the inline key `a\.b` is one KEY token
+        // (the escaped dot does NOT terminate the key, nor does `\:`).
+        val toks = tokens("obj: {a\\.b: 1}\n")
+        // obj : { a\.b : 1 }
+        assertEquals(KtavTokenTypes.KEY, toks[0].second)         // obj
+        assertEquals(KtavTokenTypes.COLON, toks[1].second)       // :
+        assertEquals(KtavTokenTypes.LBRACE, toks[2].second)      // {
+        assertEquals(KtavTokenTypes.KEY, toks[3].second)         // a\.b
+        assertEquals("a\\.b", toks[3].first)
+        assertEquals(KtavTokenTypes.COLON, toks[4].second)       // :
+        assertEquals(KtavTokenTypes.INT_VALUE, toks[5].second)   // 1
+        assertEquals(KtavTokenTypes.RBRACE, toks[6].second)      // }
+    }
 }
