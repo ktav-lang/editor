@@ -2,6 +2,8 @@
 
 **Languages:** [English](README.md) · **Русский** · [简体中文](README.zh.md)
 
+**Песочница:** конвертация JSON / YAML / TOML / INI ⇄ Ktav прямо в браузере — **[ktav-lang.github.io](https://ktav-lang.github.io/)**.
+
 > Поддержка редакторов для конфигурационного формата
 > **[Ktav](https://github.com/ktav-lang/spec)** — подсветка синтаксиса,
 > плагины для IDE, Language Server. Один репозиторий, четыре подпроекта,

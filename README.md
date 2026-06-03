@@ -2,6 +2,8 @@
 
 **Languages:** **English** · [Русский](README.ru.md) · [简体中文](README.zh.md)
 
+**Playground:** convert JSON / YAML / TOML / INI ⇄ Ktav in your browser at **[ktav-lang.github.io](https://ktav-lang.github.io/)**.
+
 > Editor support for the **[Ktav](https://github.com/ktav-lang/spec)** configuration format —
 > syntax highlighting, IDE plugins, and a Language Server. One repo,
 > four subprojects, one shared TextMate grammar.
