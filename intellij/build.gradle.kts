@@ -89,17 +89,40 @@ intellijPlatform {
         description = """
             <p>Editor support for the
             <a href="https://github.com/ktav-lang/spec">Ktav</a>
-            plain configuration format.</p>
+            plain configuration format — easy to read, type and edit, without
+            YAML's pitfalls.</p>
 
-            <p>Features:</p>
+            <p><b>Features:</b></p>
             <ul>
               <li>Syntax highlighting for <code>.ktav</code> files via TextMate grammar</li>
               <li>Comment toggle (<code>#</code>)</li>
               <li>Bracket matching for <code>{}</code> <code>[]</code> <code>()</code></li>
-              <li>Live diagnostics via
-                <a href="https://github.com/ktav-lang/editor/tree/main/lsp">ktav-lsp</a>
-                (when installed in PATH; LSP integration arrives in a later release)</li>
+              <li>Live diagnostics, semantic highlighting and a document outline via the
+                bundled <a href="https://github.com/ktav-lang/editor/tree/main/lsp">ktav-lsp</a>
+                language server</li>
             </ul>
+
+            <p><b>Example:</b></p>
+            <pre>
+            service: socks5-rotator
+            port: 20082          # auto-typed: int / float / bool / null
+            node.host: a.example  # dotted keys = flat nesting
+            node.token:: 8080     # '::' forces a literal string
+            metric.http\.requests: 42   # escape a literal dot (0.6.0)
+            upstreams: [
+                { host: a.example, port: 1080 }
+            ]
+            </pre>
+
+            <p><b>One Rust core, seven languages</b> — official bindings:
+            <a href="https://github.com/ktav-lang/rust">Rust</a>,
+            <a href="https://github.com/ktav-lang/js">JavaScript/TS</a>,
+            <a href="https://github.com/ktav-lang/python">Python</a>,
+            <a href="https://github.com/ktav-lang/golang">Go</a>,
+            <a href="https://github.com/ktav-lang/php">PHP</a>,
+            <a href="https://github.com/ktav-lang/java">Java</a>,
+            <a href="https://github.com/ktav-lang/csharp">C#/.NET</a>.
+            Try the <a href="https://ktav-lang.github.io/">in-browser converter</a>.</p>
         """.trimIndent()
         changeNotes = providers.fileContents(layout.projectDirectory.file("CHANGELOG.md"))
             .asText

@@ -17,8 +17,15 @@
       <li>Live diagnostics via bundled <a href="https://github.com/ktav-lang/editor/tree/main/lsp">ktav-lsp</a> language server</li>
     </ul>
 
-    <p>Reference Rust crate: <a href="https://github.com/ktav-lang/rust">ktav-lang/rust</a>.
-    Other implementations available — see the <a href="https://github.com/ktav-lang/editor">monorepo README</a>.</p>
+    <p>One Rust core, seven languages — official bindings:
+      <a href="https://github.com/ktav-lang/rust">Rust</a>,
+      <a href="https://github.com/ktav-lang/js">JavaScript/TS</a>,
+      <a href="https://github.com/ktav-lang/python">Python</a>,
+      <a href="https://github.com/ktav-lang/golang">Go</a>,
+      <a href="https://github.com/ktav-lang/php">PHP</a>,
+      <a href="https://github.com/ktav-lang/java">Java</a>,
+      <a href="https://github.com/ktav-lang/csharp">C#/.NET</a>.
+      Try the <a href="https://ktav-lang.github.io/">in-browser converter</a>.</p>
   ]]></description>
 
   <depends>com.intellij.modules.platform</depends>
