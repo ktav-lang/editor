@@ -1,5 +1,10 @@
 # ktav-lang/editor
 
+[![Release](https://img.shields.io/github/v/release/ktav-lang/editor?style=flat-square&sort=semver&label=release)](https://github.com/ktav-lang/editor/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/ktav-lang/editor/ci.yml?style=flat-square&logo=github&label=CI)](https://github.com/ktav-lang/editor/actions)
+![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=flat-square)
+[![Playground](https://img.shields.io/badge/playground-try%20online-7c3aed?style=flat-square&logo=rocket&logoColor=white)](https://ktav-lang.github.io/)
+
 **Languages:** [English](README.md) · **Русский** · [简体中文](README.zh.md)
 
 **Песочница:** конвертация JSON / YAML / TOML / INI ⇄ Ktav прямо в браузере — **[ktav-lang.github.io](https://ktav-lang.github.io/)**.
