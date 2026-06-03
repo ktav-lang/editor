@@ -121,7 +121,7 @@ A single tag triggers a release of all four (see [`.github/workflows/release.yml
 
 ## Versioning
 
-Single semver across the monorepo: `0.1.0`, `0.1.1`, `0.2.0`. All four
+Single semver across the monorepo: `0.5.0`, `0.6.0`. All four
 subprojects publish under the same tag at the same time. The
 CHANGELOG lists changes per subproject under each version heading.
 

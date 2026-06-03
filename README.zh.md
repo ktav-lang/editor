@@ -124,7 +124,7 @@ require("lspconfig").ktav.setup({})
 
 ## 版本
 
-整个 monorepo 共用一个 semver:`0.1.0`、`0.1.1`、`0.2.0`。四个子项目
+整个 monorepo 共用一个 semver:`0.5.0`、`0.6.0`。四个子项目
 在同一个 tag 下同时发布。CHANGELOG 在每个版本标题下按子项目列出
 变更。
 
