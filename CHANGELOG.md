@@ -18,6 +18,11 @@ the Ktav format itself — for the latter see
 ## Unreleased
 
 
+## [0.6.1] — 2026-06-05
+
+- Docs: rewrite all README examples to spec 0.6 syntax (bare numbers instead of removed `:i`/`:f` markers; `##` comments instead of `#`).
+- LSP: remove `:i`/`:f` from completion items (typed markers removed in spec 0.5).
+
 ## [0.6.0] — 2026-06-01
 
 Tracks `ktav` Rust crate `0.6.0` and `ktav-lang/spec` `0.6.0`. The

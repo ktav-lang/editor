@@ -56,6 +56,12 @@ dependencies {
 }
 
 intellijPlatform {
+    // LOCAL-ONLY (do not commit): skip bytecode instrumentation so the build
+    // doesn't need `java-compiler-ant-tasks` from cache-redirector.jetbrains.com,
+    // which this machine's network can't reach. Instrumentation only adds
+    // runtime @NotNull assertions — no functional impact for a Kotlin plugin.
+    instrumentCode = false
+
     pluginConfiguration {
         name = "Ktav"
         version = project.version.toString()
