@@ -90,7 +90,7 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 - **Hover**:在 `key:` 行悬停可显示推断的类型和值。
 - **补全**:在 `:` 分隔符之后上下文感知补全:`null`、`true`、`false`、
   开括号(`{`、`[`、`(`、`((`)、空字面量(`{}`、`[]`、`()`)以及
-  类型标记(`:`、`:i`、`:f`)。
+  值标记(`:`、`::`)。
 - **文档符号**:大纲视图反映已解析的对象树;标量为
   Property/Number/String,对象为 Module,数组为 Array。
 - **Semantic tokens**:token 类型 `comment`、`keyword`、`number`、

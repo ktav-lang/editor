@@ -25,12 +25,12 @@
 
 ## What you get as a Ktav user
 
-- **Syntax highlighting** — keys, scalars, typed-marker bodies (`:i` / `:f`), raw-string marker (`::`), multi-line strings, comments
+- **Syntax highlighting** — keys, scalars, the literal-string marker (`::`), multi-line strings, comments
 - **Bracket matching & auto-close** — `{}` `[]` `()`
-- **Comment toggle** — `Ctrl/Cmd+/` → `# comment`
+- **Comment toggle** — `Ctrl/Cmd+/` → `## comment`
 - **Live diagnostics** (with the LSP) — every `MissingSeparatorSpace`, duplicate key, dotted-prefix conflict surfaces as a red squiggle on the offending line, with the same message the parser emits
 - **Hover info** (with the LSP) — dotted path of the key under cursor, inferred type of the value
-- **Completion** (with the LSP) — keywords (`null` / `true` / `false`), markers (`:i` / `:f` / `::`), compound openers
+- **Completion** (with the LSP) — keywords (`null` / `true` / `false`), the literal-string marker (`::`), compound openers
 - **Document symbols** (with the LSP) — outline reflecting the parsed `Value::Object` structure
 
 ## Architecture
@@ -128,7 +128,7 @@ A single tag triggers a release of all four (see [`.github/workflows/release.yml
 
 ## Versioning
 
-Single semver across the monorepo: `0.5.0`, `0.6.0`. All four
+Single semver across the monorepo: All four
 subprojects publish under the same tag at the same time. The
 CHANGELOG lists changes per subproject under each version heading.
 

@@ -328,9 +328,7 @@ impl LanguageServer for Backend {
             value_item("(", "(", "open multi-line raw block"),
             value_item("((", "((", "open verbatim raw block"),
             value_item("()", "()", "empty raw value"),
-            value_item(":", ":", "raw-marker — second `:`, value is literal string"),
-            value_item("i", "i", "typed integer marker (use as `:i value`)"),
-            value_item("f", "f", "typed float marker (use as `:f value`)"),
+            value_item(":", ":", "literal-string marker — second `:`, value is a literal string"),
         ];
 
         Ok(Some(CompletionResponse::Array(items)))

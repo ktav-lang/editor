@@ -1,5 +1,5 @@
 //! Conformance test: walk the language-agnostic Ktav test suite under
-//! `<repo>/spec/versions/0.1/tests/` (a git submodule of `ktav-lang/spec`)
+//! `<repo>/spec/versions/0.6/tests/` (a git submodule of `ktav-lang/spec`)
 //! and exercise the `ktav::parse` reference parser plus the LSP's
 //! `parse_for_diagnostics` wrapper against every fixture.
 //!
@@ -86,7 +86,7 @@ fn collect_ktav_files(root: &Path) -> Vec<PathBuf> {
 
 /// Read the sibling `<name>.json` for an invalid fixture and pull out
 /// the `"error"` value. The file format is `{"error":"<category>"}`
-/// (see `spec/versions/0.1/tests/README.md`). We do a tiny manual scan
+/// (see `spec/versions/0.6/tests/README.md`). We do a tiny manual scan
 /// rather than pulling in `serde_json` — the format is one-line and
 /// stable.
 fn expected_error_category(ktav_path: &Path) -> Option<String> {

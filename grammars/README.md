@@ -33,7 +33,7 @@ copies in the downstream subprojects; fix the bug here.
 
 1. From a VS Code window, open the Command Palette and run
    `Developer: Inspect Editor Tokens and Scopes`.
-2. Open any sample from `spec/versions/0.1/tests/valid/**/*.ktav`.
+2. Open any sample from `spec/versions/0.6/tests/valid/**/*.ktav`.
 3. Click into a token; the panel shows the resolved scope chain. Each
    scope listed in the "Token classes" section below should appear on
    the corresponding token.
@@ -57,16 +57,14 @@ these scopes will style Ktav consistently.
 
 | Scope                                              | Matches                                    |
 | -------------------------------------------------- | ------------------------------------------ |
-| `comment.line.number-sign.ktav`                    | `# …` line comments                        |
+| `comment.line.number-sign.ktav`                    | `## …` line comments                       |
 | `entity.name.tag.ktav`                             | Key segments (left of `:`)                 |
 | `punctuation.accessor.dot.ktav`                    | `.` separating dotted key segments         |
 | `punctuation.separator.key-value.ktav`             | The `:` of a plain pair                    |
 | `keyword.operator.marker.raw.ktav`                 | `::` (raw-string marker)                   |
-| `keyword.operator.marker.integer.ktav`             | `:i` (typed-Integer marker)                |
-| `keyword.operator.marker.float.ktav`               | `:f` (typed-Float marker)                  |
 | `constant.language.ktav`                           | `null`, `true`, `false` scalars            |
-| `constant.numeric.integer.ktav`                    | Body after `:i`                            |
-| `constant.numeric.float.ktav`                      | Body after `:f`                            |
+| `constant.numeric.integer.ktav`                    | Bare integer scalar (digits only)          |
+| `constant.numeric.float.ktav`                      | Bare decimal scalar (has `.` / exponent)   |
 | `string.unquoted.ktav`                             | Ordinary string scalars                    |
 | `string.unquoted.raw.ktav`                         | Body after `::`                            |
 | `string.quoted.multiline.stripped.ktav`            | Content inside `( … )`                     |
@@ -81,12 +79,12 @@ these scopes will style Ktav consistently.
 ## Notes on the implementation
 
 - Marker disambiguation. Inside `pair`, alternatives are ordered
-  `pair-raw` (`::`) → `pair-integer` (`:i`) → `pair-float` (`:f`) →
-  empty/open compound and multi-line forms → `pair-string` (`:`
-  fallback). The `:i` / `:f` regexes use a `(?=\s|$)` lookahead so
-  they cannot grab a key whose name happens to end in `i` or `f`
-  (the marker only fires when followed by whitespace or EOL, matching
-  the spec's mandatory-space rule, § 5.3 / § 6.10).
+  `pair-raw` (`::`) → empty/open compound and multi-line forms →
+  `pair-value` (`:` fallback). After a plain `:`, a bare body is
+  classified by lexical form: digits → `constant.numeric.integer`,
+  digits with a decimal point or exponent → `constant.numeric.float`,
+  anything else → `string.unquoted` (matching the spec's mandatory
+  space-after-separator rule, § 5.3 / § 6.10).
 - Compound closers are anchored to standalone lines: `^\s*\)\s*$`,
   `^\s*\)\)\s*$`, `^\s*\}\s*$`, `^\s*\]\s*$`. A line like `) x` or
   `))suffix` does not close the block — it is content (in a multi-line
@@ -94,7 +92,7 @@ these scopes will style Ktav consistently.
   grammar leaves unhighlighted).
 - Array context is tracked through dedicated `array-*` repository
   rules included only inside `[ … ]` regions, so item-form lines
-  (`:: foo`, `:i 42`, `:f 3.14`, bare scalars) light up only there.
+  (`:: foo`, bare scalars) light up only there.
 - Multi-line string content is highlighted as a single string scope —
   no inner classification is applied, matching the spec's "raw
   content" semantics (§ 5.6).

@@ -95,7 +95,7 @@ configuration and bridges to `ktav-lsp` for you. Install
 - **Hover** — hover on a `key:` line shows the inferred type and value.
 - **Completion** — context-aware after a `:` separator: suggests `null`,
   `true`, `false`, openers (`{`, `[`, `(`, `((`), empty literals (`{}`,
-  `[]`, `()`), and the typed-scalar markers (`:`, `:i`, `:f`).
+  `[]`, `()`), and the value markers (`:`, `::`).
 - **Document symbols** — outline view reflects the parsed object tree;
   scalars become Property/Number/String, objects become Module, arrays
   become Array.
