@@ -122,10 +122,10 @@ fn already_raw_paren_scalar_unchanged() {
 }
 
 #[test]
-fn typed_marker_with_paren_body_not_rewritten() {
-    // `:i` / `:f` are typed markers — leave them alone. Their bodies
-    // are validated by the parser, not by the formatter.
-    let src = "x:i (5)\n";
+fn colon_without_trailing_space_not_rewritten() {
+    // No whitespace between `:` and the value (§ 6.10 requires it for a
+    // valid separator) — not our job to rewrite malformed input.
+    let src = "x:z (5)\n";
     assert_eq!(reindent(src), src);
 }
 
@@ -141,10 +141,10 @@ valx: (фывфыв)
 
 connection: {
     host: localhost
-    port:i 8080
+    port: 8080
 
     # nested comment
-    timeout:f 5.0
+    timeout: 5.0
 }
 
 queries: [
@@ -162,10 +162,10 @@ valx:: (фывфыв)
 
 connection: {
     host: localhost
-    port:i 8080
+    port: 8080
 
     # nested comment
-    timeout:f 5.0
+    timeout: 5.0
 }
 
 queries: [

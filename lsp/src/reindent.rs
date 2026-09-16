@@ -162,21 +162,19 @@ pub fn reindent(src: &str) -> String {
 /// this rewrite is safe (no observable behaviour change), it only
 /// removes visual confusion with multi-line openers.
 fn canonicalise_paren_scalar(trimmed: &str) -> std::borrow::Cow<'_, str> {
-    // Find the FIRST `:` separator. We accept `:`, `::`, `:i`, `:f` as
-    // markers; only the plain `:` is the case we rewrite (the others
-    // already mean something specific and aren't ambiguous).
+    // Find the FIRST `:` separator. We accept `:` and `::` as markers;
+    // only the plain `:` is the case we rewrite (`::` already means
+    // "raw" and isn't ambiguous). Typed markers `:i` / `:f` were removed
+    // in spec 0.5.0 and no longer exist.
     let bytes = trimmed.as_bytes();
     let colon = match bytes.iter().position(|&b| b == b':') {
         Some(p) => p,
         None => return std::borrow::Cow::Borrowed(trimmed),
     };
 
-    // Reject `::` / `:i` / `:f` markers — they're already explicit.
-    if colon + 1 < bytes.len() {
-        let next = bytes[colon + 1];
-        if next == b':' || next == b'i' || next == b'f' {
-            return std::borrow::Cow::Borrowed(trimmed);
-        }
+    // Reject `::` — it's already explicit (raw marker).
+    if colon + 1 < bytes.len() && bytes[colon + 1] == b':' {
+        return std::borrow::Cow::Borrowed(trimmed);
     }
 
     // The `:` must be followed by at least one whitespace character to
@@ -350,12 +348,11 @@ mod tests {
     }
 
     #[test]
-    fn typed_marker_paren_value_unchanged() {
-        // `:i` / `:f` are typed markers, not a plain `:` — don't rewrite.
-        // (Such bodies would fail typed-scalar validation, but that's
-        //  the parser's job to flag, not the formatter's.)
-        let src = "x:i (5)\n";
-        let want = "x:i (5)\n";
+    fn colon_not_followed_by_whitespace_unchanged() {
+        // `x:(5)` has no space after `:`, so it isn't a valid pair
+        // separator (§ 6.10) — not our job to rewrite malformed input.
+        let src = "x:(5)\n";
+        let want = "x:(5)\n";
         assert_eq!(reindent(src), want);
     }
 }
