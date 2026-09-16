@@ -186,6 +186,31 @@ fn document_symbols_dotted_key_creates_nested_outline() {
     assert!(kids.iter().any(|k| k.name == "port"));
 }
 
+#[test]
+fn document_symbols_quoted_segment_does_not_corrupt_dotted_path() {
+    // `a."b.c".d: 1` is the three-segment path a / "b.c" / d (§ 5.3.3,
+    // the spec's own dotted-path example). The `:` and `.` inside the
+    // quoted segment must not be mistaken for a pair separator or a
+    // path split, or the sibling segments `a` / `d` would be lost or
+    // misplaced in the outline.
+    let text = "a.\"b.c\".d: 1\n";
+    let value = ktav::parse(text).expect("parse");
+    let syms = build_symbols(&value, text);
+    assert!(syms.iter().any(|s| s.name == "a"));
+    let a = syms.iter().find(|s| s.name == "a").unwrap();
+    let kids = a.children.as_ref().expect("a has children");
+    assert_eq!(kids.len(), 1, "one quoted-segment child under a");
+    assert_eq!(
+        kids[0].name, "b.c",
+        "quoted segment decodes without its delimiters"
+    );
+    let grandkids = kids[0]
+        .children
+        .as_ref()
+        .expect("quoted segment has children");
+    assert!(grandkids.iter().any(|k| k.name == "d"));
+}
+
 // ---- Tokens (shared classifier) ----
 
 #[test]

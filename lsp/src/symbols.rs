@@ -21,6 +21,8 @@
 use ktav::Value;
 use tower_lsp::lsp_types::{DocumentSymbol, Position, Range, SymbolKind};
 
+use crate::tokens::{find_key_separator, split_dotted};
+
 /// Build a tree of `DocumentSymbol`s for the top-level value.
 ///
 /// Per Ktav spec § 5.0.1, the top-level value may be an Object or an
@@ -374,8 +376,9 @@ fn collect_key_hits(text: &str) -> Vec<KeyHit<'_>> {
 
         // Pair / array-item lines: anything else. Spec 0.6.0: the
         // separator is the first UNESCAPED `:`; `\:` inside the key is
-        // literal content.
-        let Some(colon) = find_unescaped_byte(trimmed, b':') else {
+        // literal content. Spec 0.7.0: a `:` inside a quoted key segment
+        // (§ 5.3.3) is opaque too.
+        let Some(colon) = find_key_separator(trimmed) else {
             // Array item without `:` — no key recorded.
             continue;
         };
@@ -389,11 +392,12 @@ fn collect_key_hits(text: &str) -> Vec<KeyHit<'_>> {
         // would be invalid input — the parser would have already
         // failed, so we just defensively filter them out. Spec 0.6.0:
         // a `\.` inside a segment is a literal dot, not a separator;
-        // split on UNESCAPED `.` only.
+        // split on UNESCAPED `.` only. Spec 0.7.0: a `.` inside a quoted
+        // segment (§ 5.3.3) does not split it.
         let line_len = line.len() as u32;
         let line_no = i as u32;
         let mut seg_count: u32 = 0;
-        for seg in split_key_segments(key_part) {
+        for (_, seg) in split_dotted(0, key_part) {
             if seg.is_empty() {
                 continue;
             }
@@ -433,50 +437,4 @@ fn collect_key_hits(text: &str) -> Vec<KeyHit<'_>> {
     }
 
     hits
-}
-
-/// Escape-aware byte search (spec 0.6.0): `\\` consumes two bytes (the
-/// escape lead and the escaped byte), so `\:` and `\\` are NOT separator
-/// candidates.
-fn find_unescaped_byte(s: &str, b: u8) -> Option<usize> {
-    let bytes = s.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c == b'\\' {
-            i += 2;
-            continue;
-        }
-        if c == b {
-            return Some(i);
-        }
-        i += 1;
-    }
-    None
-}
-
-/// Split a key on UNESCAPED `.` (spec 0.6.0). `\.` stays inside its
-/// segment as a literal dot; the returned segments still carry their
-/// escape leads — the symbol layer only uses them as opaque names.
-fn split_key_segments(key: &str) -> Vec<&str> {
-    let bytes = key.as_bytes();
-    let mut out: Vec<&str> = Vec::new();
-    let mut start = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i];
-        if c == b'\\' {
-            i += 2;
-            continue;
-        }
-        if c == b'.' {
-            out.push(&key[start..i]);
-            start = i + 1;
-            i += 1;
-            continue;
-        }
-        i += 1;
-    }
-    out.push(&key[start..]);
-    out
 }

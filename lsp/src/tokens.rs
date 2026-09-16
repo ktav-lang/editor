@@ -27,6 +27,17 @@
 //! key character (highlight stays on the key scope; structured decoding
 //! is the parser's job).
 //!
+//! Spec 0.7.0: a key segment may also be a `<quoted-segment>` (§ 5.3.3) —
+//! `"`, `'` or `` ` `` opening at the FIRST code point of a segment (start
+//! of key, or right after an unescaped `.`), running to the first
+//! unescaped occurrence of that SAME character. While inside a quoted
+//! segment, `:` / `.` / `,` / `{` / `}` / `[` / `]` are opaque ordinary
+//! content — [`find_key_separator`] and [`split_dotted`] both track
+//! segment-start position so a `:` or `.` inside `"a:b.c"` never splits
+//! the separator search or the dotted path. A quote character NOT at a
+//! segment's first position (`don't: 1`) is unaffected — same as before
+//! 0.7.0.
+//!
 //! It does NOT track the brace stack: a tokenizer that needs to know
 //! "am I inside an array?" already lost — for our purposes (highlighting
 //! and column ranges) per-line classification is sufficient and matches
@@ -186,8 +197,10 @@ pub fn classify_line(raw: &str) -> LineKind<'_> {
     }
 
     // key: ... line — colon must exist for a Pair. Spec 0.6.0: the colon
-    // counts only when UNESCAPED (a preceding lone `\` escapes it).
-    let Some(colon_rel) = find_unescaped(trimmed, b':') else {
+    // counts only when UNESCAPED (a preceding lone `\` escapes it). Spec
+    // 0.7.0: a colon inside a quoted key segment is opaque, not a
+    // separator (§ 5.3.3).
+    let Some(colon_rel) = find_key_separator(trimmed) else {
         // Bare scalar item line (inside an array).
         return LineKind::ArrayItem {
             start: leading_ws as u32,
@@ -316,26 +329,63 @@ fn trim_trailing_ws(s: &str) -> &str {
     s.trim_end_matches([' ', '\t', '\r'])
 }
 
-/// Find the first UNESCAPED occurrence of byte `b` in `s`. A backslash
-/// escapes the next byte (so `\\` is two consumed bytes that do NOT
-/// expose the second `\` as an escape lead, and `\:` is NOT a separator).
-/// `b` must be an ASCII byte.
-fn find_unescaped(s: &str, b: u8) -> Option<usize> {
+/// Find the byte index of the key/value separator `:` on `trimmed`,
+/// treating a `<quoted-segment>` (§ 5.3.3) as opaque — a `:` inside
+/// `"a:b"` / `'a:b'` / `` `a:b` `` is ordinary content, not the
+/// separator, exactly as `ktav`'s own quote-aware scan treats it. A
+/// quote character opens a segment only at a segment's first code
+/// point (line start, or right after an unescaped `.`); elsewhere it is
+/// an ordinary key byte and does not affect the scan.
+///
+/// If a quote opens a segment with no matching unescaped closer before
+/// end of line, the whole rest of the line is swallowed (quote-opaque)
+/// and no separator is found — mirroring § 5.3.3's "Unterminated quoted
+/// segments" rule, which is indistinguishable from a line with no `:`
+/// at all.
+pub(crate) fn find_key_separator(s: &str) -> Option<usize> {
     let bytes = s.as_bytes();
-    let mut i = 0;
+    let mut i = 0usize;
+    let mut at_segment_start = true;
     while i < bytes.len() {
         let c = bytes[i];
-        if c == b'\\' {
-            // Skip the escape lead AND the escaped byte (if any). If the
-            // line ends with a dangling `\`, treat it as a literal byte —
-            // the parser will report it; the classifier just keeps going.
-            i += 2;
+        if at_segment_start && matches!(c, b'"' | b'\'' | b'`') {
+            let quote = c;
+            let mut j = i + 1;
+            let mut closed = false;
+            while j < bytes.len() {
+                if bytes[j] == b'\\' {
+                    j += 2;
+                    continue;
+                }
+                if bytes[j] == quote {
+                    closed = true;
+                    j += 1;
+                    break;
+                }
+                j += 1;
+            }
+            if !closed {
+                return None;
+            }
+            i = j;
+            at_segment_start = false;
             continue;
         }
-        if c == b {
+        if c == b'\\' {
+            i += 2;
+            at_segment_start = false;
+            continue;
+        }
+        if c == b'.' {
+            i += 1;
+            at_segment_start = true;
+            continue;
+        }
+        if c == b':' {
             return Some(i);
         }
         i += 1;
+        at_segment_start = false;
     }
     None
 }
@@ -349,24 +399,52 @@ fn find_unescaped(s: &str, b: u8) -> Option<usize> {
 /// separator. Segments are returned with their escape sequences still
 /// embedded — callers that need the decoded text must unescape themselves
 /// (highlighting / column ranges only need byte positions).
+///
+/// Spec 0.7.0: a `<quoted-segment>` (§ 5.3.3) is opaque to this split — a
+/// `.` inside `"b.c"` does not start a new segment, so
+/// `a."b.c".d` is three segments (`a`, `"b.c"`, `d`), not four. As with
+/// [`find_key_separator`], a quote opens a segment only at a segment's
+/// first code point (key start, or right after an unescaped `.`).
 pub fn split_dotted(key_start: u32, key: &str) -> impl Iterator<Item = (u32, &str)> {
     let bytes = key.as_bytes();
     let mut segs: Vec<(u32, &str)> = Vec::new();
     let mut seg_start = 0usize;
     let mut i = 0usize;
+    let mut at_segment_start = true;
     while i < bytes.len() {
         let c = bytes[i];
+        if at_segment_start && matches!(c, b'"' | b'\'' | b'`') {
+            let quote = c;
+            let mut j = i + 1;
+            while j < bytes.len() {
+                if bytes[j] == b'\\' {
+                    j += 2;
+                    continue;
+                }
+                if bytes[j] == quote {
+                    j += 1;
+                    break;
+                }
+                j += 1;
+            }
+            i = j;
+            at_segment_start = false;
+            continue;
+        }
         if c == b'\\' {
             i += 2;
+            at_segment_start = false;
             continue;
         }
         if c == b'.' {
             segs.push((key_start + seg_start as u32, &key[seg_start..i]));
             seg_start = i + 1;
             i += 1;
+            at_segment_start = true;
             continue;
         }
         i += 1;
+        at_segment_start = false;
     }
     segs.push((key_start + seg_start as u32, &key[seg_start..]));
     segs.into_iter()
@@ -443,8 +521,9 @@ pub fn prefix_by_encoding(
 pub fn cursor_is_after_separator(upto: &str) -> bool {
     let trimmed = upto.trim_start();
     // Spec 0.6.0: only an UNESCAPED `:` is the separator (`\:` is a
-    // literal colon inside the key).
-    let Some(i) = find_unescaped(trimmed, b':') else {
+    // literal colon inside the key). Spec 0.7.0: a `:` inside a quoted
+    // key segment is opaque too (§ 5.3.3).
+    let Some(i) = find_key_separator(trimmed) else {
         return false;
     };
     let after = &trimmed[i + 1..];
@@ -608,6 +687,20 @@ mod tests {
     }
 
     #[test]
+    fn dotted_split_quoted_segment_dot_is_opaque() {
+        // § 5.3.3's own example: `a."b.c".d` is THREE segments — the dot
+        // inside the quoted segment does not split it.
+        let segs: Vec<_> = split_dotted(0, r#"a."b.c".d"#).collect();
+        assert_eq!(segs, vec![(0, "a"), (2, r#""b.c""#), (8, "d")]);
+    }
+
+    #[test]
+    fn dotted_split_mid_token_quote_is_ordinary() {
+        let segs: Vec<_> = split_dotted(0, "don't").collect();
+        assert_eq!(segs, vec![(0, "don't")]);
+    }
+
+    #[test]
     fn key_escape_literal_dot_is_one_segment() {
         // Spec 0.6.0: `a\.b` is ONE segment (the `\.` is a literal dot).
         let segs: Vec<_> = split_dotted(0, r"a\.b").collect();
@@ -672,11 +765,58 @@ mod tests {
     }
 
     #[test]
-    fn find_unescaped_basic() {
-        assert_eq!(find_unescaped("a:b", b':'), Some(1));
-        assert_eq!(find_unescaped(r"a\:b:c", b':'), Some(4));
-        assert_eq!(find_unescaped(r"a\\:b", b':'), Some(3));
-        assert_eq!(find_unescaped(r"a\:b", b':'), None);
+    fn pair_with_colon_inside_quoted_key() {
+        // `"a:b": v` — the colon inside the quoted key is NOT the
+        // separator (§ 5.3.3); the real separator is right after the
+        // closing quote.
+        match pair(r#""a:b": v"#) {
+            LineKind::Pair {
+                key_start,
+                key_length,
+                marker_start,
+                marker,
+                value_text,
+                ..
+            } => {
+                assert_eq!(key_start, 0);
+                assert_eq!(key_length, 5); // "a:b"
+                assert_eq!(marker_start, 5);
+                assert_eq!(marker, Marker::Plain);
+                assert_eq!(value_text, "v");
+            }
+            other => panic!("got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn find_key_separator_basic() {
+        assert_eq!(find_key_separator("a:b"), Some(1));
+        assert_eq!(find_key_separator(r"a\:b:c"), Some(4));
+        assert_eq!(find_key_separator(r"a\\:b"), Some(3));
+        assert_eq!(find_key_separator(r"a\:b"), None);
+    }
+
+    #[test]
+    fn find_key_separator_colon_inside_quoted_segment_is_opaque() {
+        // The `:` inside the quoted key is ordinary content; the real
+        // separator is the one right after the closing quote.
+        assert_eq!(find_key_separator(r#""a:b": 1"#), Some(5));
+        assert_eq!(find_key_separator("'a:b': 1"), Some(5));
+        assert_eq!(find_key_separator("`a:b`: 1"), Some(5));
+    }
+
+    #[test]
+    fn find_key_separator_mid_token_quote_is_ordinary() {
+        // A quote NOT at a segment's first position never opens a
+        // quoted segment (§ 5.3.3's positional rule) — unaffected.
+        assert_eq!(find_key_separator("don't: 1"), Some(5));
+    }
+
+    #[test]
+    fn find_key_separator_unterminated_quote_finds_nothing() {
+        // No matching closer before EOL — swallows the rest of the line,
+        // indistinguishable from "no `:` on this line at all" (§ 5.3.3).
+        assert_eq!(find_key_separator(r#""a: 1"#), None);
     }
 
     #[test]
