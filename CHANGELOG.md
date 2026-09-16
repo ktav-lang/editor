@@ -17,6 +17,96 @@ the Ktav format itself — for the latter see
 
 ## Unreleased
 
+Tracks `ktav` Rust crate `0.7.0` and `ktav-lang/spec` `0.7.0` (up from
+`0.6.0-4-gc9593e8` — behind even `0.6.4` — so 0.6.x patch-level spec
+changes are folded into this jump too). The headline spec change is
+**quoted key segments** (§ 5.3.3: a key segment may be wrapped in `"`,
+`'` or a backtick; the delimiter is chosen per segment, content is
+never trimmed, and structural bytes — `.` `:` `,` `{` `}` `[` `]` —
+inside the quotes are opaque) and the **`\uXXXX` escape** (§ 3.7.1,
+recognised in keys and inline-compound values only, never in
+whole-line scalar values or multi-line bodies), plus two new error
+kinds: `UnterminatedQuotedKey` (§ 6.16) and a top-level `InvalidUtf8`
+(§ 6.15).
+
+### LSP server (`ktav-lsp`)
+
+- `Cargo.toml`: `ktav = "0.7"` (was `"0.6"`); `rust-version` raised to
+  `1.71` (ktav 0.7's own MSRV, was `1.70`).
+- **Quoted keys are now understood outside the `ktav` parser too.**
+  `ktav::parse`-based diagnostics/symbols already handled 0.7 syntax
+  correctly with no code changes (see below), but the LSP's *own*
+  line-based classifier (`tokens::classify_line`, `split_dotted`,
+  used for semantic tokens, hover and completion) and the document-
+  outline scanner (`symbols::collect_key_hits`) each hand-roll their
+  own colon/dot scan over raw text and did not know a `:` or `.`
+  inside `"..."` / `'...'` / `` `...` `` is ordinary content. A quoted
+  key containing a structural byte — e.g. `"a:b": 1` or
+  `a."b.c".d: 1` — would have had its colon/dot misread, corrupting
+  semantic highlighting, completion context detection, and the
+  document-symbol outline's key boundaries. Fixed by adding a
+  quote-aware separator scan (`tokens::find_key_separator`, replacing
+  `tokens::find_unescaped`) and making `tokens::split_dotted`
+  quote-opaque; `symbols.rs`'s independent duplicate scanner was
+  removed in favour of importing the same two functions from
+  `tokens`, which now lives up to its own "single source of truth"
+  doc comment. A quote character NOT at a segment's first position
+  (`don't: 1`) is unaffected, matching § 5.3.3's positional rule.
+- Fixed a pre-existing span-encoding bug in `textDocument/formatting`,
+  found while auditing the byte-offset `Span` contract for this
+  bump: the whole-document replace edit's end `Position.character`
+  was computed with `str::chars().count()` (Unicode scalar count)
+  instead of the same encoding-aware conversion every other handler
+  in `server.rs` already uses. This undercounts under both negotiated
+  encodings whenever the last line has non-ASCII content (UTF-8:
+  undercounts byte length for any multi-byte character; UTF-16:
+  undercounts for any astral-plane / surrogate-pair character),
+  which could leave trailing bytes of the last line unreplaced by a
+  format edit. Extracted into `end_of_document()`, covered by new
+  tests.
+- No code changes were needed for the new `ErrorKind` variants:
+  `diagnostics::parse_for_diagnostics` already drives everything off
+  `ErrorKind::span()` / `::line()` / `Display` generically, so
+  `UnterminatedQuotedKey` gets a correct, tight diagnostic for free.
+  `Error::InvalidUtf8` cannot occur through this crate's `&str`-based
+  entry points (a Rust `&str` is valid UTF-8 by construction — the
+  variant only fires for the byte-level `ktav::from_file`, which this
+  LSP never calls); verified, no live code path to fix.
+- `reindent::canonicalise_paren_scalar`: removed dead reasoning about
+  the `:i` / `:f` typed markers, dropped from the spec back in 0.5.0.
+  The special case was already unreachable (any `:i` / `:f` sequence
+  already fails the "separator must be followed by whitespace" check
+  for an unrelated reason), so removing it changes no behaviour.
+  Renamed/rewrote the tests built on the removed markers in both
+  `reindent.rs` and `tests/format_pipeline.rs` (including the
+  `port:i 8080` / `timeout:f 5.0` sample lines in
+  `complex_document_canonicalised`, now plain pairs). The `::` raw
+  marker is untouched — it is still current syntax.
+
+### TextMate grammar (VS Code + shared `grammars/`)
+
+- Quoted key segments: the dotted-key pattern shared by every
+  `pair-*` / `inline-pair` rule now accepts `"..."`, `'...'` or
+  `` `...` `` as an alternative to a bare segment at each segment
+  boundary, respecting the positional rule (`don't: 1` is unaffected).
+  `key-name` sub-highlights each quoted form with its own scope
+  (`string.quoted.{double,single,backtick}.key.ktav`).
+- `\uXXXX` escape recognised in `key-name` and `inline-scalar-body`
+  (`constant.character.escape.unicode.ktav`); `inline-scalar-body`'s
+  named-escape character class also gained `\.` `\:` `\"` `\'`
+  `` \` `` — present in the spec since 0.6.0/0.7.0 but missing from
+  this grammar's escape-highlighting list until now.
+- `grammars/ktav.tmLanguage.json` is the source of truth;
+  `vscode/syntaxes/ktav.tmLanguage.json` is a generated mirror kept in
+  sync by `vscode/scripts/sync-grammars.js` (run via `npm run
+  sync-grammars` / `compile` / `vscode:prepublish`, and explicitly in
+  the release workflow before packaging). Both files are updated here
+  through that script so they stay byte-identical.
+
+### Spec submodule
+
+- Pinned to `04f867f` (`v0.7.0`), up from `c9593e8`
+  (`v0.6.0-4-gc9593e8`).
 
 ## [0.6.1] — 2026-06-05
 
