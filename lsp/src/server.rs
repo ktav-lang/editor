@@ -401,14 +401,10 @@ impl LanguageServer for Backend {
             return Ok(Some(Vec::new()));
         }
 
-        // Replace whole document with formatted text. Range covers the entire
-        // current text — line/column count derived from the original.
-        let last_line = text.split('\n').count().saturating_sub(1) as u32;
-        let last_col = text
-            .split('\n')
-            .next_back()
-            .map(|s| s.chars().count() as u32)
-            .unwrap_or(0);
+        // Replace whole document with formatted text. Range covers the
+        // entire current text — line/column derived from the original, in
+        // the negotiated position encoding (see `end_of_document`).
+        let (last_line, last_col) = end_of_document(&text, self.encoding());
         let edit = TextEdit {
             range: Range {
                 start: Position {
@@ -484,6 +480,29 @@ fn describe_value(v: &Value) -> String {
         Value::Array(a) => format!("array of {} items", a.len()),
         Value::Object(o) => format!("object with {} keys", o.len()),
     }
+}
+
+/// `(line, character)` of the end of `text`, in the given position
+/// encoding — i.e. the position one past the last byte, suitable as the
+/// `end` of a whole-document replace `Range`.
+///
+/// `character` must be in the negotiated encoding, same as every other
+/// position this file emits: byte length (`str::len`) for `Utf8`,
+/// UTF-16 code-unit count (`byte_to_utf16`) for `Utf16`. Using
+/// `chars().count()` here (as a prior version of this function did)
+/// undercounts BOTH: it undercounts UTF-8 byte length for any
+/// multi-byte scalar, and undercounts UTF-16 length for any
+/// astral-plane / surrogate-pair character — under-shooting the real
+/// end-of-line offset and leaving trailing bytes of the last line
+/// unreplaced by a formatting edit.
+fn end_of_document(text: &str, encoding: PositionEncoding) -> (u32, u32) {
+    let last_line = text.split('\n').count().saturating_sub(1) as u32;
+    let last_line_text = text.split('\n').next_back().unwrap_or("");
+    let last_col = match encoding {
+        PositionEncoding::Utf8 => last_line_text.len() as u32,
+        PositionEncoding::Utf16 => byte_to_utf16(last_line_text, last_line_text.len()),
+    };
+    (last_line, last_col)
 }
 
 // ---- byte→UTF-16 column conversion (only used when the negotiated
@@ -742,5 +761,31 @@ mod tests {
                 byte_to_utf16(line_text, byte_end as usize),
             );
         }
+    }
+
+    #[test]
+    fn end_of_document_ascii() {
+        let text = "a: 1\nb: 2\n";
+        // Trailing newline: last "line" per split('\n') is empty.
+        assert_eq!(end_of_document(text, PositionEncoding::Utf8), (2, 0));
+        assert_eq!(end_of_document(text, PositionEncoding::Utf16), (2, 0));
+    }
+
+    #[test]
+    fn end_of_document_multibyte_last_line_utf8() {
+        // Last line "café" is 5 bytes (é is 2 bytes), 4 Unicode scalars.
+        // `character` for Utf8 encoding is a byte offset — must be 5, not
+        // the scalar count 4 that `chars().count()` would give.
+        let text = "a: 1\ncafé";
+        assert_eq!(end_of_document(text, PositionEncoding::Utf8), (1, 5));
+    }
+
+    #[test]
+    fn end_of_document_astral_last_line_utf16() {
+        // Last line "k: 😀" — k,:,space = 3 UTF-16 units, 😀 is a surrogate
+        // pair = 2 more units, total 5. `chars().count()` would give 4
+        // (each scalar counted once, undercounting the surrogate pair).
+        let text = "a: 1\nk: 😀";
+        assert_eq!(end_of_document(text, PositionEncoding::Utf16), (1, 5));
     }
 }
