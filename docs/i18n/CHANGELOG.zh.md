@@ -1,6 +1,6 @@
 # 变更日志
 
-**Languages:** [English](CHANGELOG.md) · [Русский](CHANGELOG.ru.md) · **简体中文**
+**Languages:** [English](../../CHANGELOG.md) · [Русский](CHANGELOG.ru.md) · **简体中文**
 
 本文件记录 Ktav 编辑器支持(VS Code 扩展、IntelliJ 插件、LSP 服务器、
 共享 TextMate 语法)的所有重要变更。格式参照

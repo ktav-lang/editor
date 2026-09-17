@@ -4,7 +4,7 @@
 > [Ktav](https://github.com/ktav-lang/spec). Один Rust-бинарь; тонкая
 > обёртка над парсером из crate `ktav`.
 
-**Languages:** [English](README.md) · **Русский** · [简体中文](README.zh.md)
+**Languages:** [English](../README.md) · **Русский** · [简体中文](README.zh.md)
 
 ---
 
@@ -73,7 +73,7 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 
 ### VS Code
 
-Используйте [расширение Ktav для VS Code](../vscode) — оно содержит
+Используйте [расширение Ktav для VS Code](../../vscode) — оно содержит
 конфигурацию языка и мост к `ktav-lsp`. Сам `ktav-lsp` устанавливается
 отдельно через `cargo install`.
 
@@ -126,4 +126,5 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 
 ## Лицензия
 
-MIT — см. [LICENSE](LICENSE).
+MIT OR Apache-2.0 — см. [LICENSE-MIT](../LICENSE-MIT) и
+[LICENSE-APACHE](../LICENSE-APACHE).

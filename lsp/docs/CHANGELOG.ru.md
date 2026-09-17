@@ -5,7 +5,7 @@
 crate следует [Semantic Versioning](https://semver.org/) с
 Cargo-конвенцией: до 1.0 bump MINOR считается ломающим.
 
-**Languages:** [English](CHANGELOG.md) · **Русский** · [简体中文](CHANGELOG.zh.md)
+**Languages:** [English](../CHANGELOG.md) · **Русский** · [简体中文](CHANGELOG.zh.md)
 
 ## [0.1.5] — 2026-05-01
 

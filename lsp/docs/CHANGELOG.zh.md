@@ -5,7 +5,7 @@
 遵循 [Semantic Versioning](https://semver.org/),并采用 Cargo 惯例:
 在 1.0 之前,MINOR 递进视为破坏性变更。
 
-**Languages:** [English](CHANGELOG.md) · [Русский](CHANGELOG.ru.md) · **简体中文**
+**Languages:** [English](../CHANGELOG.md) · [Русский](CHANGELOG.ru.md) · **简体中文**
 
 ## [0.1.5] —— 2026-05-01
 

@@ -3,7 +3,7 @@
 > [Ktav](https://github.com/ktav-lang/spec) 配置格式的 Language Server
 > Protocol 实现。单一 Rust 二进制;`ktav` 解析器 crate 的薄封装。
 
-**Languages:** [English](README.md) · [Русский](README.ru.md) · **简体中文**
+**Languages:** [English](../README.md) · [Русский](README.ru.md) · **简体中文**
 
 ---
 
@@ -69,7 +69,7 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 
 ### VS Code
 
-使用 [Ktav VS Code 扩展](../vscode) —— 它包含语言配置并桥接
+使用 [Ktav VS Code 扩展](../../vscode) —— 它包含语言配置并桥接
 `ktav-lsp`。`ktav-lsp` 需通过 `cargo install` 单独安装。
 
 ### Emacs (`eglot`)
@@ -115,4 +115,5 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 
 ## 许可证
 
-MIT —— 见 [LICENSE](LICENSE)。
+MIT OR Apache-2.0 —— 见 [LICENSE-MIT](../LICENSE-MIT) 与
+[LICENSE-APACHE](../LICENSE-APACHE)。

@@ -1,6 +1,6 @@
 # Вклад в ktav-lang/editor
 
-**Языки:** [English](CONTRIBUTING.md) · **Русский** · [简体中文](CONTRIBUTING.zh.md)
+**Языки:** [English](../../CONTRIBUTING.md) · **Русский** · [简体中文](CONTRIBUTING.zh.md)
 
 ## Основные правила
 

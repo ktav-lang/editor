@@ -5,7 +5,7 @@
 ![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=flat-square)
 [![Playground](https://img.shields.io/badge/playground-try%20online-7c3aed?style=flat-square&logo=rocket&logoColor=white)](https://ktav-lang.github.io/)
 
-**Languages:** [English](README.md) · **Русский** · [简体中文](README.zh.md)
+**Languages:** [English](../../README.md) · **Русский** · [简体中文](README.zh.md)
 
 **Песочница:** конвертация JSON / YAML / TOML / INI ⇄ Ktav прямо в браузере — **[ktav-lang.github.io](https://ktav-lang.github.io/)**.
 
@@ -18,11 +18,11 @@
 
 | Подпроект               | Что это                                                          | Куда публикуется                                        |
 |-------------------------|------------------------------------------------------------------|---------------------------------------------------------|
-| [`grammars/`](grammars/)| Общая TextMate-грамматика + VS Code language configuration       | Используется `vscode/` и `intellij/`                    |
-| [`vscode/`](vscode/)    | Расширение для Visual Studio Code                                | VS Code Marketplace + Open VSX                          |
-| [`intellij/`](intellij/)| Плагин для IntelliJ Platform (IDEA, RustRover, GoLand, …)        | JetBrains Marketplace                                   |
-| [`lsp/`](lsp/)          | Реализация Language Server Protocol (Rust, `tower-lsp`)          | crates.io как `ktav-lsp`                                |
-| [`docs/`](docs/)        | Сниппеты для Helix / Neovim / Emacs                              | —                                                       |
+| [`grammars/`](../../grammars/)| Общая TextMate-грамматика + VS Code language configuration       | Используется `vscode/` и `intellij/`                    |
+| [`vscode/`](../../vscode/)    | Расширение для Visual Studio Code                                | VS Code Marketplace + Open VSX                          |
+| [`intellij/`](../../intellij/)| Плагин для IntelliJ Platform (IDEA, RustRover, GoLand, …)        | JetBrains Marketplace                                   |
+| [`lsp/`](../../lsp/)          | Реализация Language Server Protocol (Rust, `tower-lsp`)          | crates.io как `ktav-lsp`                                |
+| [`docs/`](../../docs/)        | Сниппеты для Helix / Neovim / Emacs                              | —                                                       |
 
 ## Что получает пользователь Ktav
 
@@ -119,7 +119,7 @@ require("lspconfig").ktav.setup({})
 
 ### Другие редакторы
 
-См. [`docs/`](docs/) для Emacs (eglot), Sublime, Zed.
+См. [`docs/`](../../docs/) для Emacs (eglot), Sublime, Zed.
 
 ## Разработка
 
@@ -130,7 +130,7 @@ require("lspconfig").ktav.setup({})
 - `intellij/` — JDK 17 + Gradle
 - `lsp/` — Rust 1.70+
 
-Один тег запускает релиз всех четырёх (см. [`.github/workflows/release.yml`](.github/workflows/release.yml)).
+Один тег запускает релиз всех четырёх (см. [`.github/workflows/release.yml`](../../.github/workflows/release.yml)).
 
 ## Версионирование
 
@@ -140,7 +140,7 @@ require("lspconfig").ktav.setup({})
 
 ## Лицензия
 
-MIT OR Apache-2.0. См. [LICENSE-MIT](LICENSE-MIT) и [LICENSE-APACHE](LICENSE-APACHE).
+MIT OR Apache-2.0. См. [LICENSE-MIT](../../LICENSE-MIT) и [LICENSE-APACHE](../../LICENSE-APACHE).
 
 ## Другие реализации Ktav
 

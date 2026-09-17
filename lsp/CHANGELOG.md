@@ -5,7 +5,7 @@ format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 this crate adheres to [Semantic Versioning](https://semver.org/) with
 the Cargo convention that a minor bump is breaking while pre-1.0.
 
-**Languages:** **English** · [Русский](CHANGELOG.ru.md) · [简体中文](CHANGELOG.zh.md)
+**Languages:** **English** · [Русский](docs/CHANGELOG.ru.md) · [简体中文](docs/CHANGELOG.zh.md)
 
 ## [0.5.0] — 2026-05-27
 

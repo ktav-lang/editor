@@ -1,6 +1,6 @@
 # Ktav —— IntelliJ Platform 插件
 
-**Languages:** [English](README.md) · [Русский](README.ru.md) · **简体中文**
+**Languages:** [English](../README.md) · [Русский](README.ru.md) · **简体中文**
 
 > 在 JetBrains IDE 中为 [Ktav](https://github.com/ktav-lang/spec)
 > 朴素配置格式提供编辑器支持。
@@ -54,7 +54,7 @@
 
 当与 Ktav 一起安装了
 [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) 插件时,
-即可获得由 [`ktav-lsp`](../lsp) 提供的实时诊断、悬停、补全、
+即可获得由 [`ktav-lsp`](../../lsp) 提供的实时诊断、悬停、补全、
 document symbols 和 semantic tokens。未安装 LSP4IJ 时,本插件仍以
 TextMate-only 模式正常工作 —— 需要更丰富的功能时再从 Marketplace
 安装 LSP4IJ 即可。

@@ -5,7 +5,7 @@
 ![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue?style=flat-square)
 [![Playground](https://img.shields.io/badge/playground-try%20online-7c3aed?style=flat-square&logo=rocket&logoColor=white)](https://ktav-lang.github.io/)
 
-**Languages:** [English](README.md) · [Русский](README.ru.md) · **简体中文**
+**Languages:** [English](../../README.md) · [Русский](README.ru.md) · **简体中文**
 
 **演练场：** 在浏览器中互转 JSON / YAML / TOML / INI ⇄ Ktav — **[ktav-lang.github.io](https://ktav-lang.github.io/)**。
 
@@ -17,11 +17,11 @@
 
 | 子项目                  | 是什么                                                            | 发布到                                                  |
 |-------------------------|------------------------------------------------------------------|---------------------------------------------------------|
-| [`grammars/`](grammars/)| 共享 TextMate 语法 + VS Code language configuration              | 由 `vscode/` 与 `intellij/` 复用                        |
-| [`vscode/`](vscode/)    | Visual Studio Code 扩展                                          | VS Code Marketplace + Open VSX                          |
-| [`intellij/`](intellij/)| IntelliJ Platform 插件(IDEA、RustRover、GoLand …)               | JetBrains Marketplace                                   |
-| [`lsp/`](lsp/)          | Language Server Protocol 实现(Rust,`tower-lsp`)                | crates.io 上的 `ktav-lsp`                               |
-| [`docs/`](docs/)        | Helix / Neovim / Emacs 等编辑器的接入片段                        | —                                                       |
+| [`grammars/`](../../grammars/)| 共享 TextMate 语法 + VS Code language configuration              | 由 `vscode/` 与 `intellij/` 复用                        |
+| [`vscode/`](../../vscode/)    | Visual Studio Code 扩展                                          | VS Code Marketplace + Open VSX                          |
+| [`intellij/`](../../intellij/)| IntelliJ Platform 插件(IDEA、RustRover、GoLand …)               | JetBrains Marketplace                                   |
+| [`lsp/`](../../lsp/)          | Language Server Protocol 实现(Rust,`tower-lsp`)                | crates.io 上的 `ktav-lsp`                               |
+| [`docs/`](../../docs/)        | Helix / Neovim / Emacs 等编辑器的接入片段                        | —                                                       |
 
 ## Ktav 用户能得到什么
 
@@ -113,7 +113,7 @@ require("lspconfig").ktav.setup({})
 
 ### 其他编辑器
 
-参见 [`docs/`](docs/),包含 Emacs(eglot)、Sublime、Zed 的配置。
+参见 [`docs/`](../../docs/),包含 Emacs(eglot)、Sublime、Zed 的配置。
 
 ## 开发
 
@@ -125,7 +125,7 @@ require("lspconfig").ktav.setup({})
 - `lsp/` —— Rust 1.70+
 
 一个 tag 触发所有四个子项目同时发布
-(参见 [`.github/workflows/release.yml`](.github/workflows/release.yml))。
+(参见 [`.github/workflows/release.yml`](../../.github/workflows/release.yml))。
 
 ## 版本
 
@@ -135,7 +135,7 @@ require("lspconfig").ktav.setup({})
 
 ## 许可证
 
-MIT OR Apache-2.0。详见 [LICENSE-MIT](LICENSE-MIT) 和 [LICENSE-APACHE](LICENSE-APACHE)。
+MIT OR Apache-2.0。详见 [LICENSE-MIT](../../LICENSE-MIT) 和 [LICENSE-APACHE](../../LICENSE-APACHE)。
 
 ## 其他 Ktav 实现
 

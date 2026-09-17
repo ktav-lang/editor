@@ -1,6 +1,6 @@
 # Ktav — IntelliJ Platform plugin
 
-**Languages:** **English** · [Русский](README.ru.md) · [简体中文](README.zh.md)
+**Languages:** **English** · [Русский](docs/README.ru.md) · [简体中文](docs/README.zh.md)
 
 > Editor support for the [Ktav](https://github.com/ktav-lang/spec)
 > plain configuration format inside JetBrains IDEs.

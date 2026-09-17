@@ -1,6 +1,6 @@
 # Changelog
 
-**Languages:** **English** · [Русский](CHANGELOG.ru.md) · [简体中文](CHANGELOG.zh.md)
+**Languages:** **English** · [Русский](docs/i18n/CHANGELOG.ru.md) · [简体中文](docs/i18n/CHANGELOG.zh.md)
 
 All notable changes to the Ktav editor support (VS Code extension,
 IntelliJ plugin, LSP server, shared TextMate grammar) are documented

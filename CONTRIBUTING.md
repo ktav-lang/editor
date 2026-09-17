@@ -1,6 +1,6 @@
 # Contributing to ktav-lang/editor
 
-**Languages:** **English** · [Русский](CONTRIBUTING.ru.md) · [简体中文](CONTRIBUTING.zh.md)
+**Languages:** **English** · [Русский](docs/i18n/CONTRIBUTING.ru.md) · [简体中文](docs/i18n/CONTRIBUTING.zh.md)
 
 ## Core rules
 

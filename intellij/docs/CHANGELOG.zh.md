@@ -1,6 +1,6 @@
 # 变更日志
 
-**Languages:** [English](CHANGELOG.md) · [Русский](CHANGELOG.ru.md) · **简体中文**
+**Languages:** [English](../CHANGELOG.md) · [Русский](CHANGELOG.ru.md) · **简体中文**
 
 本文件记录 Ktav IntelliJ Platform 插件的所有重要变更。格式参照
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);版本号遵循

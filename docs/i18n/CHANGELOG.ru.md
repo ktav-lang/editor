@@ -1,6 +1,6 @@
 # Журнал изменений
 
-**Languages:** [English](CHANGELOG.md) · **Русский** · [简体中文](CHANGELOG.zh.md)
+**Languages:** [English](../../CHANGELOG.md) · **Русский** · [简体中文](CHANGELOG.zh.md)
 
 Все значимые изменения в поддержке редакторов для Ktav (VS Code
 расширение, IntelliJ плагин, LSP-сервер, общая TextMate-грамматика)

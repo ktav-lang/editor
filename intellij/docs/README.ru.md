@@ -1,6 +1,6 @@
 # Ktav — плагин для IntelliJ Platform
 
-**Languages:** [English](README.md) · **Русский** · [简体中文](README.zh.md)
+**Languages:** [English](../README.md) · **Русский** · [简体中文](README.zh.md)
 
 > Поддержка редактора для конфигурационного формата
 > [Ktav](https://github.com/ktav-lang/spec) внутри IDE от JetBrains.
@@ -59,7 +59,7 @@
 Если рядом с Ktav установлен плагин
 [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij), вы
 получаете live-диагностику, hover, автокомплит, document symbols и
-semantic tokens из [`ktav-lsp`](../lsp). Без LSP4IJ плагин продолжает
+semantic tokens из [`ktav-lsp`](../../lsp). Без LSP4IJ плагин продолжает
 работать в режиме TextMate-only — поставьте LSP4IJ из Marketplace,
 когда понадобятся расширенные возможности.
 

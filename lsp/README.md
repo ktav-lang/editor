@@ -4,7 +4,7 @@
 > [Ktav](https://github.com/ktav-lang/spec) configuration format.
 > Single Rust binary; thin wrapper over the `ktav` parser crate.
 
-**Languages:** **English** · [Русский](README.ru.md) · [简体中文](README.zh.md)
+**Languages:** **English** · [Русский](docs/README.ru.md) · [简体中文](docs/README.zh.md)
 
 ---
 
