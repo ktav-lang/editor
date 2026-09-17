@@ -32,3 +32,6 @@ build/
 
 # task worktrees — always created here, in-tree
 /worktrees/
+
+# /rush agent scratch (prompts, envelopes, logs)
+/.rush/

@@ -12,7 +12,7 @@
 //!
 //! Encoding contract: `Diagnostic.range.character` is emitted in BYTES
 //! here; if the negotiated [`crate::server::PositionEncoding`] is UTF-16,
-//! [`crate::server::convert_diagnostics_to_utf16`] re-encodes the columns
+//! [`crate::server::utf16::convert_diagnostics_to_utf16`] re-encodes the columns
 //! after this function returns.
 
 use std::sync::OnceLock;
