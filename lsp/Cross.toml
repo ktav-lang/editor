@@ -1,0 +1,9 @@
+# `cross` copies the host's `~/.cargo/config.toml` into the container's
+# CARGO_HOME. On a machine with a global `build.rustc-wrapper = "sccache"`
+# (sccache isn't installed inside the cross images), every `cross build`
+# fails with "could not execute process `sccache rustc -vV`". Passing
+# `CARGO_BUILD_RUSTC_WRAPPER=` (empty) on the host overrides that config
+# file value, but only if `cross` actually forwards the variable into the
+# container — which it only does for names listed here.
+[build.env]
+passthrough = ["CARGO_BUILD_RUSTC_WRAPPER"]
