@@ -3,6 +3,8 @@
 Canonical TextMate grammar and VS Code language configuration for the
 [Ktav](../../spec/) plain-text configuration format (`.ktav`).
 
+**Languages:** **English** · [Русский](docs/README.ru.md) · [简体中文](docs/README.zh.md)
+
 ## Files
 
 - `ktav.tmLanguage.json` — TextMate grammar. Scope name `source.ktav`,
@@ -33,7 +35,7 @@ copies in the downstream subprojects; fix the bug here.
 
 1. From a VS Code window, open the Command Palette and run
    `Developer: Inspect Editor Tokens and Scopes`.
-2. Open any sample from `spec/versions/0.6/tests/valid/**/*.ktav`.
+2. Open any sample from `spec/versions/0.8/tests/valid/**/*.ktav`.
 3. Click into a token; the panel shows the resolved scope chain. Each
    scope listed in the "Token classes" section below should appear on
    the corresponding token.

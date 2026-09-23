@@ -29,6 +29,14 @@ whole-line scalar values or multi-line bodies), plus two new error
 kinds: `UnterminatedQuotedKey` (§ 6.16) and a top-level `InvalidUtf8`
 (§ 6.15).
 
+- All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
+  plugin) move to **0.8.0** in step with the `ktav` crate and the
+  specification: `lsp/Cargo.toml` now depends on `ktav = "0.8"`, the
+  spec submodule is re-pinned to `v0.8.0`, and the LSP conformance test
+  now walks the 0.8 corpus (it previously walked the long-gone 0.6
+  corpus, and its category check was silently disabled by an oracle-key
+  mismatch; categories are now read from `ktav::ErrorEnvelope`).
+
 ### LSP server (`ktav-lsp`)
 
 - `Cargo.toml`: `ktav = "0.7"` (was `"0.6"`); `rust-version` raised to

@@ -2,7 +2,7 @@
 
 > Реализация Language Server Protocol для конфигурационного формата
 > [Ktav](https://github.com/ktav-lang/spec). Один Rust-бинарь; тонкая
-> обёртка над парсером из crate `ktav`.
+> обёртка над парсерным crate `ktav`.
 
 **Languages:** [English](../README.md) · **Русский** · [简体中文](README.zh.md)
 
@@ -42,7 +42,7 @@ roots = []
 language-servers = ["ktav-lsp"]
 ```
 
-### Neovim (с `nvim-lspconfig`)
+### Neovim (with `nvim-lspconfig`)
 
 `ktav-lsp` (пока) нет в реестре `lspconfig`, поэтому регистрируем
 вручную:
@@ -65,7 +65,7 @@ end
 lspconfig.ktav_lsp.setup({})
 ```
 
-И сниппет для определения файлового типа:
+Также понадобится сниппет `ftdetect`:
 
 ```vim
 au BufRead,BufNewFile *.ktav set filetype=ktav
@@ -74,8 +74,8 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 ### VS Code
 
 Используйте [расширение Ktav для VS Code](../../vscode) — оно содержит
-конфигурацию языка и мост к `ktav-lsp`. Сам `ktav-lsp` устанавливается
-отдельно через `cargo install`.
+конфигурацию языка и мост к `ktav-lsp`. Установите
+[`ktav-lsp`](https://crates.io/crates/ktav-lsp) отдельно.
 
 ### Emacs (`eglot`)
 
@@ -96,15 +96,14 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
   значение.
 - **Автодополнение** — контекстно после разделителя `:`: предлагает
   `null`, `true`, `false`, открывающие скобки (`{`, `[`, `(`, `((`),
-  пустые литералы (`{}`, `[]`, `()`) и маркеры значений (`:`,
-  `::`).
+  пустые литералы (`{}`, `[]`, `()`) и маркеры значений (`:`, `::`).
 - **Document symbols** — outline отражает дерево распарсенного объекта;
   скаляры становятся Property/Number/String, объекты — Module, массивы —
   Array.
 - **Semantic tokens** — типы токенов `comment`, `keyword`, `number`,
   `string`, `property`, `operator`. Редакторы могут использовать их
   вместо (или поверх) TextMate-грамматик для более точной подсветки,
-  особенно вокруг точечных ключей и типизированных маркеров.
+  особенно вокруг точечных ключей и маркеров типизированных скаляров.
 
 ## Архитектура
 

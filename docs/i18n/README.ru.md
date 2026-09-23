@@ -11,18 +11,18 @@
 
 > Поддержка редакторов для конфигурационного формата
 > **[Ktav](https://github.com/ktav-lang/spec)** — подсветка синтаксиса,
-> плагины для IDE, Language Server. Один репозиторий, четыре подпроекта,
-> одна общая TextMate-грамматика.
+> плагины для IDE, Language Server. Один репозиторий, четыре
+> подпроекта, одна общая TextMate-грамматика.
 
 ## Что внутри
 
-| Подпроект               | Что это                                                          | Куда публикуется                                        |
-|-------------------------|------------------------------------------------------------------|---------------------------------------------------------|
-| [`grammars/`](../../grammars/)| Общая TextMate-грамматика + VS Code language configuration       | Используется `vscode/` и `intellij/`                    |
-| [`vscode/`](../../vscode/)    | Расширение для Visual Studio Code                                | VS Code Marketplace + Open VSX                          |
-| [`intellij/`](../../intellij/)| Плагин для IntelliJ Platform (IDEA, RustRover, GoLand, …)        | JetBrains Marketplace                                   |
-| [`lsp/`](../../lsp/)          | Реализация Language Server Protocol (Rust, `tower-lsp`)          | crates.io как `ktav-lsp`                                |
-| [`docs/`](../../docs/)        | Сниппеты для Helix / Neovim / Emacs                              | —                                                       |
+| Подпроект               | Что это                                                            | Куда публикуется                                      |
+|-------------------------|--------------------------------------------------------------------|-------------------------------------------------------|
+| [`grammars/`](../../grammars/) | Общая TextMate-грамматика + VS Code language configuration | Используется `vscode/` и `intellij/`                  |
+| [`vscode/`](../../vscode/)    | Расширение для Visual Studio Code                            | VS Code Marketplace + Open VSX                        |
+| [`intellij/`](../../intellij/)| Плагин для IntelliJ Platform (IntelliJ IDEA, RustRover, GoLand, …) | JetBrains Marketplace                                 |
+| [`lsp/`](../../lsp/)          | Реализация Language Server Protocol (Rust, `tower-lsp`)        | crates.io как `ktav-lsp`                              |
+| [`docs/`](../../docs/)        | Сниппеты настройки редакторов (Helix, Neovim, Emacs)           | —                                                     |
 
 ## Что получает пользователь Ktav
 
@@ -32,40 +32,43 @@
 - **Переключение комментария** — `Ctrl/Cmd+/` → `## comment`
 - **Live-диагностика** (с LSP) — каждый `MissingSeparatorSpace`,
   дубликат ключа, конфликт dotted-префикса всплывает красной
-  подчёркивающей линией с тем же сообщением, что выдаёт парсер
+  подчёркивающей линией на проблемной строке, с тем же сообщением,
+  что выдаёт парсер
 - **Hover-подсказки** (с LSP) — dotted-путь ключа под курсором,
   выведенный тип значения
 - **Автокомплит** (с LSP) — ключевые слова (`null` / `true` / `false`),
   raw-string-маркер (`::`), открытие compound'ов
-- **Document symbols** (с LSP) — outline отражает структуру `Value::Object`
+- **Document symbols** (с LSP) — outline отражает структуру
+  `Value::Object`
 
 ## Архитектура
 
 ```
                     ┌─────────────────────────────────────────┐
-                    │  ktav-lsp  (Rust binary, этот репо)    │
-                    │  • парсит через crate `ktav`           │
+                    │  ktav-lsp  (Rust binary, this repo)    │
+                    │  • parses via the `ktav` crate         │
                     │  • diagnostics, hover, completion,     │
                     │    semantic tokens, document symbols   │
                     └─────────────────────────────────────────┘
                                        ▲
-                                       │ LSP (JSON-RPC через stdio)
+                                       │ LSP (JSON-RPC over stdio)
                 ┌──────────────────────┼──────────────────────┐
                 │                      │                      │
        ┌────────┴────────┐   ┌─────────┴─────────┐   ┌────────┴────────┐
        │ VS Code         │   │ IntelliJ Platform │   │ Helix / Neovim  │
        │ ext (`vscode/`) │   │ plugin (`intellij/`)│  │ + LSP config    │
        │                 │   │                     │  │                 │
-       │ TextMate-grammar│   │ TextMate-grammar    │  │ (LSP semantic   │
-       │ из grammars/    │   │ из grammars/        │  │  tokens для     │
-       │                 │   │                     │  │  подсветки)     │
+       │ TextMate grammar│   │ TextMate grammar    │  │ (LSP semantic   │
+       │ from grammars/  │   │ from grammars/      │  │  tokens for     │
+       │                 │   │                     │  │  highlighting)  │
        └─────────────────┘   └─────────────────────┘  └─────────────────┘
 ```
 
-TextMate-грамматика даёт мгновенную косметическую подсветку (без
-LSP). LSP-слой добавляет *интеллект* — диагностику, hover,
-автокомплит. Слои наслаиваются: ставишь только extension — есть
-подсветка; добавляешь `ktav-lsp` в PATH — получаешь всё остальное.
+TextMate-грамматика даёт мгновенную косметическую подсветку (языковой
+сервер не нужен). LSP-слой добавляет *интеллектуальные* функции —
+диагностику, hover, автокомплит. Слои складываются: поставьте только
+расширение — получите подсветку; добавьте `ktav-lsp` в PATH — и всё
+остальное.
 
 ## Установка для пользователя
 
@@ -75,16 +78,16 @@ LSP). LSP-слой добавляет *интеллект* — диагност�
 ext install ktav-lang.ktav
 ```
 
-Расширение само бандлит LSP-сервер для основных платформ — никаких
-дополнительных шагов.
+Расширение включает LSP-сервер в комплект для основных платформ —
+дополнительных шагов не нужно.
 
 ### IntelliJ IDEA / RustRover / GoLand / etc.
 
-Plugins → Marketplace → search **Ktav** → Install.
+Плагины → Marketplace → найти **Ktav** → Установить.
 
 ### Helix
 
-В `~/.config/helix/languages.toml`:
+Добавьте в `~/.config/helix/languages.toml`:
 
 ```toml
 [[language]]
@@ -96,7 +99,7 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Потом `cargo install ktav-lsp`.
+Затем `cargo install ktav-lsp`.
 
 ### Neovim
 
@@ -115,17 +118,17 @@ require("lspconfig.configs").ktav = {
 require("lspconfig").ktav.setup({})
 ```
 
-Потом `cargo install ktav-lsp`.
+Затем `cargo install ktav-lsp`.
 
 ### Другие редакторы
 
-См. [`docs/`](../../docs/) для Emacs (eglot), Sublime, Zed.
+См. [`docs/`](../../docs/) для Emacs (eglot), Sublime и Zed.
 
-## Разработка
+## Разработка в этом репозитории
 
-Каждый подпроект — свой toolchain. См. README в каждом:
+Каждый подпроект имеет свой toolchain. См. его `README.md`:
 
-- `grammars/` — чистый JSON; без build'а
+- `grammars/` — чистый JSON; без сборки
 - `vscode/` — Node + `vsce`
 - `intellij/` — JDK 17 + Gradle
 - `lsp/` — Rust 1.70+
@@ -134,9 +137,9 @@ require("lspconfig").ktav.setup({})
 
 ## Версионирование
 
-Один semver на весь monorepo: Все четыре
+Единый semver на весь monorepo: все четыре
 подпроекта публикуются под одним тегом одновременно. CHANGELOG
-перечисляет изменения по подпроектам внутри каждой версии.
+перечисляет изменения по подпроектам внутри каждого раздела версии.
 
 ## Лицензия
 
@@ -144,8 +147,8 @@ MIT OR Apache-2.0. См. [LICENSE-MIT](../../LICENSE-MIT) и [LICENSE-APACHE](..
 
 ## Другие реализации Ktav
 
-- [`spec`](https://github.com/ktav-lang/spec) — спецификация + conformance-тесты
-- [`rust`](https://github.com/ktav-lang/rust) — эталонный Rust crate (`cargo add ktav`)
+- [`spec`](https://github.com/ktav-lang/spec) — спецификация + conformance-набор
+- [`rust`](https://github.com/ktav-lang/rust) — эталонный Rust-крейт (`cargo add ktav`)
 - [`csharp`](https://github.com/ktav-lang/csharp) — C# / .NET (`dotnet add package Ktav`)
 - [`golang`](https://github.com/ktav-lang/golang) — Go (`go get github.com/ktav-lang/golang`)
 - [`java`](https://github.com/ktav-lang/java) — Java / JVM (`io.github.ktav-lang:ktav` на Maven Central)

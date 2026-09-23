@@ -7,57 +7,104 @@ Cargo-конвенцией: до 1.0 bump MINOR считается ломающ�
 
 **Languages:** [English](../CHANGELOG.md) · **Русский** · [简体中文](CHANGELOG.zh.md)
 
+## Не выпущено
+
+Все три компонента (`ktav-lsp`, расширение VS Code, плагин IntelliJ)
+переходят на 0.8.0 синхронно с crate `ktav` и спецификацией — см.
+корневой [`CHANGELOG.md`](../../CHANGELOG.md) (раздел
+«Не выпущено») для деталей.
+
+## [0.5.0] — 2026-05-27
+
+Синхронизация с `ktav 0.5.0` и spec `0.5.0`.
+
+### Изменено
+
+- `Cargo.toml`: `ktav = "0.5.0"` (было `"0.3.1"`).
+- Лицензия: двойная `MIT OR Apache-2.0` (была только MIT).
+- `tokens`: комментарии теперь требуют `##`; одиночный `#` — обычный символ.
+- `tokens`: типизированные маркеры `:i` и `:f` удалены (отказ в spec
+  0.5.0); тип выводится из лексической формы скаляра.
+- `tokens`: `looks_numeric` расширен hex- (`0x`), octal- (`0o`) и
+  binary- (`0b`) префиксами, а также разделителями подчёркивания
+  (числовые литералы spec 0.5.0).
+- `diagnostics`: убрана legacy-эвристика диапазона `InvalidTypedScalar`.
+
+## [0.3.1] — 2026-05-10
+
+Синхронизация с `ktav 0.3.1` и spec `0.1.1`. В outline символов
+документа добавлена поддержка массива верхнего уровня.
+
+### Изменено
+
+- `build_symbols` теперь распознаёт корень-массив верхнего уровня
+  (spec § 5.0.1) и отображает его элементы как записи outline `[0]`,
+  `[1]`, … Корни-объекты не изменились.
+- `Cargo.toml`: `ktav = "0.3.1"` (было `"0.3.0"`).
+
+### Тесты
+
+- Новые: `document_symbols_built_from_top_level_array_of_scalars`,
+  `document_symbols_top_level_array_of_objects_have_children` (в
+  `tests/integration.rs`).
+- Новые: `top_level_array_of_scalars_preserved`,
+  `top_level_array_of_objects_preserved` (в
+  `tests/format_pipeline.rs`).
+- Обновлены: существующие фикстуры `MissingSeparatorSpace` / `EmptyKey` /
+  с кириллическими byte-колонками используют ведущую пару-анкер, чтобы
+  ветка malformed-pair по-прежнему покрывалась при spec 0.1.1.
+
 ## [0.1.5] — 2026-05-01
 
 Внутренний рефакторинг конвейера диагностик. Публичный API не менялся.
 
-### Изменено
+### Changed
 
 - **Диагностики** теперь потребляют `ktav::Error::Structured(ErrorKind)`
   из `ktav 0.1.5+`: `Diagnostic.range` строится напрямую из byte-offset
   `Span` варианта (через `Span::line_col`) вместо повторного выведения
-  через regex по форматированному сообщению и повторного прогона
+  через regex-разбор форматированного сообщения и повторного прогона
   ошибочной строки через общий line-классификатор. Точность диапазона
-  теперь определяется собственным знанием парсера о месте ошибки, что
-  даёт строго равные или более узкие диапазоны для каждой категории —
-  например, `MissingSeparatorSpace` для `key:value\n` теперь подсвечивает
-  байты 4..9 (склеенное тело `value`) вместо 3..9 (двоеточие + тело).
+  теперь определяется собственным знанием парсера о месте сбоя, что даёт
+  строго равные или более узкие диапазоны для каждой категории — например,
+  `MissingSeparatorSpace` для `key:value\n` теперь подсвечивает байты 4..9
+  (склеенное тело `value`) вместо 3..9 (двоеточие + тело).
 - Существующий `tests/error_format_pinning.rs` принимает и
-  `Error::Syntax(_)`, и `Error::Structured(_)` и проверяет рендерящуюся
-  Display-строку — контракт это текст сообщения, а не вариант enum.
+  `Error::Syntax(_)`, и `Error::Structured(_)` и проверяет
+  отрендеренную Display-строку — контракт это текст сообщения, а не
+  вариант enum.
 - Ожидания диапазонов в `tests/integration.rs` подтянуты к новым
-  structured-spans (`MissingSeparatorSpace` 4..9, `InvalidTypedScalar`
+  structured spans (`MissingSeparatorSpace` 4..9, `InvalidTypedScalar`
   6..10 и т.д.). Тест на кириллическую byte-column перепинен на старт
   span тела (байт 7 для `имя:значение\n`).
 - `tests/spec_conformance.rs` принимает новые Display-строки
-  `MissingSeparator` / `UnbalancedBracket` как алиасы спек-категорий
-  `OrphanLine` / `MismatchedBracket`.
+  `MissingSeparator` / `UnbalancedBracket` как алиасы категорий
+  спецификации `OrphanLine` / `MismatchedBracket`.
 
 ### Добавлено
 
-- `tests/structured_diagnostics.rs` — пер-вариантные проверки,
-  покрывающие все 10 спек-определённых вариантов `ErrorKind` плюс
-  тест на кириллическую byte-column, прогоняющий `tokens::byte_to_utf16`
-  на пути конвертации диагностик.
+- `tests/structured_diagnostics.rs` — проверки по каждому варианту
+  `ErrorKind`: покрыты все 10 вариантов, определённых спецификацией, плюс
+  тест на кириллическую byte-column, выполняющий `tokens::byte_to_utf16`
+  на пути конвертации диагностического диапазона.
 
 ### Внутреннее
 
-- Regex-извлечение (`extract_line_number`, `extract_quoted_key`,
-  per-category `range_for_*` хелперы) сохранено как
-  `compute_range_legacy`, достижимо только через `Error::Syntax(_)`.
-  Парсер в `ktav 0.1.5+` больше не конструирует этот вариант, но
-  `ktav::Error` помечен `#[non_exhaustive]`, и downstream-обёртки могут
-  по-прежнему его поверхностить — legacy-путь оставлен как
-  defence-in-depth.
-- Зависимость `ktav` поднята с `0.1.4` до `0.1.5` (registry pin),
-  чтобы подтянуть structured-error API. Локальная разработка против
-  sibling-checkout-а возможна через `.cargo/config.toml` patch
-  (per-developer, не трекается) при итерации против неопубликованного
-  ktav.
+- Извлечение через regex (`extract_line_number`, `extract_quoted_key`,
+  per-category хелперы `range_for_*`) сохранено как
+  `compute_range_legacy` и достижимо только через `Error::Syntax(_)`.
+  Парсер в `ktav 0.1.5+` больше не создаёт этот вариант, но `ktav::Error`
+  помечен `#[non_exhaustive]`, и зависимые обёртки могут по-прежнему
+  возвращать его — legacy-путь оставлен как defence-in-depth.
+- Зависимость `ktav` поднята с `0.1.4` до `0.1.5` (registry pin), что
+  подтягивает structured-error API. Разработку против локального
+  sibling-checkout можно восстановить через patch в `.cargo/config.toml`
+  (per-developer, не трекается), когда итерируешься против
+  неопубликованного ktav.
 
 ### Ломающее (внутреннее)
 
-- Версия crate-а поднята до **0.1.5**, так что вызывающие
+- Версия crate поднята до **0.1.5**, поэтому вызывающие
   `ktav-lsp` 0.1.4-формы (внешних нет — это leaf-бинарь)
   пересобираются чисто против `ktav 0.1.5+`.
 
@@ -71,7 +118,7 @@ Cargo-конвенцией: до 1.0 bump MINOR считается ломающ�
   `tower-lsp` 0.20 и `tokio`.
 - **Диагностики** — перепарсивание на `did_open` / `did_change` /
   `did_save`, публикация сообщений `ktav::Error::Syntax` на нужной
-  строке. Номер строки восстанавливается из сообщения двумя regex'ами,
+  строке. Номер строки восстанавливается из сообщения двумя regex',
   покрывающими все формы из `ktav` 0.1.4 (`Line N: …`, `Invalid key at
   line N: …`, `Empty key at line N`).
 - **Hover** — для строк `key: …` ищет точечный путь в распарсенном
@@ -83,10 +130,10 @@ Cargo-конвенцией: до 1.0 bump MINOR считается ломающ�
 - **Document symbols** — outline-дерево из `Value::Object`; скаляры
   соответствуют Property/Number/String, объекты — Module, массивы —
   Array.
-- **Semantic tokens (full)** — шесть типов: `comment`, `keyword`,
+- **Semantic tokens (full)** — шесть типов токенов: `comment`, `keyword`,
   `number`, `string`, `property`, `operator`. Порядок индексов — часть
-  публичного legend.
-- Логирование через `tracing` в stderr; уровень — переменная окружения
-  `KTAV_LSP_LOG`.
-- Интеграционные и unit-тесты regex'ов диагностик, legend semantic
-  tokens и формы дерева document-symbols.
+  публичной легенды.
+- Логирование через `tracing` в stderr; уровень задаёт переменная
+  окружения `KTAV_LSP_LOG`.
+- Интеграционные и модульные тесты: regex'ы диагностик, легенда
+  semantic tokens и форма дерева document-symbols.

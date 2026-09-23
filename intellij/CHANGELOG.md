@@ -12,6 +12,13 @@ twenty lines are forwarded by the build (see `build.gradle.kts`
 `changeNotes` mapping), so keep recent releases at the top and prefer
 short bullet points.
 
+## Unreleased
+
+All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
+plugin) move to 0.8.0 in step with the `ktav` crate and the
+specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
+(Unreleased section) for details.
+
 ## 0.5.1
 
 - Compatibility range raised to IntelliJ 2023.1+ (`since-build 231`).

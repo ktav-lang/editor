@@ -1,5 +1,5 @@
 //! Conformance test: walk the language-agnostic Ktav test suite under
-//! `<repo>/spec/versions/0.6/tests/` (a git submodule of `ktav-lang/spec`)
+//! `<repo>/spec/versions/0.8/tests/` (a git submodule of `ktav-lang/spec`)
 //! and exercise the `ktav::parse` reference parser plus the LSP's
 //! `parse_for_diagnostics` wrapper against every fixture.
 //!
@@ -9,7 +9,7 @@
 //!    * `valid/**.ktav` — must parse `Ok(_)`.
 //!    * `invalid/**.ktav` — must return `Err(Error::Syntax(...))`. The
 //!      free-form message is matched against the expected error
-//!      category from the fixture's `.json` oracle (`{"error":"<cat>"}`)
+//!      category from the fixture's `.json` oracle (`{"expected_error":"<cat>"}`)
 //!      via substring lookup. `ktav 0.1.4` includes the category
 //!      verbatim in the message for the categories we currently
 //!      support; a missing category in the message is reported but
@@ -37,8 +37,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use ktav::Error;
-
 /// If `true`, an `invalid/**` fixture whose error category is NOT
 /// found in the parser's message becomes a hard failure. Set to
 /// `false` to keep the test green when `ktav` adds a new internal
@@ -50,12 +48,8 @@ fn spec_tests_dir() -> Option<PathBuf> {
     // `CARGO_MANIFEST_DIR` for this crate is `<repo>/lsp`, so the
     // submodule lives one level up.
     let manifest = env!("CARGO_MANIFEST_DIR");
-    // Spec 0.6.0 conformance corpus (the crate is ktav 0.6.0). The 0.1
-    // and 0.5 fixtures use removed/older syntax (`:i`/`:f` typed markers,
-    // single-`#` comments, the old top-level-array forms, and pre-0.6
-    // keys that cannot contain literal `.`/`:`); 0.6 adds key-escape
-    // fixtures (`a\.b`, `a\:b`, `path\\to`, …).
-    let p = Path::new(manifest).join("../spec/versions/0.6/tests");
+    // Spec 0.8.0 conformance corpus, matching the `ktav = "0.8"` floor.
+    let p = Path::new(manifest).join("../spec/versions/0.8/tests");
     if p.join("valid").is_dir() && p.join("invalid").is_dir() {
         Some(p)
     } else {
@@ -85,21 +79,43 @@ fn collect_ktav_files(root: &Path) -> Vec<PathBuf> {
 }
 
 /// Read the sibling `<name>.json` for an invalid fixture and pull out
-/// the `"error"` value. The file format is `{"error":"<category>"}`
-/// (see `spec/versions/0.6/tests/README.md`). We do a tiny manual scan
+/// the expected category. The 0.8 format is `{"expected_error":"<category>", ...}`
+/// (see `spec/versions/0.8/tests/README.md`). We do a tiny manual scan
 /// rather than pulling in `serde_json` — the format is one-line and
 /// stable.
 fn expected_error_category(ktav_path: &Path) -> Option<String> {
     let json_path = ktav_path.with_extension("json");
     let text = fs::read_to_string(&json_path).ok()?;
     // Look for `"error"` key.
-    let after_key = text.split("\"error\"").nth(1)?;
+    // 0.8 oracles use `expected_error`; older corpora used `error`.
+    let after_key = text
+        .split("\"expected_error\"")
+        .nth(1)
+        .or_else(|| text.split("\"error\"").nth(1))?;
     let after_colon = after_key.split(':').nth(1)?;
     // First quoted string after the colon is the value.
     let q1 = after_colon.find('"')?;
     let rest = &after_colon[q1 + 1..];
     let q2 = rest.find('"')?;
     Some(rest[..q2].to_string())
+}
+
+/// An invalid fixture whose raw bytes are not UTF-8 (§ 6.15) is rejected
+/// at the decoding boundary: an LSP client only ever sends UTF-8 text.
+fn read_invalid_fixture(path: &Path) -> Option<String> {
+    let bytes = fs::read(path).expect("read");
+    match String::from_utf8(bytes) {
+        Ok(text) => Some(text),
+        Err(_) => {
+            assert_eq!(
+                expected_error_category(path).as_deref(),
+                Some("InvalidUtf8"),
+                "{}: a non-UTF-8 fixture must expect InvalidUtf8",
+                path.display()
+            );
+            None
+        }
+    }
 }
 
 #[test]
@@ -148,11 +164,12 @@ fn conformance_reference_parser_invalid() {
     assert!(!files.is_empty(), "no invalid fixtures found");
 
     let mut accepted = Vec::new();
-    let mut wrong_category = Vec::new();
     let mut missing_category_in_msg = Vec::new();
 
     for path in &files {
-        let text = fs::read_to_string(path).expect("read");
+        let Some(text) = read_invalid_fixture(path) else {
+            continue;
+        };
         let expected = expected_error_category(path);
         match ktav::parse(&text) {
             Ok(_) => {
@@ -162,38 +179,21 @@ fn conformance_reference_parser_invalid() {
                     expected.as_deref().unwrap_or("<unknown>")
                 ));
             }
-            Err(Error::Syntax(msg)) => {
+            Err(e) => {
+                // The structured envelope names the category exactly
+                // (`ErrorEnvelope::error`); no message-substring guessing.
+                let envelope = ktav::ErrorEnvelope::from_error(&e, &text);
                 if let Some(cat) = expected.as_deref() {
-                    if !msg.contains(cat) && !category_is_message_aliased(cat, &msg) {
+                    if envelope.error != cat {
                         missing_category_in_msg.push(format!(
-                            "{}: expected '{}' in message, got: {:?}",
+                            "{}: expected '{}', envelope reports '{}' ({:?})",
                             path.display(),
                             cat,
-                            msg
+                            envelope.error,
+                            e.to_string()
                         ));
                     }
                 }
-                let _ = wrong_category; // keep slot for future shape mismatches
-            }
-            Err(Error::Structured(k)) => {
-                let msg = k.to_string();
-                if let Some(cat) = expected.as_deref() {
-                    if !msg.contains(cat) && !category_is_message_aliased(cat, &msg) {
-                        missing_category_in_msg.push(format!(
-                            "{}: expected '{}' in message, got: {:?}",
-                            path.display(),
-                            cat,
-                            msg
-                        ));
-                    }
-                }
-            }
-            Err(other) => {
-                wrong_category.push(format!(
-                    "{}: expected Syntax/Structured error, got {:?}",
-                    path.display(),
-                    other
-                ));
             }
         }
     }
@@ -204,13 +204,6 @@ fn conformance_reference_parser_invalid() {
             "{} invalid fixtures were accepted by the parser:\n{}",
             accepted.len(),
             accepted.join("\n")
-        ));
-    }
-    if !wrong_category.is_empty() {
-        report.push(format!(
-            "{} fixtures returned non-Syntax errors:\n{}",
-            wrong_category.len(),
-            wrong_category.join("\n")
         ));
     }
     if MISSING_CATEGORY_IS_FATAL && !missing_category_in_msg.is_empty() {
@@ -229,45 +222,6 @@ fn conformance_reference_parser_invalid() {
          expected error category",
         files.len()
     );
-}
-
-/// Some categories are surfaced under historic / human-friendly names
-/// in `ktav 0.1.4`'s error messages rather than the spec's CamelCase
-/// constant. Keep this list small and tightly justified — it exists
-/// solely to avoid coupling the conformance test to message wording
-/// already pinned in `error_format_pinning.rs`.
-fn category_is_message_aliased(cat: &str, msg: &str) -> bool {
-    // Empirical mapping: spec category → substring(s) actually present
-    // in `ktav 0.1.4` `Error::Syntax` messages. Any change in wording on
-    // the parser side will surface here AND in `error_format_pinning.rs`
-    // (which pins the exact strings) — update both together.
-    match cat {
-        "DuplicateName" => msg.contains("duplicate key") || msg.contains("Duplicate key"),
-        "PathConflict" => msg.contains("conflict at "),
-        "EmptyKey" => msg.contains("Empty key"),
-        "InvalidKey" => msg.contains("Invalid key"),
-        "UnbalancedBracket" => {
-            msg.contains("Unclosed")
-                || msg.contains("without matching")
-                || msg.contains("Unexpected")
-        }
-        "MismatchedBracket" => {
-            msg.contains("does not match the open")
-                || msg.contains("Mismatched")
-                // ktav 0.1.6+ surfaces wrong-shape closers under
-                // `UnbalancedBracket: <c> without matching <opener>`.
-                || (msg.contains("UnbalancedBracket") && msg.contains("without matching"))
-        }
-        "OrphanLine" => {
-            msg.contains("no ':'")
-                || msg.contains("Orphan")
-                || msg.contains("orphan")
-                // ktav 0.1.6+ surfaces orphan lines as MissingSeparator.
-                || msg.contains("MissingSeparator")
-        }
-        "InlineNonEmptyCompound" => msg.contains("inline ") || msg.contains("Inline "),
-        _ => false,
-    }
 }
 
 #[test]
@@ -315,7 +269,9 @@ fn conformance_lsp_diagnostics_invalid() {
     let files = collect_ktav_files(&tests_dir.join("invalid"));
     let mut failures = Vec::new();
     for path in &files {
-        let text = fs::read_to_string(path).expect("read");
+        let Some(text) = read_invalid_fixture(path) else {
+            continue;
+        };
         let diags = ktav_lsp::diagnostics::parse_for_diagnostics(&text);
         if diags.is_empty() {
             failures.push(format!(

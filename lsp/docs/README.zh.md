@@ -39,7 +39,7 @@ roots = []
 language-servers = ["ktav-lsp"]
 ```
 
-### Neovim(配合 `nvim-lspconfig`)
+### Neovim (with `nvim-lspconfig`)
 
 `ktav-lsp` 目前尚未进入 `lspconfig` 注册表,需手动注册:
 
@@ -61,7 +61,7 @@ end
 lspconfig.ktav_lsp.setup({})
 ```
 
-文件类型检测片段:
+还需要 `ftdetect` 片段:
 
 ```vim
 au BufRead,BufNewFile *.ktav set filetype=ktav
@@ -70,7 +70,8 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 ### VS Code
 
 使用 [Ktav VS Code 扩展](../../vscode) —— 它包含语言配置并桥接
-`ktav-lsp`。`ktav-lsp` 需通过 `cargo install` 单独安装。
+`ktav-lsp`。请单独安装
+[`ktav-lsp`](https://crates.io/crates/ktav-lsp)。
 
 ### Emacs (`eglot`)
 
@@ -95,7 +96,7 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
   Property/Number/String,对象为 Module,数组为 Array。
 - **Semantic tokens**:token 类型 `comment`、`keyword`、`number`、
   `string`、`property`、`operator`。编辑器可使用它们替代(或叠加于)
-  TextMate 语法,尤其在点状键和类型标记附近能获得更准确的着色。
+  TextMate 语法,尤其在点状键和类型标记附近获得更准确的着色。
 
 ## 架构
 
@@ -107,7 +108,7 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 - [`ktav`](https://crates.io/crates/ktav):每个 Ktav 绑定都使用的同一个
   解析器 crate。诊断、hover、文档符号都走 `ktav::parse`。
 - [`dashmap`](https://crates.io/crates/dashmap):按 `Url` 键的线程安全
-  文档存储。`TextDocumentSyncKind::FULL` 让循环简单:小型配置文件
+  文档存储。`TextDocumentSyncKind::FULL` 让循环保持简单:小型配置文件
   重新解析足够快,增量同步只会徒增代码而不省时间。
 
 日志写到 stderr(stdout 留给 LSP 流量)。设置 `KTAV_LSP_LOG=debug`

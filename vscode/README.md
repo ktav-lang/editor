@@ -5,6 +5,8 @@
 
 Syntax highlighting and language support for the [Ktav](https://github.com/ktav-lang/spec) configuration format inside Visual Studio Code.
 
+**Languages:** **English** · [Русский](docs/README.ru.md) · [简体中文](docs/README.zh.md)
+
 ## Features
 
 - Syntax highlighting for `.ktav` files — keys, scalars, `::` literal strings, multi-line blocks, inline/block compounds, comments
@@ -100,7 +102,7 @@ behaviour, native speed, and WebAssembly in the browser:
 | Python          | `pip install ktav`                   | [ktav-lang/python](https://github.com/ktav-lang/python) |
 | Go              | `go get github.com/ktav-lang/golang` | [ktav-lang/golang](https://github.com/ktav-lang/golang) |
 | PHP             | `composer require ktav-lang/ktav`    | [ktav-lang/php](https://github.com/ktav-lang/php) |
-| Java / JVM      | `io.github.ktav-lang:ktav:0.6.0`     | [ktav-lang/java](https://github.com/ktav-lang/java) |
+| Java / JVM      | `io.github.ktav-lang:ktav:0.8.0`     | [ktav-lang/java](https://github.com/ktav-lang/java) |
 | C# / .NET       | `dotnet add package Ktav`            | [ktav-lang/csharp](https://github.com/ktav-lang/csharp) |
 
 ## Resources

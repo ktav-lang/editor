@@ -7,6 +7,13 @@ the Cargo convention that a minor bump is breaking while pre-1.0.
 
 **Languages:** **English** · [Русский](docs/CHANGELOG.ru.md) · [简体中文](docs/CHANGELOG.zh.md)
 
+## Unreleased
+
+All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
+plugin) move to 0.8.0 in step with the `ktav` crate and the
+specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
+(Unreleased section) for details.
+
 ## [0.5.0] — 2026-05-27
 
 Sync to `ktav 0.5.0` and spec `0.5.0`.
