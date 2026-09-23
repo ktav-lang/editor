@@ -11,9 +11,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-LSP_DIR="$PROJECT_ROOT/editor/lsp"
-VSC_DIR="$SCRIPT_DIR"
+VSC_DIR="$SCRIPT_DIR/.."
+LSP_DIR="$VSC_DIR/../lsp"
 
 NO_RESTART=0
 for arg in "$@"; do

@@ -1,5 +1,6 @@
-package lang.ktav.lsp
+package lang.ktav.lsp.diagnostics
 
+import lang.ktav.lsp.UriUtil
 import com.google.gson.JsonElement
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.ExternalAnnotator

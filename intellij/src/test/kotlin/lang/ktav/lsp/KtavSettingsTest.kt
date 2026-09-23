@@ -1,5 +1,6 @@
 package lang.ktav.lsp
 
+import lang.ktav.lsp.settings.KtavSettings
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 

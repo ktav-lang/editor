@@ -1,5 +1,6 @@
-package lang.ktav.lsp
+package lang.ktav.lsp.diagnostics
 
+import lang.ktav.lsp.UriUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.Editor

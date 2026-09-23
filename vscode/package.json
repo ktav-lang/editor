@@ -26,7 +26,7 @@
     "config",
     "configuration"
   ],
-  "icon": "icon.png",
+  "icon": "./assets/icon.png",
   "main": "./out/extension.js",
   "activationEvents": [
     "onLanguage:ktav"
@@ -42,7 +42,7 @@
         "extensions": [
           ".ktav"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./syntaxes/language-configuration.json"
       }
     ],
     "grammars": [

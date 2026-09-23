@@ -39,16 +39,16 @@
       extensions="ktav" />
     <lang.commenter
       language="ktav"
-      implementationClass="lang.ktav.KtavCommenter" />
+      implementationClass="lang.ktav.editor.KtavCommenter" />
     <lang.parserDefinition
       language="ktav"
       implementationClass="lang.ktav.KtavParserDefinition" />
     <lang.foldingBuilder
       language="ktav"
-      implementationClass="lang.ktav.KtavFoldingBuilder" />
+      implementationClass="lang.ktav.editor.KtavFoldingBuilder" />
     <lang.braceMatcher
       language="ktav"
-      implementationClass="lang.ktav.KtavBraceMatcher" />
+      implementationClass="lang.ktav.editor.KtavBraceMatcher" />
 
     <!-- Native IntelliJ syntax highlighter for Ktav.
          Always active, works on any IDE without external dependencies. -->
@@ -64,30 +64,30 @@
     <!-- Settings UI: Tools -> Ktav. Allows override of bundled ktav-lsp path. -->
     <applicationConfigurable
       parentId="tools"
-      instance="lang.ktav.lsp.KtavConfigurable"
+      instance="lang.ktav.lsp.settings.KtavConfigurable"
       id="lang.ktav.settings"
       displayName="Ktav" />
     <applicationService
-      serviceImplementation="lang.ktav.lsp.KtavSettings" />
+      serviceImplementation="lang.ktav.lsp.settings.KtavSettings" />
     <applicationService
-      serviceImplementation="lang.ktav.lsp.DiagnosticsHolder" />
+      serviceImplementation="lang.ktav.lsp.diagnostics.DiagnosticsHolder" />
     <notificationGroup
       id="Ktav"
       displayType="BALLOON" />
 
     <!-- Built-in LSP client (per-project) -->
     <projectService
-      serviceImplementation="lang.ktav.lsp.KtavLspProjectService" />
+      serviceImplementation="lang.ktav.lsp.lifecycle.KtavLspProjectService" />
 
     <!-- Startup activity: starts LSP and syncs already-open files. Critical for
          dynamic plugin loading where FileEditorManagerListener misses pre-open files. -->
     <postStartupActivity
-      implementation="lang.ktav.lsp.KtavStartupActivity" />
+      implementation="lang.ktav.lsp.lifecycle.KtavStartupActivity" />
 
     <!-- Live diagnostics from LSP server -->
     <externalAnnotator
       language="ktav"
-      implementationClass="lang.ktav.lsp.KtavDiagnosticsAnnotator" />
+      implementationClass="lang.ktav.lsp.diagnostics.KtavDiagnosticsAnnotator" />
 
     <!-- Highlight non-ASCII characters inside keys (Cyrillic / CJK / emoji)
          with a subtle red box — analogue of VS Code editor.unicodeHighlight. -->
@@ -106,7 +106,7 @@
   <!-- File editor lifecycle listener: starts LSP client and syncs documents -->
   <projectListeners>
     <listener
-      class="lang.ktav.lsp.FileOpenListener"
+      class="lang.ktav.lsp.lifecycle.FileOpenListener"
       topic="com.intellij.openapi.fileEditor.FileEditorManagerListener" />
   </projectListeners>
 </idea-plugin>

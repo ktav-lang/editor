@@ -1,4 +1,4 @@
-package lang.ktav
+package lang.ktav.editor
 
 import com.intellij.lang.ASTNode
 import com.intellij.lang.folding.FoldingBuilderEx

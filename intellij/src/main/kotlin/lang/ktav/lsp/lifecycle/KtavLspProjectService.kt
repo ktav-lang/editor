@@ -1,5 +1,7 @@
-package lang.ktav.lsp
+package lang.ktav.lsp.lifecycle
 
+import lang.ktav.lsp.client.KtavServerDiscovery
+import lang.ktav.lsp.diagnostics.DiagnosticsHolder
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project

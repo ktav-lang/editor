@@ -164,7 +164,7 @@ function usage() {
 
 function cli() {
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-  const repoRoot = path.resolve(scriptDir, '..');
+  const repoRoot = path.resolve(scriptDir, '..', '..');
 
   const args = process.argv.slice(2);
   if (args.includes('-h') || args.includes('--help')) { usage(); process.exit(0); }

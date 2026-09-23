@@ -84,6 +84,6 @@ function buildPng(width, height, rgba) {
   ]);
 }
 
-const out = path.resolve(__dirname, "..", "icon.png");
+const out = path.resolve(__dirname, "..", "assets", "icon.png");
 fs.writeFileSync(out, buildPng(SIZE, SIZE, BG));
 console.log(`make-icon: wrote ${out} (${SIZE}x${SIZE})`);

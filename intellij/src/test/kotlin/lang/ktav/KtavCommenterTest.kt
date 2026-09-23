@@ -1,5 +1,6 @@
 package lang.ktav
 
+import lang.ktav.editor.KtavCommenter
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test

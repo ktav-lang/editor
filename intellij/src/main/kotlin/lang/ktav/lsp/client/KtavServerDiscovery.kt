@@ -1,5 +1,6 @@
-package lang.ktav.lsp
+package lang.ktav.lsp.client
 
+import lang.ktav.lsp.settings.KtavSettings
 import com.intellij.ide.plugins.cl.PluginAwareClassLoader
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.SystemInfo

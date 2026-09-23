@@ -1,4 +1,4 @@
-package lang.ktav.lsp
+package lang.ktav.lsp.settings
 
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor

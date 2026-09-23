@@ -1,5 +1,6 @@
 package lang.ktav.lsp
 
+import lang.ktav.lsp.lifecycle.getLspService
 import com.google.gson.JsonObject
 import com.intellij.formatting.service.AsyncDocumentFormattingService
 import com.intellij.formatting.service.AsyncFormattingRequest

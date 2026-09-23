@@ -4,9 +4,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LSP_DIR="$SCRIPT_DIR/lsp"
-VSCODE_BIN="$SCRIPT_DIR/vscode/bin"
-INTELLIJ_BIN="$SCRIPT_DIR/intellij/bin"
+LSP_DIR="$SCRIPT_DIR/../lsp"
+VSCODE_BIN="$SCRIPT_DIR/../vscode/bin"
+INTELLIJ_BIN="$SCRIPT_DIR/../intellij/bin"
 
 # Platforms to build for
 TARGETS=(

@@ -5,11 +5,10 @@
 //! answers `hover` / `completion` / `documentSymbol` / `semanticTokens`
 //! requests by walking the parsed [`ktav::Value`] tree.
 
+pub mod analysis;
 pub mod diagnostics;
 pub mod reindent;
-pub mod semantic;
 pub mod server;
-pub mod symbols;
 /// Shared line-tokenizer.
 ///
 /// **Unstable internal API.** Exposed `pub` only because integration tests
@@ -18,5 +17,9 @@ pub mod symbols;
 /// `ktav::parser` line-shape rules and may change without notice as the
 /// parser evolves.
 pub mod tokens;
+
+// Keeps `ktav_lsp::semantic` / `ktav_lsp::symbols` working for external
+// consumers (integration tests and benches import these paths directly).
+pub use analysis::{semantic, symbols};
 
 pub use server::Backend;

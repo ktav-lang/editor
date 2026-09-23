@@ -26,7 +26,7 @@ const targets = [
   },
   {
     src: path.join(grammarsRoot, "language-configuration.json"),
-    dst: path.join(pkgRoot, "language-configuration.json"),
+    dst: path.join(pkgRoot, "syntaxes", "language-configuration.json"),
   },
 ];
 
