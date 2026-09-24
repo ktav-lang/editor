@@ -1,7 +1,8 @@
 >>>>> lang=en
-- `Cargo.toml`: `ktav = "0.7"` (was `"0.6"`); `rust-version` raised to
-  `1.71` (ktav 0.7's own MSRV, was `1.70`).
-- **Quoted keys are now understood outside the `ktav` parser too.**
+- `Cargo.toml`: `ktav = "0.8"` (was `"0.7"`); `rust-version` remains
+  `1.71` (raised for ktav 0.7, previously `1.70`).
+- **Quoted keys were already understood by the `ktav` parser in 0.7.0;**
+  this release extends support to the LSP's own scanners.
   `ktav::parse`-based diagnostics/symbols already handled 0.7 syntax
   correctly with no code changes (see below), but the LSP's *own*
   line-based classifier (`tokens::classify_line`, `split_dotted`,
@@ -52,8 +53,8 @@
   marker is untouched — it is still current syntax.
 
 >>>>> lang=ru
-- `Cargo.toml`: `ktav = "0.7"` (было `"0.6"`); `rust-version` поднят до
-  `1.71` (собственный MSRV ktav 0.7, было `1.70`).
+- `Cargo.toml`: `ktav = "0.8"` (было `"0.7"`); `rust-version` остаётся
+  `1.71` (повышен при переходе на ktav 0.7, ранее `1.70`).
 - **Квотированные ключи теперь понимаются и вне парсера `ktav`.**
   Диагностика и символы на базе `ktav::parse` и без правок корректно
   обрабатывали синтаксис 0.7 (см. ниже), но собственный построчный
@@ -109,8 +110,8 @@
   `::` не тронут — это по-прежнему актуальный синтаксис.
 
 >>>>> lang=zh
-- `Cargo.toml`:`ktav = "0.7"`(原为 `"0.6"`);`rust-version` 提升至
-  `1.71`(ktav 0.7 自身的 MSRV,原为 `1.70`)。
+- `Cargo.toml`:`ktav = "0.8"`(原为 `"0.7"`);`rust-version` 仍为
+  `1.71`(随 ktav 0.7 提升,此前为 `1.70`)。
 - **带引号的键现在在 `ktav` 解析器之外也能被正确理解。** 基于
   `ktav::parse` 的诊断/符号无需任何代码改动即可正确处理 0.7 语法
   (见下文),但 LSP 自有的按行分类器(`tokens::classify_line`、

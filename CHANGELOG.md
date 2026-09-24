@@ -17,20 +17,15 @@ the Ktav format itself — for the latter see
 
 ## Unreleased
 
-Tracks `ktav` Rust crate `0.7.0` and `ktav-lang/spec` `0.7.0` (up from
-`0.6.0-4-gc9593e8` — behind even `0.6.4` — so 0.6.x patch-level spec
-changes are folded into this jump too). The headline spec change is
-**quoted key segments** (§ 5.3.3: a key segment may be wrapped in `"`,
-`'` or a backtick; the delimiter is chosen per segment, content is
-never trimmed, and structural bytes — `.` `:` `,` `{` `}` `[` `]` —
-inside the quotes are opaque) and the **`\uXXXX` escape** (§ 3.7.1,
-recognised in keys and inline-compound values only, never in
-whole-line scalar values or multi-line bodies), plus two new error
-kinds: `UnterminatedQuotedKey` (§ 6.16) and a top-level `InvalidUtf8`
-(§ 6.15).
+Tracks `ktav` Rust crate `0.8.0` and `ktav-lang/spec` `0.8.0`. The
+universal breaking change is that **leading-zero decimal integers remain
+strings** (§ 5.2, so `01234` keeps its leading zero). Separately,
+§ 8.1 requires a strict parsing entry point that rejects lossy scalar
+forms with `LossyScalar`. Quoted key segments
+and the `\uXXXX` escape were introduced in 0.7.0.
 
 - All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
-  plugin) move to **0.8.0** in step with the `ktav` crate and the
+  plugin) align on **0.8.0** with the `ktav` crate and the
   specification: `lsp/Cargo.toml` now depends on `ktav = "0.8"`, the
   spec submodule is re-pinned to `v0.8.0`, and the LSP conformance test
   now walks the 0.8 corpus (it previously walked the long-gone 0.6
@@ -39,9 +34,10 @@ kinds: `UnterminatedQuotedKey` (§ 6.16) and a top-level `InvalidUtf8`
 
 ### LSP server (`ktav-lsp`)
 
-- `Cargo.toml`: `ktav = "0.7"` (was `"0.6"`); `rust-version` raised to
-  `1.71` (ktav 0.7's own MSRV, was `1.70`).
-- **Quoted keys are now understood outside the `ktav` parser too.**
+- `Cargo.toml`: `ktav = "0.8"` (was `"0.7"`); `rust-version` remains
+  `1.71` (raised for ktav 0.7, previously `1.70`).
+- **Quoted keys were already understood by the `ktav` parser in 0.7.0;**
+  this release extends support to the LSP's own scanners.
   `ktav::parse`-based diagnostics/symbols already handled 0.7 syntax
   correctly with no code changes (see below), but the LSP's *own*
   line-based classifier (`tokens::classify_line`, `split_dotted`,
@@ -113,8 +109,7 @@ kinds: `UnterminatedQuotedKey` (§ 6.16) and a top-level `InvalidUtf8`
 
 ### Spec submodule
 
-- Pinned to `04f867f` (`v0.7.0`), up from `c9593e8`
-  (`v0.6.0-4-gc9593e8`).
+- Pinned to `5871254` (`v0.8.0`), up from `04f867f` (`v0.7.0`).
 
 ## [0.6.1] — 2026-06-05
 

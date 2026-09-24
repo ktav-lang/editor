@@ -1,20 +1,15 @@
 >>>>> lang=en
 ## Unreleased
 
-Tracks `ktav` Rust crate `0.7.0` and `ktav-lang/spec` `0.7.0` (up from
-`0.6.0-4-gc9593e8` — behind even `0.6.4` — so 0.6.x patch-level spec
-changes are folded into this jump too). The headline spec change is
-**quoted key segments** (§ 5.3.3: a key segment may be wrapped in `"`,
-`'` or a backtick; the delimiter is chosen per segment, content is
-never trimmed, and structural bytes — `.` `:` `,` `{` `}` `[` `]` —
-inside the quotes are opaque) and the **`\uXXXX` escape** (§ 3.7.1,
-recognised in keys and inline-compound values only, never in
-whole-line scalar values or multi-line bodies), plus two new error
-kinds: `UnterminatedQuotedKey` (§ 6.16) and a top-level `InvalidUtf8`
-(§ 6.15).
+Tracks `ktav` Rust crate `0.8.0` and `ktav-lang/spec` `0.8.0`. The
+universal breaking change is that **leading-zero decimal integers remain
+strings** (§ 5.2, so `01234` keeps its leading zero). Separately,
+§ 8.1 requires a strict parsing entry point that rejects lossy scalar
+forms with `LossyScalar`. Quoted key segments
+and the `\uXXXX` escape were introduced in 0.7.0.
 
 - All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
-  plugin) move to **0.8.0** in step with the `ktav` crate and the
+  plugin) align on **0.8.0** with the `ktav` crate and the
   specification: `lsp/Cargo.toml` now depends on `ktav = "0.8"`, the
   spec submodule is re-pinned to `v0.8.0`, and the LSP conformance test
   now walks the 0.8 corpus (it previously walked the long-gone 0.6
@@ -26,21 +21,16 @@ kinds: `UnterminatedQuotedKey` (§ 6.16) and a top-level `InvalidUtf8`
 >>>>> lang=ru
 ## Не выпущено
 
-Синхронизация с крейтом `ktav` `0.7.0` и `ktav-lang/spec` `0.7.0` (было
-`0.6.0-4-gc9593e8` — отстаёт даже от `0.6.4`, так что попутно
-подтянуты и патч-изменения спецификации 0.6.x). Главное изменение
-спецификации — **квотированные сегменты ключа** (§ 5.3.3: сегмент
-ключа можно обернуть в `"`, `'` или обратную кавычку; разделитель
-выбирается для каждого сегмента, содержимое никогда не обрезается, а
-структурные байты — `.` `:` `,` `{` `}` `[` `]` — внутри кавычек
-непрозрачны) и экранирование **`\uXXXX`** (§ 3.7.1, распознаётся
-только в ключах и инлайн-составных значениях, никогда в построчных
-скалярах и многострочных телах), плюс два новых вида ошибок:
-`UnterminatedQuotedKey` (§ 6.16) и `InvalidUtf8` на уровне документа
-(§ 6.15).
+Синхронизация с крейтом `ktav` и `ktav-lang/spec` версии `0.8.0`.
+Единственное универсальное ломающее изменение спецификации:
+**десятичные целые с ведущими нулями остаются строками** (§ 5.2:
+`01234` сохраняет начальный ноль). Отдельно § 8.1 требует строгую
+точку входа разбора, отклоняющую теряющие данные скалярные формы с
+`LossyScalar`. Квотированные сегменты ключей и экранирование
+`\uXXXX` появились в версии 0.7.0.
 
 - Все три компонента (`ktav-lsp`, расширение VS Code, плагин IntelliJ)
-  переходят на **0.8.0** вслед за крейтом `ktav` и спецификацией:
+  синхронизированы на версии **0.8.0** с крейтом `ktav` и спецификацией:
   `lsp/Cargo.toml` теперь зависит от `ktav = "0.8"`, подмодуль spec
   перезакреплён на `v0.8.0`, а тест соответствия LSP теперь проходит
   по корпусу 0.8 (раньше по давно исчезнувшему корпусу 0.6, причём его
@@ -52,14 +42,11 @@ kinds: `UnterminatedQuotedKey` (§ 6.16) and a top-level `InvalidUtf8`
 >>>>> lang=zh
 ## 未发布
 
-同步 `ktav` crate `0.7.0` 与 `ktav-lang/spec` `0.7.0`(此前为
-`0.6.0-4-gc9593e8`,甚至落后于 `0.6.4`,因此这次一并纳入了 0.6.x 的
-补丁级规范变更)。规范的头号改动是**带引号的键片段**(§ 5.3.3:键
-片段可以用 `"`、`'` 或反引号包裹;每个片段各自选择定界符,内容永不做
-修剪,结构字节 `.` `:` `,` `{` `}` `[` `]` 在引号内均为普通
-内容)以及 **`\uXXXX`** 转义(§ 3.7.1,仅在键和内联复合值中识别,
-整行标量值和多行正文中均不识别),另有两个新的错误类型:
-`UnterminatedQuotedKey`(§ 6.16)和顶层 `InvalidUtf8`(§ 6.15)。
+同步至 `ktav` crate 与 `ktav-lang/spec` `0.8.0`。唯一普遍适用的破坏性
+变更是**带前导零的十进制整数保留为字符串**(§ 5.2，`01234` 保留前导零)。
+另有 § 8.1 要求提供严格解析入口，遇到有损标量形式时以 `LossyScalar`
+拒绝。带引号的键片段
+和 `\uXXXX` 转义已在 0.7.0 中引入。
 
 - 三个组件(`ktav-lsp`、VS Code 扩展、IntelliJ 插件)同步升至
   **0.8.0**,与 `ktav` crate 和规范保持一致:`lsp/Cargo.toml` 现在
