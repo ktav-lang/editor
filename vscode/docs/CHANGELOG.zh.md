@@ -2,11 +2,18 @@
 
 **Languages:** [English](../CHANGELOG.md) · [Русский](CHANGELOG.ru.md) · **简体中文**
 
-## 未发布
+## [0.8.0] — 2026-09-28
 
 全部三个组件(`ktav-lsp`、VS Code 扩展、IntelliJ 插件)随 `ktav` crate 与
-规范同步升至 0.8.0 —— 详情见根目录的
-[`CHANGELOG.md`](../../CHANGELOG.md)(未发布章节)。
+规范同步升至 0.8.0 —— 完整列表见根目录的
+[`CHANGELOG.md`](../../CHANGELOG.md)(0.8.0 章节)。
+
+- TextMate 语法:精确的 § 3.6 / § 5.2 数字 scope、识别代理对的
+  `\uXXXX`、内联对象中的原始 `::` 值和带引号的键,并修复了在非第 0 列时
+  失效的分类。
+- 新增真实的分词器测试(`npm run test:unit`),用这些向量运行语法。
+- 打包后的扩展现在包含其生产依赖(`vscode-languageclient`);0.6.1 的
+  VSIX 构建时缺少它们。
 
 ## 0.5.0
 

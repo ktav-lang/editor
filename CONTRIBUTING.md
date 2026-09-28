@@ -36,7 +36,13 @@ Each subproject has its own toolchain. See the README in each:
 - `grammars/` — pure JSON; no build
 - `vscode/` — Node + `vsce`
 - `intellij/` — JDK 17 + Gradle
-- `lsp/` — Rust 1.70+
+- `lsp/` — Rust 1.71+
+
+The prebuilt `ktav-lsp` binaries (`vscode/bin/`, `intellij/bin/`) are not
+committed. Build them with `scripts/build-binaries.sh` (it uses `cross`
+for the Linux and macOS targets); the release workflow builds every
+platform from source. The VS Code project also has a grammar tokenizer
+test: `npm run test:unit` in `vscode/`.
 
 ## Language policy
 

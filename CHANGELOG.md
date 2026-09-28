@@ -15,7 +15,7 @@ This changelog tracks **editor/IDE support releases**, not changes to
 the Ktav format itself — for the latter see
 [`ktav-lang/spec`](https://github.com/ktav-lang/spec/blob/main/CHANGELOG.md).
 
-## Unreleased
+## [0.8.0] — 2026-09-28
 
 Tracks `ktav` Rust crate `0.8.0` and `ktav-lang/spec` `0.8.0`. The
 universal breaking change is that **leading-zero decimal integers remain
@@ -31,6 +31,13 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   now walks the 0.8 corpus (it previously walked the long-gone 0.6
   corpus, and its category check was silently disabled by an oracle-key
   mismatch; categories are now read from `ktav::ErrorEnvelope`).
+- Number, keyword and escape highlighting now follows the spec exactly
+  in all three components: redundant-leading-zero decimals (`01234`,
+  `0_7`, § 5.2) and malformed literals (`1_`, `1__0`, `0X1A`,
+  `2026-09-28`, § 3.6) are Strings; values after `::` are never typed,
+  including inside inline compounds; quoted key segments are opaque
+  inside inline objects (§ 5.3.3). The prebuilt `ktav-lsp` binaries are
+  no longer committed (see *Repository and release tooling*).
 
 ### LSP server (`ktav-lsp`)
 
@@ -86,6 +93,35 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   `port:i 8080` / `timeout:f 5.0` sample lines in
   `complex_document_canonicalised`, now plain pairs). The `::` raw
   marker is untouched — it is still current syntax.
+- Scalar classification (`tokens::classify_value`) now implements § 3.6
+  exactly plus the § 5.2 redundant-leading-zero exception: `01234`, `00`,
+  `-045`, `0_7`, `01.5`, `05e3` are Strings; so are `1_`, `1__0`,
+  `0x_1`, `0X1A`, `1.`, `.5`, `2026-09-28` and IPv4-like runs, while
+  `0`, `0.5`, `0e0`, `0x1_A` stay numbers. The old heuristic accepted a
+  sign or an underscore anywhere. Integers beyond the i64 range still
+  highlight as numbers (the domain check belongs to the parser).
+- Trimming uses the exact 25-code-point whitespace set of § 3.3
+  (previously only space, tab and CR were trimmed at the end of a
+  line), so a trailing NBSP no longer turns `true` into a string.
+- Inline compounds: a value after `::` is a raw String and is never
+  highlighted as a number or keyword; quoted key segments
+  (`{"a,b": 1}`, `{'x:y': 2}`) are opaque to `,` `:` and brackets; a
+  value containing an escape is a String (§ 3.7).
+- Hover: fixed a crash — a string value longer than 80 bytes with a
+  multi-byte character at the cut point panicked, and because the
+  release profile aborts on panic it terminated the server. Hover now
+  resolves the full key path, so keys nested in objects and in arrays
+  of objects, quoted keys (`"a.b"`) and escaped keys (`a\.b`) show
+  their value; the labels read `integer` / `float` (there have been no
+  typed markers since 0.5).
+- `tests/spec_conformance.rs` validates the corpus manifest (schema,
+  categories, fixture counts), also runs `parseable-unrepresentable`
+  and `strict-lossy` (through `ktav::parse_strict`), checks the
+  `unrepresentable` oracles, and fails instead of silently passing
+  when the spec submodule is missing.
+- Known limitation: a document whose only line terminator is a lone
+  CR (§ 3.2) is still split on LF by the position mapping shared by
+  all handlers; a systemic fix is not part of this release.
 
 ### TextMate grammar (VS Code + shared `grammars/`)
 
@@ -106,10 +142,62 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   sync-grammars` / `compile` / `vscode:prepublish`, and explicitly in
   the release workflow before packaging). Both files are updated here
   through that script so they stay byte-identical.
+- Number scopes follow § 3.6 / § 5.2 exactly (whole-line pair values,
+  array items and inline values): redundant leading zeros (`01234`,
+  `0_7`, `01.5`), misplaced underscores (`1_`, `1__0`, `0x_1`),
+  upper-case base prefixes (`0X1A`) and dates or dotted runs
+  (`2026-09-28`, `127.0.0.1`) are strings, not numbers.
+- `\uXXXX`: a high+low surrogate pair is one escape token; a lone
+  surrogate or a malformed `\u` gets
+  `invalid.illegal.escape.unicode.ktav` (§ 3.7.1).
+- Inline objects: a `::` value is always `string.unquoted.raw.ktav`
+  (never number or keyword); quoted key segments are recognised at any
+  indentation and after `{` or `,`.
+- Fixed a structural defect: `^` / `$` inside a rule reached through
+  `captures` anchor to the line, not to the capture, so the
+  number/keyword/quoted-key classification silently failed whenever the
+  value did not start at column 0. The classification is now part of
+  the directly scanned pattern.
+- A tokenizer test (`vscode/src/test/unit/grammar-tokens.test.ts`, on
+  `vscode-textmate` + `vscode-oniguruma`) runs the real grammar over
+  these vectors in whole-line, array-item and inline contexts.
+
+### IntelliJ plugin
+
+- The highlighting lexer follows the spec: exact § 3.6 number grammar
+  with the § 5.2 leading-zero exception (ASCII digits only — the old
+  check used `Char.isDigit()` and accepted other scripts' digits),
+  exact keywords, and the exact 25-code-point whitespace set of § 3.3.
+- Quoted key segments (§ 5.3.3) are supported in whole-line and inline
+  keys; an unterminated quote degrades to a plain value and keeps the
+  incremental re-lexing state valid.
+- `::` values are Strings inside inline compounds as well; an inline
+  scalar with an escape is a String; a literal `:` inside an inline
+  value is no longer taken for a separator.
 
 ### Spec submodule
 
 - Pinned to `5871254` (`v0.8.0`), up from `04f867f` (`v0.7.0`).
+
+### Repository and release tooling
+
+- The prebuilt `ktav-lsp` binaries are no longer committed: the
+  tracked copies had drifted (five platforms embedded `ktav` 0.5.0,
+  win32-x64 embedded 0.7.1, and a stray copy under
+  `intellij/src/main/resources/bin/` embedded 0.1.5). `intellij/bin/`,
+  `vscode/bin/` and `intellij/src/main/resources/bin/` are git-ignored;
+  the release workflow builds all six platforms from source, and
+  `scripts/build-binaries.sh` does the same locally.
+- The TextMate tokenizer test adds pinned dev-only dependencies
+  (`vscode-textmate`, `vscode-oniguruma`) to the VS Code project — not
+  shipped in the VSIX — and `tsconfig.json` gains the `DOM` lib for
+  their WebAssembly typings.
+- Release workflow: `vsce package` / `vsce publish` no longer pass
+  `--no-dependencies`. The extension needs `vscode-languageclient` at
+  runtime and the 0.6.1 VSIX shipped without `node_modules`, so the
+  packed extension could not load its language client; production
+  dependencies are now packed (devDependencies are not).
+- CI: the docs job uses `actions/setup-node@v6`.
 
 ## [0.6.1] — 2026-06-05
 

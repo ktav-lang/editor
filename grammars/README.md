@@ -65,8 +65,9 @@ these scopes will style Ktav consistently.
 | `punctuation.separator.key-value.ktav`             | The `:` of a plain pair                    |
 | `keyword.operator.marker.raw.ktav`                 | `::` (raw-string marker)                   |
 | `constant.language.ktav`                           | `null`, `true`, `false` scalars            |
-| `constant.numeric.integer.ktav`                    | Bare integer scalar (digits only)          |
-| `constant.numeric.float.ktav`                      | Bare decimal scalar (has `.` / exponent)   |
+| `constant.numeric.integer.ktav`                    | Integer literal (§ 3.6; no redundant leading zero) |
+| `constant.numeric.float.ktav`                      | Float literal (§ 3.6; has `.` / exponent)  |
+| `invalid.illegal.escape.unicode.ktav`              | Lone surrogate or malformed `\uXXXX`        |
 | `string.unquoted.ktav`                             | Ordinary string scalars                    |
 | `string.unquoted.raw.ktav`                         | Body after `::`                            |
 | `string.quoted.multiline.stripped.ktav`            | Content inside `( … )`                     |
@@ -83,10 +84,15 @@ these scopes will style Ktav consistently.
 - Marker disambiguation. Inside `pair`, alternatives are ordered
   `pair-raw` (`::`) → empty/open compound and multi-line forms →
   `pair-value` (`:` fallback). After a plain `:`, a bare body is
-  classified by lexical form: digits → `constant.numeric.integer`,
-  digits with a decimal point or exponent → `constant.numeric.float`,
-  anything else → `string.unquoted` (matching the spec's mandatory
+  classified by lexical form (§ 3.6 / § 5.2): an integer literal →
+  `constant.numeric.integer`, a float literal → `constant.numeric.float`,
+  anything else — including redundant-leading-zero decimals such as
+  `01234` — → `string.unquoted` (matching the spec's mandatory
   space-after-separator rule, § 5.3 / § 6.10).
+- The classification lives in the directly scanned pattern, not in a
+  rule reached through `captures`: `^` / `$` there anchor to the line,
+  not to the capture, so a capture-level check silently fails off
+  column 0.
 - Compound closers are anchored to standalone lines: `^\s*\)\s*$`,
   `^\s*\)\)\s*$`, `^\s*\}\s*$`, `^\s*\]\s*$`. A line like `) x` or
   `))suffix` does not close the block — it is content (in a multi-line

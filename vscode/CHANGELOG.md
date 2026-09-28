@@ -2,12 +2,20 @@
 
 **Languages:** **English** · [Русский](docs/CHANGELOG.ru.md) · [简体中文](docs/CHANGELOG.zh.md)
 
-## Unreleased
+## [0.8.0] — 2026-09-28
 
 All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
 plugin) move to 0.8.0 in step with the `ktav` crate and the
 specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
-(Unreleased section) for details.
+(0.8.0 section) for the full list.
+
+- TextMate grammar: exact § 3.6 / § 5.2 number scopes, surrogate-pair
+  aware `\uXXXX`, raw `::` values and quoted keys inside inline objects,
+  and a fix for classification that failed off column 0.
+- A real tokenizer test (`npm run test:unit`) now runs the grammar
+  over the vectors.
+- The packaged extension now includes its production dependencies
+  (`vscode-languageclient`); the 0.6.1 VSIX was built without them.
 
 ## 0.5.0
 

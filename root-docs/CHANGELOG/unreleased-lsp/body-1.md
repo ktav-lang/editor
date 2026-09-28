@@ -51,6 +51,35 @@
   `port:i 8080` / `timeout:f 5.0` sample lines in
   `complex_document_canonicalised`, now plain pairs). The `::` raw
   marker is untouched — it is still current syntax.
+- Scalar classification (`tokens::classify_value`) now implements § 3.6
+  exactly plus the § 5.2 redundant-leading-zero exception: `01234`, `00`,
+  `-045`, `0_7`, `01.5`, `05e3` are Strings; so are `1_`, `1__0`,
+  `0x_1`, `0X1A`, `1.`, `.5`, `2026-09-28` and IPv4-like runs, while
+  `0`, `0.5`, `0e0`, `0x1_A` stay numbers. The old heuristic accepted a
+  sign or an underscore anywhere. Integers beyond the i64 range still
+  highlight as numbers (the domain check belongs to the parser).
+- Trimming uses the exact 25-code-point whitespace set of § 3.3
+  (previously only space, tab and CR were trimmed at the end of a
+  line), so a trailing NBSP no longer turns `true` into a string.
+- Inline compounds: a value after `::` is a raw String and is never
+  highlighted as a number or keyword; quoted key segments
+  (`{"a,b": 1}`, `{'x:y': 2}`) are opaque to `,` `:` and brackets; a
+  value containing an escape is a String (§ 3.7).
+- Hover: fixed a crash — a string value longer than 80 bytes with a
+  multi-byte character at the cut point panicked, and because the
+  release profile aborts on panic it terminated the server. Hover now
+  resolves the full key path, so keys nested in objects and in arrays
+  of objects, quoted keys (`"a.b"`) and escaped keys (`a\.b`) show
+  their value; the labels read `integer` / `float` (there have been no
+  typed markers since 0.5).
+- `tests/spec_conformance.rs` validates the corpus manifest (schema,
+  categories, fixture counts), also runs `parseable-unrepresentable`
+  and `strict-lossy` (through `ktav::parse_strict`), checks the
+  `unrepresentable` oracles, and fails instead of silently passing
+  when the spec submodule is missing.
+- Known limitation: a document whose only line terminator is a lone
+  CR (§ 3.2) is still split on LF by the position mapping shared by
+  all handlers; a systemic fix is not part of this release.
 
 >>>>> lang=ru
 - `Cargo.toml`: `ktav = "0.8"` (было `"0.7"`); `rust-version` остаётся
@@ -108,6 +137,37 @@
   строки-примеры `port:i 8080` / `timeout:f 5.0` в
   `complex_document_canonicalised`, теперь обычные пары). Сырой маркер
   `::` не тронут — это по-прежнему актуальный синтаксис.
+- Классификация скаляров (`tokens::classify_value`) теперь точно
+  реализует § 3.6 и исключение § 5.2 об избыточном ведущем нуле:
+  `01234`, `00`, `-045`, `0_7`, `01.5`, `05e3` — строки; также строки
+  `1_`, `1__0`, `0x_1`, `0X1A`, `1.`, `.5`, `2026-09-28` и цепочки вида
+  IPv4, а `0`, `0.5`, `0e0`, `0x1_A` остаются числами. Прежняя
+  эвристика допускала знак или подчёркивание где угодно. Целые за
+  пределами i64 по-прежнему подсвечиваются как числа (проверка
+  диапазона — дело парсера).
+- Обрезка использует точный набор из 25 кодовых точек пробелов § 3.3
+  (раньше в конце строки обрезались только пробел, табуляция и CR),
+  поэтому конечный NBSP больше не превращает `true` в строку.
+- Inline-структуры: значение после `::` — сырая строка и никогда не
+  подсвечивается как число или ключевое слово; сегменты ключей в
+  кавычках (`{"a,b": 1}`, `{'x:y': 2}`) непрозрачны для `,` `:` и
+  скобок; значение с экранированием — строка (§ 3.7).
+- Hover: исправлено падение — строковое значение длиннее 80 байт с
+  многобайтовым символом в точке обрезки вызывало panic, а так как
+  release-профиль прерывает процесс при panic, сервер завершался.
+  Теперь hover находит полный путь ключа: вложенные в объекты и в
+  массивы объектов ключи, ключи в кавычках (`"a.b"`) и с
+  экранированием (`a\.b`) показывают значение; подписи — `integer` /
+  `float` (типизированных маркеров нет с 0.5).
+- `tests/spec_conformance.rs` проверяет manifest корпуса (схему,
+  категории, число фикстур), прогоняет также `parseable-unrepresentable`
+  и `strict-lossy` (через `ktav::parse_strict`), проверяет оракулы
+  `unrepresentable` и падает, а не проходит молча, если подмодуль spec
+  отсутствует.
+- Известное ограничение: документ, где единственный разделитель строк —
+  одиночный CR (§ 3.2), по-прежнему делится по LF в общем для всех
+  обработчиков отображении позиций; системное исправление не входит в
+  этот релиз.
 
 >>>>> lang=zh
 - `Cargo.toml`:`ktav = "0.8"`(原为 `"0.7"`);`rust-version` 仍为
@@ -149,4 +209,26 @@
   改名/重写(包括 `complex_document_canonicalised` 中的示例行
   `port:i 8080` / `timeout:f 5.0`,现在只是普通键值对)。`::` 原始
   标记未动 —— 它仍是现行语法。
+- 标量分类(`tokens::classify_value`)现在严格实现 § 3.6,并加入 § 5.2
+  的冗余前导零例外:`01234`、`00`、`-045`、`0_7`、`01.5`、`05e3` 为
+  字符串;`1_`、`1__0`、`0x_1`、`0X1A`、`1.`、`.5`、`2026-09-28` 以及
+  类 IPv4 的串也是字符串,而 `0`、`0.5`、`0e0`、`0x1_A` 仍是数字。旧的
+  启发式允许符号或下划线出现在任意位置。超出 i64 范围的整数仍按数字
+  高亮(范围检查属于解析器)。
+- 裁剪使用 § 3.3 中精确的 25 个空白码位(此前行尾只裁剪空格、制表符
+  和 CR),因此行尾的 NBSP 不再让 `true` 变成字符串。
+- 内联复合值:`::` 之后的值是原始字符串,绝不按数字或关键字高亮;
+  带引号的键片段(`{"a,b": 1}`、`{'x:y': 2}`)对 `,`、`:` 和括号不透明;
+  含转义的值为字符串(§ 3.7)。
+- Hover:修复崩溃——长度超过 80 字节且截断点处是多字节字符的字符串值
+  会 panic,而 release 配置在 panic 时中止进程,导致服务器退出。现在
+  hover 会解析完整的键路径,因此嵌套在对象和对象数组中的键、带引号的键
+  (`"a.b"`)和带转义的键(`a\.b`)都能显示其值;标签为 `integer` /
+  `float`(自 0.5 起不再有类型标记)。
+- `tests/spec_conformance.rs` 校验语料库 manifest(结构、类别、样例数量),
+  另外运行 `parseable-unrepresentable` 和 `strict-lossy`(通过
+  `ktav::parse_strict`),检查 `unrepresentable` 的 oracle,并且在缺少 spec
+  子模块时失败而不是静默通过。
+- 已知限制:仅以单独 CR(§ 3.2)作为行终止符的文档,仍会在所有处理器
+  共用的位置映射中按 LF 拆分;系统性修复不在本次发布范围内。
 

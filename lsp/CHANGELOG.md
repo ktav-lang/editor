@@ -7,12 +7,21 @@ the Cargo convention that a minor bump is breaking while pre-1.0.
 
 **Languages:** **English** · [Русский](docs/CHANGELOG.ru.md) · [简体中文](docs/CHANGELOG.zh.md)
 
-## Unreleased
+## [0.8.0] — 2026-09-28
 
 All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
 plugin) move to 0.8.0 in step with the `ktav` crate and the
 specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
-(Unreleased section) for details.
+(0.8.0 section) for the full list.
+
+- Exact § 3.6 / § 5.2 scalar classification (`01234`, `0_7`, `1_`,
+  `2026-09-28` are Strings) and the exact § 3.3 whitespace set.
+- Inline compounds: `::` values stay raw Strings; quoted key segments
+  are opaque.
+- Hover no longer crashes on long non-ASCII strings and resolves nested,
+  quoted and escaped keys.
+- The spec conformance test covers every corpus category and fails
+  without the submodule.
 
 ## [0.5.0] — 2026-05-27
 

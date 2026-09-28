@@ -15,7 +15,7 @@ MINOR 递进视为破坏性变更。
 后者请见
 [`ktav-lang/spec`](https://github.com/ktav-lang/spec/blob/main/CHANGELOG.md)。
 
-## 未发布
+## [0.8.0] — 2026-09-28
 
 同步至 `ktav` crate 与 `ktav-lang/spec` `0.8.0`。唯一普遍适用的破坏性
 变更是**带前导零的十进制整数保留为字符串**(§ 5.2，`01234` 保留前导零)。
@@ -29,6 +29,12 @@ MINOR 递进视为破坏性变更。
   测试现在遍历 0.8 语料库(此前遍历的是早已消失的 0.6 语料库,而且
   它的类别检查因 oracle 键不匹配而被静默禁用;现在类别从
   `ktav::ErrorEnvelope` 读取)。
+- 三个组件中数字、关键字和转义的高亮现在严格遵循规范:带冗余前导零的
+  十进制数(`01234`、`0_7`,§ 5.2)和格式错误的字面量(`1_`、`1__0`、
+  `0X1A`、`2026-09-28`,§ 3.6)为字符串;`::` 之后的值绝不做类型区分,
+  内联复合值中同样如此;带引号的键片段在内联对象中保持不透明
+  (§ 5.3.3)。预构建的 `ktav-lsp` 二进制不再提交到仓库(见
+  *仓库与发布工具*)。
 
 ### LSP server (`ktav-lsp`)
 
@@ -71,6 +77,28 @@ MINOR 递进视为破坏性变更。
   改名/重写(包括 `complex_document_canonicalised` 中的示例行
   `port:i 8080` / `timeout:f 5.0`,现在只是普通键值对)。`::` 原始
   标记未动 —— 它仍是现行语法。
+- 标量分类(`tokens::classify_value`)现在严格实现 § 3.6,并加入 § 5.2
+  的冗余前导零例外:`01234`、`00`、`-045`、`0_7`、`01.5`、`05e3` 为
+  字符串;`1_`、`1__0`、`0x_1`、`0X1A`、`1.`、`.5`、`2026-09-28` 以及
+  类 IPv4 的串也是字符串,而 `0`、`0.5`、`0e0`、`0x1_A` 仍是数字。旧的
+  启发式允许符号或下划线出现在任意位置。超出 i64 范围的整数仍按数字
+  高亮(范围检查属于解析器)。
+- 裁剪使用 § 3.3 中精确的 25 个空白码位(此前行尾只裁剪空格、制表符
+  和 CR),因此行尾的 NBSP 不再让 `true` 变成字符串。
+- 内联复合值:`::` 之后的值是原始字符串,绝不按数字或关键字高亮;
+  带引号的键片段(`{"a,b": 1}`、`{'x:y': 2}`)对 `,`、`:` 和括号不透明;
+  含转义的值为字符串(§ 3.7)。
+- Hover:修复崩溃——长度超过 80 字节且截断点处是多字节字符的字符串值
+  会 panic,而 release 配置在 panic 时中止进程,导致服务器退出。现在
+  hover 会解析完整的键路径,因此嵌套在对象和对象数组中的键、带引号的键
+  (`"a.b"`)和带转义的键(`a\.b`)都能显示其值;标签为 `integer` /
+  `float`(自 0.5 起不再有类型标记)。
+- `tests/spec_conformance.rs` 校验语料库 manifest(结构、类别、样例数量),
+  另外运行 `parseable-unrepresentable` 和 `strict-lossy`(通过
+  `ktav::parse_strict`),检查 `unrepresentable` 的 oracle,并且在缺少 spec
+  子模块时失败而不是静默通过。
+- 已知限制:仅以单独 CR(§ 3.2)作为行终止符的文档,仍会在所有处理器
+  共用的位置映射中按 LF 拆分;系统性修复不在本次发布范围内。
 
 ### TextMate grammar (VS Code + shared `grammars/`)
 
@@ -89,10 +117,51 @@ MINOR 递进视为破坏性变更。
   sync-grammars` / `compile` / `vscode:prepublish` 运行,并在发布
   workflow 打包前显式执行)。两个文件此处均通过该脚本更新,以保持
   字节级一致。
+- 数字 scope 严格遵循 § 3.6 / § 5.2(整行键值对、数组元素和内联值):
+  冗余前导零(`01234`、`0_7`、`01.5`)、位置错误的下划线(`1_`、`1__0`、
+  `0x_1`)、大写进制前缀(`0X1A`)以及日期或点分串(`2026-09-28`、
+  `127.0.0.1`)都是字符串,而不是数字。
+- `\uXXXX`:高位加低位代理对是一个转义 token;孤立代理项或格式错误的
+  `\u` 获得 `invalid.illegal.escape.unicode.ktav`(§ 3.7.1)。
+- 内联对象:`::` 之后的值始终为 `string.unquoted.raw.ktav`(绝不是数字或
+  关键字);带引号的键片段在任意缩进以及 `{` 或 `,` 之后都能识别。
+- 修复结构性缺陷:经由 `captures` 引入的规则中的 `^` / `$` 锚定的是行而
+  不是捕获,因此只要值不从第 0 列开始,数字/关键字/带引号键的分类就会
+  静默失效。现在分类已并入直接扫描的模式。
+- 新增分词器测试(`vscode/src/test/unit/grammar-tokens.test.ts`,基于
+  `vscode-textmate` + `vscode-oniguruma`),在整行、数组元素和内联上下文
+  中用真实语法跑这些向量。
+
+### IntelliJ 插件
+
+- 高亮词法分析器遵循规范:严格的 § 3.6 数字语法并加入 § 5.2 前导零例外
+  (仅 ASCII 数字——旧检查使用 `Char.isDigit()`,会接受其他文字的数字)、
+  精确的关键字,以及 § 3.3 中精确的 25 个空白码位。
+- 整行键与内联键都支持带引号的键片段(§ 5.3.3);未闭合的引号退化为
+  普通值,并保持增量重新词法分析的状态有效。
+- 内联复合值中 `::` 之后的值同样是字符串;含转义的内联标量为字符串;
+  内联值中的字面 `:` 不再被当作分隔符。
 
 ### Spec submodule
 
 - 锁定到 `5871254`(`v0.8.0`),此前为 `04f867f`(`v0.7.0`)。
+
+### 仓库与发布工具
+
+- 预构建的 `ktav-lsp` 二进制不再提交到仓库:已跟踪的副本早已过时
+  (五个平台内嵌 `ktav` 0.5.0,win32-x64 内嵌 0.7.1,
+  `intellij/src/main/resources/bin/` 下多余的一份内嵌 0.1.5)。
+  `intellij/bin/`、`vscode/bin/` 和 `intellij/src/main/resources/bin/`
+  已加入 `.gitignore`;发布 workflow 从源码构建全部六个平台,
+  `scripts/build-binaries.sh` 在本地做同样的事。
+- TextMate 分词器测试为 VS Code 项目增加了固定版本的开发依赖
+  (`vscode-textmate`、`vscode-oniguruma`)——不会打进 VSIX,同时
+  `tsconfig.json` 为其 WebAssembly 类型加入 `DOM` 库。
+- 发布 workflow:`vsce package` / `vsce publish` 不再传 `--no-dependencies`。
+  扩展运行时需要 `vscode-languageclient`,而 0.6.1 的 VSIX 未带
+  `node_modules`,因此打包后的扩展无法加载语言客户端;现在会打包生产
+  依赖(不含 devDependencies)。
+- CI:docs job 使用 `actions/setup-node@v6`。
 
 ## [0.6.1] — 2026-06-05
 

@@ -59,8 +59,9 @@ scope `source.ktav`。
 | `punctuation.separator.key-value.ktav`             | 普通键值对的 `:`                           |
 | `keyword.operator.marker.raw.ktav`                 | `::`(原始字符串标记)                     |
 | `constant.language.ktav`                           | `null`、`true`、`false` 标量               |
-| `constant.numeric.integer.ktav`                    | 裸整数标量(仅数字)                       |
-| `constant.numeric.float.ktav`                      | 裸小数标量(含 `.` / 指数)                |
+| `constant.numeric.integer.ktav`                    | 整数字面量(§ 3.6;无冗余前导零)         |
+| `constant.numeric.float.ktav`                      | 浮点字面量(§ 3.6;含 `.` / 指数)        |
+| `invalid.illegal.escape.unicode.ktav`              | 孤立代理项或格式错误的 `\uXXXX`           |
 | `string.unquoted.ktav`                             | 普通字符串标量                             |
 | `string.unquoted.raw.ktav`                         | `::` 之后的主体                            |
 | `string.quoted.multiline.stripped.ktav`            | `( … )` 内的内容                           |
@@ -76,9 +77,13 @@ scope `source.ktav`。
 
 - 标记消歧。在 `pair` 内部,备选项按以下顺序排列:`pair-raw`(`::`)→
   空/开放的复合与多行形式 → `pair-value`(`:` 兜底)。在普通 `:` 之后,
-  裸主体按词法形式分类:数字 → `constant.numeric.integer`,带小数点或
-  指数的数字 → `constant.numeric.float`,其他一切 → `string.unquoted`
-  (与规范中分隔符后必须有空格的规则一致,§ 5.3 / § 6.10)。
+  裸主体按词法形式分类(§ 3.6 / § 5.2):整数字面量 →
+  `constant.numeric.integer`,浮点字面量 → `constant.numeric.float`,
+  其他一切(包括 `01234` 这类带冗余前导零的十进制数)→
+  `string.unquoted`(与规范中分隔符后必须有空格的规则一致,
+  § 5.3 / § 6.10)。
+- 分类位于直接扫描的模式中,而不是经由 `captures` 引入的规则:那里的
+  `^` / `$` 锚定的是行而不是捕获,因此捕获级检查在非第 0 列时会静默失效。
 - 复合值的闭合符锚定在独立的行上:`^\s*\)\s*$`、`^\s*\)\)\s*$`、
   `^\s*\}\s*$`、`^\s*\]\s*$`。形如 `) x` 或 `))suffix` 的行不会闭合块
   ——它是内容(在多行字符串中)或语法错误(在 Object/Array 上下文中,

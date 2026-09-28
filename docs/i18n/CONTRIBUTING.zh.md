@@ -33,7 +33,12 @@ Rust crate
 - `grammars/` —— 纯 JSON,无需构建
 - `vscode/` —— Node + `vsce`
 - `intellij/` —— JDK 17 + Gradle
-- `lsp/` —— Rust 1.70+
+- `lsp/` —— Rust 1.71+
+
+预构建的 `ktav-lsp` 二进制(`vscode/bin/`、`intellij/bin/`)不提交到仓库。
+请用 `scripts/build-binaries.sh` 构建(Linux 和 macOS 目标使用 `cross`);
+发布 workflow 从源码构建所有平台。VS Code 项目还有语法分词器测试:在
+`vscode/` 中运行 `npm run test:unit`。
 
 ## 语言政策
 

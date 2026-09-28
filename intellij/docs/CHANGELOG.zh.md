@@ -11,11 +11,16 @@ MINOR 递进视为破坏性变更。
 (见 `build.gradle.kts` 中的 `changeNotes` 映射),所以请将最新版本
 放在最前面,并使用简短的项目符号。
 
-## 未发布
+## [0.8.0] — 2026-09-28
 
 全部三个组件(`ktav-lsp`、VS Code 扩展、IntelliJ 插件)随 `ktav` crate 与
-规范同步升至 0.8.0 —— 详情见根目录的
-[`CHANGELOG.md`](../../CHANGELOG.md)(未发布章节)。
+规范同步升至 0.8.0 —— 完整列表见根目录的
+[`CHANGELOG.md`](../../CHANGELOG.md)(0.8.0 章节)。
+
+- 高亮词法分析器:精确的 § 3.6 / § 5.2 数字(仅 ASCII 数字)、§ 3.3 空白、
+  带引号的键片段、内联复合值中的原始 `::` 值。
+- 移除 `src/main/resources/bin/` 下过时的内置 `ktav-lsp.exe`(由 `ktav`
+  0.1.5 构建);插件从未使用它。
 
 ## 0.5.1
 

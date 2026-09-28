@@ -12,12 +12,18 @@ twenty lines are forwarded by the build (see `build.gradle.kts`
 `changeNotes` mapping), so keep recent releases at the top and prefer
 short bullet points.
 
-## Unreleased
+## [0.8.0] — 2026-09-28
 
 All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
 plugin) move to 0.8.0 in step with the `ktav` crate and the
 specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
-(Unreleased section) for details.
+(0.8.0 section) for the full list.
+
+- Highlighting lexer: exact § 3.6 / § 5.2 numbers (ASCII digits only),
+  § 3.3 whitespace, quoted key segments, raw `::` values inside inline
+  compounds.
+- The stale bundled `ktav-lsp.exe` copy (built from `ktav` 0.1.5) under
+  `src/main/resources/bin/` is removed; the plugin never used it.
 
 ## 0.5.1
 

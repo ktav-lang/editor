@@ -37,7 +37,13 @@ conventional commits.
 - `grammars/` — чистый JSON; без сборки
 - `vscode/` — Node + `vsce`
 - `intellij/` — JDK 17 + Gradle
-- `lsp/` — Rust 1.70+
+- `lsp/` — Rust 1.71+
+
+Готовые бинарники `ktav-lsp` (`vscode/bin/`, `intellij/bin/`) в
+репозитории не хранятся. Соберите их через `scripts/build-binaries.sh`
+(для целей Linux и macOS он использует `cross`); релизный workflow
+собирает все платформы из исходников. У проекта VS Code есть также тест
+токенизатора грамматики: `npm run test:unit` в `vscode/`.
 
 ## Языковая политика
 

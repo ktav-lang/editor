@@ -12,8 +12,9 @@ these scopes will style Ktav consistently.
 | `punctuation.separator.key-value.ktav`             | The `:` of a plain pair                    |
 | `keyword.operator.marker.raw.ktav`                 | `::` (raw-string marker)                   |
 | `constant.language.ktav`                           | `null`, `true`, `false` scalars            |
-| `constant.numeric.integer.ktav`                    | Bare integer scalar (digits only)          |
-| `constant.numeric.float.ktav`                      | Bare decimal scalar (has `.` / exponent)   |
+| `constant.numeric.integer.ktav`                    | Integer literal (§ 3.6; no redundant leading zero) |
+| `constant.numeric.float.ktav`                      | Float literal (§ 3.6; has `.` / exponent)  |
+| `invalid.illegal.escape.unicode.ktav`              | Lone surrogate or malformed `\uXXXX`        |
 | `string.unquoted.ktav`                             | Ordinary string scalars                    |
 | `string.unquoted.raw.ktav`                         | Body after `::`                            |
 | `string.quoted.multiline.stripped.ktav`            | Content inside `( … )`                     |
@@ -39,8 +40,9 @@ these scopes will style Ktav consistently.
 | `punctuation.separator.key-value.ktav`             | `:` обычной пары                           |
 | `keyword.operator.marker.raw.ktav`                 | `::` (маркер raw-строки)                   |
 | `constant.language.ktav`                           | Скаляры `null`, `true`, `false`            |
-| `constant.numeric.integer.ktav`                    | Голый целочисленный скаляр (только цифры)  |
-| `constant.numeric.float.ktav`                      | Голый десятичный скаляр (есть `.` / экспонента) |
+| `constant.numeric.integer.ktav`                    | Целый литерал (§ 3.6; без избыточного ведущего нуля) |
+| `constant.numeric.float.ktav`                      | Литерал с плавающей точкой (§ 3.6; есть `.` / экспонента) |
+| `invalid.illegal.escape.unicode.ktav`              | Одиночный суррогат или некорректный `\uXXXX` |
 | `string.unquoted.ktav`                             | Обычные строковые скаляры                  |
 | `string.unquoted.raw.ktav`                         | Тело после `::`                            |
 | `string.quoted.multiline.stripped.ktav`            | Содержимое внутри `( … )`                  |
@@ -66,8 +68,9 @@ these scopes will style Ktav consistently.
 | `punctuation.separator.key-value.ktav`             | 普通键值对的 `:`                           |
 | `keyword.operator.marker.raw.ktav`                 | `::`(原始字符串标记)                     |
 | `constant.language.ktav`                           | `null`、`true`、`false` 标量               |
-| `constant.numeric.integer.ktav`                    | 裸整数标量(仅数字)                       |
-| `constant.numeric.float.ktav`                      | 裸小数标量(含 `.` / 指数)                |
+| `constant.numeric.integer.ktav`                    | 整数字面量(§ 3.6;无冗余前导零)         |
+| `constant.numeric.float.ktav`                      | 浮点字面量(§ 3.6;含 `.` / 指数)        |
+| `invalid.illegal.escape.unicode.ktav`              | 孤立代理项或格式错误的 `\uXXXX`           |
 | `string.unquoted.ktav`                             | 普通字符串标量                             |
 | `string.unquoted.raw.ktav`                         | `::` 之后的主体                            |
 | `string.quoted.multiline.stripped.ktav`            | `( … )` 内的内容                           |
