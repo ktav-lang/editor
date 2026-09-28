@@ -6,7 +6,9 @@
 
 use tower_lsp::lsp_types::{SemanticToken, SemanticTokenType};
 
-use crate::tokens::{classify_line, classify_value, split_dotted, LineKind, Marker, ValueKind};
+use crate::tokens::{
+    classify_line, classify_value, is_ktav_ws, split_dotted, LineKind, Marker, ValueKind,
+};
 
 /// Token types we expose, in the order their indices are referenced
 /// from the deltas.
@@ -43,6 +45,12 @@ struct AbsToken {
 pub fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
     let mut abs: Vec<AbsToken> = Vec::new();
 
+    // § 3.2 also terminates lines on a lone CR, but every other position
+    // helper in this crate (utf16.rs, diagnostics.rs, symbols.rs, hover)
+    // splits on `\n` alone; splitting differently here would desync
+    // semantic-token line numbers from every other feature's positions on
+    // a lone-CR document. Left unhandled — a workspace-wide `\n`/`\r`/
+    // `\r\n` line-splitter would need to land in every module at once.
     for (line_idx, line) in text.split('\n').enumerate() {
         emit_line(line_idx as u32, line, &mut abs);
     }
@@ -198,6 +206,13 @@ fn starts_inline_compound(text: &str) -> bool {
 /// The grammar's head/rest rule is preserved: `{` / `[` open a nested compound
 /// only at a value position; once a scalar run has begun they are ordinary
 /// literal content (`hello{world`).
+///
+/// § 5.3.3: a key run opaque-scans a `<quoted-segment>` (`"`, `'` or `` ` ``
+/// opening at the run's own first byte) so structural bytes inside it never
+/// split the token. § 5.8.2: a `::` pair value is a raw String, never
+/// dispatched through § 5.2 typing. § 5.2's escape provenance rule: any
+/// backslash in a scalar run forces String, regardless of what the decoded
+/// body would otherwise look like.
 fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
     let b = text.as_bytes();
     let mut i = 0usize;
@@ -205,6 +220,8 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
     let mut stack: Vec<bool> = Vec::new();
     // Inside an object, the next scalar-shaped run is a key until the `:`.
     let mut expect_key = false;
+    // Set by a `::` separator; cleared once the following value is consumed.
+    let mut raw_value = false;
 
     let push = |out: &mut Vec<AbsToken>, start: usize, len: usize, tt: u32| {
         if len > 0 {
@@ -217,25 +234,48 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
         }
     };
 
+    // § 3.3: whitespace inside an inline compound is the full 25-code-point
+    // set, not just ASCII space/tab. ASCII structural bytes (`{}[]:,` and
+    // `\`) are never a UTF-8 continuation byte, so scanning those by raw
+    // byte value is safe even inside a multi-byte scalar run; only the
+    // "is this a separator" check needs to decode a char.
+    let ws_len_at = |i: usize| -> usize {
+        text[i..]
+            .chars()
+            .next()
+            .filter(|&c| is_ktav_ws(c))
+            .map_or(0, char::len_utf8)
+    };
+
     while i < b.len() {
+        let ws = ws_len_at(i);
+        if ws > 0 {
+            i += ws;
+            continue;
+        }
         match b[i] {
-            b' ' | b'\t' => i += 1,
-            c @ (b'{' | b'[') => {
+            // § 5.8.5: the `::` branch is a raw scalar, not an inline
+            // value — a leading `{` / `[` there is literal content, never
+            // a nested-compound opener. Falls through to the `_` arm.
+            c @ (b'{' | b'[') if !raw_value => {
                 push(out, i, 1, TOK_OPERATOR);
                 let is_obj = c == b'{';
                 stack.push(is_obj);
                 expect_key = is_obj;
+                raw_value = false;
                 i += 1;
             }
             b'}' | b']' => {
                 push(out, i, 1, TOK_OPERATOR);
                 stack.pop();
                 expect_key = false;
+                raw_value = false;
                 i += 1;
             }
             b',' => {
                 push(out, i, 1, TOK_OPERATOR);
                 expect_key = matches!(stack.last(), Some(true));
+                raw_value = false;
                 i += 1;
             }
             b':' if expect_key => {
@@ -247,38 +287,70 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
                 };
                 push(out, i, len, TOK_OPERATOR);
                 expect_key = false;
+                raw_value = len == 2;
                 i += len;
             }
             _ => {
                 let start = i;
                 if expect_key {
-                    // Key run: up to the separator / structural delimiters.
-                    while i < b.len() && !matches!(b[i], b':' | b',' | b'{' | b'}' | b'[' | b']') {
-                        i += 1;
+                    // Key run: opaque inside a quoted segment (§ 5.3.3) — a
+                    // quote character opens one only when it is the run's
+                    // OWN first byte; everything up to its matching
+                    // unescaped closer (including `: , { } [ ]`) is then
+                    // ordinary content, not a delimiter.
+                    while i < b.len() {
+                        match b[i] {
+                            q @ (b'"' | b'\'' | b'`') if i == start => {
+                                i += 1;
+                                while i < b.len() {
+                                    if b[i] == b'\\' && i + 1 < b.len() {
+                                        i += 2;
+                                        continue;
+                                    }
+                                    if b[i] == q {
+                                        i += 1;
+                                        break;
+                                    }
+                                    i += 1;
+                                }
+                            }
+                            b':' | b',' | b'{' | b'}' | b'[' | b']' => break,
+                            _ => i += 1,
+                        }
                     }
                     let run = &text[start..i];
-                    push(out, start, run.trim_end().len(), TOK_PROPERTY);
+                    let run = run.trim_end_matches(is_ktav_ws);
+                    push(out, start, run.len(), TOK_PROPERTY);
                     // expect_key stays set; the `:` arm clears it.
                 } else {
                     // Scalar value: run until an unescaped `,` / `}` / `]`.
                     // `{` / `[` mid-run are literal content (head/rest rule).
+                    let mut escaped = false;
                     while i < b.len() {
                         match b[i] {
-                            b'\\' => i = (i + 2).min(b.len()),
+                            b'\\' => {
+                                escaped = true;
+                                i = (i + 2).min(b.len());
+                            }
                             b',' | b'}' | b']' => break,
                             _ => i += 1,
                         }
                     }
                     let run = &text[start..i];
-                    let lead = run.len() - run.trim_start().len();
-                    let body = run.trim();
-                    let tt = match classify_value(body) {
-                        ValueKind::Bool => TOK_KEYWORD,
-                        ValueKind::Null => TOK_NULL,
-                        ValueKind::Number => TOK_NUMBER,
-                        _ => TOK_STRING,
+                    let body = run.trim_matches(is_ktav_ws);
+                    let lead = run.len() - run.trim_start_matches(is_ktav_ws).len();
+                    let tt = if raw_value || escaped {
+                        TOK_STRING
+                    } else {
+                        match classify_value(body) {
+                            ValueKind::Bool => TOK_KEYWORD,
+                            ValueKind::Null => TOK_NULL,
+                            ValueKind::Number => TOK_NUMBER,
+                            _ => TOK_STRING,
+                        }
                     };
                     push(out, start + lead, body.len(), tt);
+                    raw_value = false;
                 }
             }
         }
@@ -307,4 +379,97 @@ fn encode_deltas(toks: &[AbsToken]) -> Vec<SemanticToken> {
         prev_start = t.start;
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Decode the delta stream into absolute `(line, start, length,
+    /// token_type)` quadruples.
+    fn toks(text: &str) -> Vec<(u32, u32, u32, u32)> {
+        let mut line = 0u32;
+        let mut col = 0u32;
+        semantic_tokens(text)
+            .into_iter()
+            .map(|t| {
+                line += t.delta_line;
+                col = if t.delta_line == 0 {
+                    col + t.delta_start
+                } else {
+                    t.delta_start
+                };
+                (line, col, t.length, t.token_type)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn raw_marker_inline_value_is_untyped_string() {
+        // `r::` is raw — never dispatched through § 5.2 typing, even
+        // though "42" looks numeric. `s:` is plain — typed normally.
+        // `z:` is plain but leading-zero — String per rule 13.
+        let text = "line: {r:: 42, s: 42, z: 042}";
+        let t = toks(text);
+        assert!(
+            t.contains(&(0, 11, 2, TOK_STRING)),
+            "r's raw value should be String: {t:?}"
+        );
+        assert!(
+            t.contains(&(0, 18, 2, TOK_NUMBER)),
+            "s's plain value should be Number: {t:?}"
+        );
+        assert!(
+            t.contains(&(0, 25, 3, TOK_STRING)),
+            "z's leading-zero value should be String: {t:?}"
+        );
+    }
+
+    #[test]
+    fn quoted_inline_keys_are_opaque_to_structural_bytes() {
+        // The `,` inside `"a,b"` and the `:` inside `'x:y'` must not
+        // split the key (§ 5.3.3) — each quoted segment is one PROPERTY
+        // token with an exact range.
+        let text = "line: {\"a,b\": 1, 'x:y': 2}";
+        let t = toks(text);
+        assert!(
+            t.contains(&(0, 7, 5, TOK_PROPERTY)),
+            "\"a,b\" should be one PROPERTY token: {t:?}"
+        );
+        assert!(
+            t.contains(&(0, 17, 5, TOK_PROPERTY)),
+            "'x:y' should be one PROPERTY token: {t:?}"
+        );
+        // Exactly 3 PROPERTY tokens on the line: the outer `line` key plus
+        // the two quoted inline keys — no spurious split (e.g. just `"a`).
+        let property_count = t
+            .iter()
+            .filter(|&&(l, _, _, tt)| l == 0 && tt == TOK_PROPERTY)
+            .count();
+        assert_eq!(property_count, 3, "unexpected PROPERTY token split: {t:?}");
+    }
+
+    #[test]
+    fn trailing_nbsp_after_keyword_is_trimmed() {
+        // § 3.3: NBSP (U+00A0) is whitespace, not just space/tab.
+        // "line: {a: true<NBSP>}" — value run starts right after "a: ".
+        let text = "line: {a: true\u{00A0}}";
+        let t = toks(text);
+        assert!(
+            t.contains(&(0, 10, 4, TOK_KEYWORD)),
+            "trailing NBSP must not be part of the `true` token: {t:?}"
+        );
+    }
+
+    #[test]
+    fn escaped_value_is_string() {
+        // § 5.2: an inline scalar body containing a recognised escape is
+        // always String, regardless of what the raw digits look like.
+        let text = "line: {a: 1\\.0}";
+        let t = toks(text);
+        assert!(
+            t.contains(&(0, 10, 4, TOK_STRING)),
+            "escaped value must classify as String: {t:?}"
+        );
+    }
 }

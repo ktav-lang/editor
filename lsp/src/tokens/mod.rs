@@ -48,6 +48,7 @@ mod encoding;
 mod key_paths;
 mod kinds;
 
+pub(crate) use classify::is_ktav_ws;
 #[cfg(test)]
 pub(crate) use classify::looks_numeric;
 pub use classify::{classify_line, classify_value};

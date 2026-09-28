@@ -388,3 +388,135 @@ fn cursor_after_sep() {
     assert!(!cursor_is_after_separator("name"));
     assert!(!cursor_is_after_separator("nam"));
 }
+
+// -- § 3.6 / § 5.2 exact numeric classification -----------------------
+
+const NUMERIC_INTEGERS: &[&str] = &[
+    "0", "7", "-7", "+7", "1_000", "0x1A", "0o755", "0b1010", "-0x1f", "0x1_A", "-0",
+];
+
+const NUMERIC_FLOATS: &[&str] = &[
+    "0.5", "-0.5", "1e3", "1E3", "1e+3", "1_0.5_0", "6.022e23", "0e0",
+];
+
+const NOT_NUMERIC_STRINGS: &[&str] = &[
+    "01234",
+    "00",
+    "0_7",
+    "-045",
+    "+007",
+    "01.5",
+    "05e3",
+    "1_",
+    "_1",
+    "1__0",
+    "0x",
+    "0x_1",
+    "0X1A",
+    "0b102",
+    "0o9",
+    "1.",
+    ".5",
+    "1e",
+    "1e+",
+    "1.5e",
+    "1_.5",
+    "1._5",
+    "1.2.3",
+    "2026-09-28",
+    "127.0.0.1",
+    "-",
+    "+",
+    "True",
+    "NULL",
+    "False",
+];
+
+#[test]
+fn integer_literals_are_numeric() {
+    for s in NUMERIC_INTEGERS {
+        assert!(looks_numeric(s), "expected numeric: {s:?}");
+        assert_eq!(
+            classify_value(s),
+            ValueKind::Number,
+            "expected Number: {s:?}"
+        );
+    }
+}
+
+#[test]
+fn float_literals_are_numeric() {
+    for s in NUMERIC_FLOATS {
+        assert!(looks_numeric(s), "expected numeric: {s:?}");
+        assert_eq!(
+            classify_value(s),
+            ValueKind::Number,
+            "expected Number: {s:?}"
+        );
+    }
+}
+
+#[test]
+fn non_numeric_spellings_are_strings() {
+    for s in NOT_NUMERIC_STRINGS {
+        assert!(!looks_numeric(s), "expected NOT numeric: {s:?}");
+        assert_eq!(
+            classify_value(s),
+            ValueKind::String,
+            "expected String: {s:?}"
+        );
+    }
+}
+
+#[test]
+fn keywords_are_case_sensitive() {
+    assert_eq!(classify_value("null"), ValueKind::Null);
+    assert_eq!(classify_value("true"), ValueKind::Bool);
+    assert_eq!(classify_value("false"), ValueKind::Bool);
+    assert_eq!(classify_value("True"), ValueKind::String);
+    assert_eq!(classify_value("NULL"), ValueKind::String);
+    assert_eq!(classify_value("False"), ValueKind::String);
+}
+
+#[test]
+fn redundant_leading_zero_exceptions() {
+    // § 5.2 rule 13's own carve-outs: NOT redundant.
+    assert_eq!(classify_value("0"), ValueKind::Number);
+    assert_eq!(classify_value("0.5"), ValueKind::Number);
+    assert_eq!(classify_value("0e0"), ValueKind::Number);
+    assert_eq!(classify_value("0x1A"), ValueKind::Number);
+    assert_eq!(classify_value("0o755"), ValueKind::Number);
+    assert_eq!(classify_value("0b1010"), ValueKind::Number);
+}
+
+// -- § 3.3 exact whitespace set (not just space/tab/CR) ----------------
+
+#[test]
+fn trailing_ws_trims_full_spec_set() {
+    // U+00A0 NBSP, U+2003 EM SPACE, U+3000 IDEOGRAPHIC SPACE.
+    for ws in ['\u{00A0}', '\u{2003}', '\u{3000}', '\u{2028}', '\u{2029}'] {
+        let line = format!("name: alice{ws}");
+        match pair(&line) {
+            LineKind::Pair {
+                value_text,
+                value_length,
+                ..
+            } => {
+                assert_eq!(value_text, "alice", "ws={:?}", ws as u32);
+                assert_eq!(value_length, 5, "ws={:?}", ws as u32);
+            }
+            other => panic!("got {:?}", other),
+        }
+    }
+}
+
+#[test]
+fn leading_ws_full_spec_set() {
+    // U+00A0 NBSP as indentation.
+    match pair("\u{00A0}name: alice") {
+        LineKind::Pair { key_start, .. } => {
+            assert_eq!(key_start, "\u{00A0}".len() as u32);
+        }
+        other => panic!("got {:?}", other),
+    }
+}
