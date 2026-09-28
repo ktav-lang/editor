@@ -260,13 +260,18 @@ jobs:
       - run: npm ci
       - run: npx tsc -p tsconfig.json --noEmit
       # Make grammar sync explicit instead of relying on `vscode:prepublish`
-      # — `vsce package --no-dependencies` skips the prepublish hook in
-      # some toolchains, and a stale or missing `syntaxes/ktav.tmLanguage.json`
-      # would silently ship a broken VSIX.
+      # alone: a stale or missing `syntaxes/ktav.tmLanguage.json` would
+      # silently ship a broken VSIX.
+      #
+      # Do NOT pass `--no-dependencies` to vsce: the extension requires
+      # `vscode-languageclient` at runtime, so its production dependencies
+      # must be packed (the 0.6.1 VSIX shipped without node_modules, so
+      # `require("vscode-languageclient")` cannot resolve). vsce packs production dependencies only; devDependencies
+      # stay out.
       - name: Sync shared grammar into vscode/syntaxes/
         run: npm run sync-grammars
       - name: Package .vsix
-        run: npx vsce package --no-dependencies
+        run: npx vsce package
       - name: Publish to VS Code Marketplace
         # Publishes only on a manual dispatch with publish=true; tag pushes
         # build only. The Marketplace PAT requires an Azure DevOps org (behind
@@ -275,7 +280,7 @@ jobs:
         # upload. continue-on-error keeps a failed publish from blocking the run.
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && env.VSCE_PAT != '' }}
         continue-on-error: true
-        run: npx vsce publish --no-dependencies --pat "$VSCE_PAT"
+        run: npx vsce publish --pat "$VSCE_PAT"
       - name: Publish to Open VSX
         # Publishes only on a manual dispatch with publish=true; tag pushes
         # build only. Skipped when OVSX_PAT is unset. continue-on-error so an

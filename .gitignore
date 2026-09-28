@@ -39,3 +39,9 @@ build/
 # Local-only cargo overrides (see switch_consumers_to_local_ktav.sh).
 # Committing one makes the crate unbuildable everywhere else.
 /lsp/.cargo/
+
+# Prebuilt ktav-lsp binaries: produced by scripts/build-binaries.sh locally and
+# by the release workflow for every platform; never committed (they go stale).
+/intellij/bin/
+/vscode/bin/
+/intellij/src/main/resources/bin/
