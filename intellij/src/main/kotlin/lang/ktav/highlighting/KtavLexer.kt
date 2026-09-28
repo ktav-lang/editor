@@ -6,37 +6,52 @@ import com.intellij.psi.tree.IElementType
 import lang.ktav.highlighting.KtavTokenTypes as Tokens
 
 /**
- * State-machine lexer for Ktav syntax highlighting (spec 0.6.0).
+ * State-machine lexer for Ktav syntax highlighting (spec 0.8.0).
  *
  * Ktav is line-oriented (`key: text`, `key:: raw`, `key.sub: {`, `## comment`).
- * Spec 0.5.0 baseline:
+ * Baseline (spec 0.5.0):
  *   - Comments require `##` (two hashes); a single `#` is ordinary content
  *     (allowed in keys and values).
- *   - Typed markers `:i` / `:f` are gone. Only `:` (string/value) and `::`
- *     (raw literal string) remain. Numbers are inferred from the scalar's
- *     surface form (hex / oct / bin / decimal / float), mirroring the LSP.
+ *   - Only `:` (string/value) and `::` (raw literal string) markers exist.
+ *     Numbers are inferred from the scalar's surface form (§ 3.6 grammar),
+ *     mirroring the reference parser's classifier.
  *   - Inline compounds (`{k: v, ...}`, `[v1, v2]`, nesting allowed) are
  *     tokenised structurally so their brackets become LBRACE/LBRACKET/…
  *     tokens — that is what powers brace-matching for inline objects.
  *
- * Spec 0.6.0 additions baked in here:
- *   - Keys process §3.7 escapes; the new pair separator is the first
+ * Spec 0.6.0/0.7.0/0.8.0 additions baked in here:
+ *   - Keys process § 3.7 escapes; the pair separator is the first
  *     UNESCAPED `:` on the line and dotted-path segmentation splits only
- *     on UNESCAPED `.`.
- *   - `\` is an escape lead inside a key: it is a regular key char (its
- *     scope stays KEY) and the immediately following byte is consumed
- *     together with it. So `a\.b` and `a\:b` are one KEY token, and
- *     `path\\to` is one KEY token whose `\\` is a literal backslash.
- *   - KEY_DOT is emitted only on an UNESCAPED `.`; a `\.` stays embedded
- *     in the preceding KEY token. Same for the inline-mode key scanner.
+ *     on UNESCAPED `.`. `\` is an escape lead inside a key: the escaped
+ *     byte is folded into the same KEY token (`a\.b`, `a\:b` stay one
+ *     KEY token; `path\\to`'s `\\` is a literal backslash).
+ *   - A key segment may open with `"`, `'` or `` ` `` (§ 5.3.3): the
+ *     quote is only structural as the FIRST code point of a segment; it
+ *     runs to the next UNESCAPED same-character delimiter, and inside it
+ *     `: . , { } [ ] #` are ordinary content. An unterminated quoted
+ *     segment degrades gracefully (no separator found ⇒ the whole line
+ *     falls back to a bare value/key run — never a crash or invalid state).
+ *   - § 3.6's exact integer/float grammar (lower-case `0x`/`0o`/`0b`
+ *     prefixes, single `_` only between digits) plus § 5.2's redundant-
+ *     leading-zero exception decide numeric highlighting; ASCII digits
+ *     only (no `Char.isDigit()` Unicode leniency).
+ *   - § 3.3's exact 25-code-point whitespace set is used everywhere the
+ *     lexer trims or skips whitespace, never `Char.isWhitespace()` /
+ *     `String.trim()`.
+ *   - A raw (`::`) value is always a String, including inside inline
+ *     compounds, where a leading `{`/`[` is literal, not a nested
+ *     compound. A plain inline scalar containing a recognised § 3.7
+ *     escape is always a String (§ 5.2), even if the decoded body looks
+ *     like a keyword or a number.
  *
  * Line states: LINE_START, AFTER_KEY, VALUE_STRING, VALUE_RAW.
  *
  * Inline state: when a `:` value begins with `{` or `[`, the lexer descends
  * into an inline-tokenising mode. The whole nesting context (depth, the
- * object/array stack, and whether a key or a value is expected next) is
- * packed into the integer lexer state so IntelliJ's incremental relexing
- * stays correct when it restarts at any inline token boundary.
+ * object/array stack, whether a key or a value is expected next, and
+ * whether the pending value is a raw (`::`) scalar) is packed into the
+ * integer lexer state so IntelliJ's incremental relexing stays correct
+ * when it restarts at any inline token boundary.
  */
 class KtavLexer : LexerBase() {
 
@@ -47,20 +62,174 @@ class KtavLexer : LexerBase() {
         private const val VALUE_RAW = 3     // after `::` — literal text, no recognition
 
         // Inline states occupy everything >= INLINE_BASE. The remainder
-        // encodes: bit0 = expectKey, bits1..5 = depth, bits6+ = container
-        // stack (LSB = innermost; 1 = object, 0 = array).
+        // encodes: bit0 = expectKey, bit1 = pending value is raw (`::`),
+        // bits2..6 = depth, bits7+ = container stack (LSB = innermost;
+        // 1 = object, 0 = array).
         private const val INLINE_BASE = 16
         private const val MAX_INLINE_DEPTH = 24
 
-        private fun encodeInline(depth: Int, stack: Int, expectKey: Boolean): Int {
+        private fun encodeInline(depth: Int, stack: Int, expectKey: Boolean, rawValue: Boolean = false): Int {
             val d = depth.coerceIn(0, MAX_INLINE_DEPTH)
-            return INLINE_BASE + (if (expectKey) 1 else 0) + (d shl 1) + (stack shl 6)
+            return INLINE_BASE + (if (expectKey) 1 else 0) + (if (rawValue) 2 else 0) + (d shl 2) + (stack shl 7)
         }
 
         private fun isInline(state: Int) = state >= INLINE_BASE
-        private fun inDepth(state: Int) = ((state - INLINE_BASE) shr 1) and 0x1F
-        private fun inStack(state: Int) = (state - INLINE_BASE) shr 6
+        private fun inDepth(state: Int) = ((state - INLINE_BASE) shr 2) and 0x1F
+        private fun inStack(state: Int) = (state - INLINE_BASE) shr 7
         private fun inExpectKey(state: Int) = ((state - INLINE_BASE) and 1) == 1
+        private fun inRawValue(state: Int) = ((state - INLINE_BASE) and 2) == 2
+
+        /**
+         * § 3.3 — exactly these twenty-five code points, never a host
+         * `isWhitespace`/`trim()` primitive (those disagree in both
+         * directions across runtimes).
+         */
+        private fun isKtavWhitespace(c: Char): Boolean = when (c) {
+            '\u0009', '\u000A', '\u000B', '\u000C', '\u000D', '\u0020', '\u0085',
+            '\u00A0', '\u1680', '\u2028', '\u2029', '\u202F', '\u205F', '\u3000' -> true
+            else -> c in '\u2000'..'\u200A'
+        }
+
+        /** Whitespace usable as an in-line separator — excludes the line terminators. */
+        private fun isHorizontalWs(c: Char) = c != '\n' && c != '\r' && isKtavWhitespace(c)
+
+        private fun CharSequence.trimKtav(): String {
+            var start = 0
+            var end = length
+            while (start < end && isHorizontalWs(this[start])) start++
+            while (end > start && isHorizontalWs(this[end - 1])) end--
+            return substring(start, end)
+        }
+
+        private fun isAsciiDigit(c: Char) = c in '0'..'9'
+        private fun isHexDigit(c: Char) = isAsciiDigit(c) || c in 'a'..'f' || c in 'A'..'F'
+        private fun isOctDigit(c: Char) = c in '0'..'7'
+        private fun isBinDigit(c: Char) = c == '0' || c == '1'
+
+        /** `digits` matched against a single-underscore-between-digits run (§ 3.6). */
+        private fun checkDigitRun(s: String, from: Int, isDigit: (Char) -> Boolean): Boolean {
+            if (from >= s.length || !isDigit(s[from])) return false
+            var prevUnderscore = false
+            for (i in from + 1 until s.length) {
+                val ch = s[i]
+                if (ch == '_') {
+                    if (prevUnderscore) return false
+                    prevUnderscore = true
+                    continue
+                }
+                prevUnderscore = false
+                if (!isDigit(ch)) return false
+            }
+            return !prevUnderscore
+        }
+
+        /** § 3.6 integer literal grammar — lower-case `0x`/`0o`/`0b` prefixes only. */
+        private fun matchesIntegerGrammar(s: String): Boolean {
+            if (s.isEmpty()) return false
+            var i = 0
+            if (s[0] == '+' || s[0] == '-') i = 1
+            if (i >= s.length) return false
+            if (s[i] == '0' && i + 1 < s.length) {
+                when (s[i + 1]) {
+                    'x' -> return checkDigitRun(s, i + 2, ::isHexDigit)
+                    'o' -> return checkDigitRun(s, i + 2, ::isOctDigit)
+                    'b' -> return checkDigitRun(s, i + 2, ::isBinDigit)
+                }
+            }
+            return checkDigitRun(s, i, ::isAsciiDigit)
+        }
+
+        /**
+         * § 5.2 rules 13-14 exception: a base-10 digit run whose first digit
+         * is `0` while at least one further digit or `_` follows (sign and
+         * underscores ignored). Never true for a base-prefixed literal —
+         * there the byte after `0` is `x`/`o`/`b`, not a digit/`_`.
+         */
+        private fun hasRedundantLeadingZero(s: String): Boolean {
+            var i = 0
+            if (s.isNotEmpty() && (s[0] == '+' || s[0] == '-')) i = 1
+            if (i >= s.length || s[i] != '0') return false
+            val next = s.getOrNull(i + 1) ?: return false
+            return isAsciiDigit(next) || next == '_'
+        }
+
+        private fun scanDecPart(s: String, start: Int): Pair<Int, Boolean> {
+            var i = start
+            if (i >= s.length || !isAsciiDigit(s[i])) return i to false
+            i++
+            var prevUnderscore = false
+            while (i < s.length) {
+                val ch = s[i]
+                if (ch == '_') {
+                    if (prevUnderscore) return i to false
+                    prevUnderscore = true
+                    i++
+                    continue
+                }
+                if (isAsciiDigit(ch)) {
+                    prevUnderscore = false
+                    i++
+                    continue
+                }
+                break
+            }
+            return if (prevUnderscore) i to false else i to true
+        }
+
+        private fun scanExponent(s: String, start: Int): Pair<Int, Boolean> {
+            var i = start
+            if (i >= s.length || (s[i] != 'e' && s[i] != 'E')) return i to false
+            i++
+            if (i < s.length && (s[i] == '+' || s[i] == '-')) i++
+            return scanDecPart(s, i)
+        }
+
+        /** § 3.6 float literal grammar: `d "." d exponent?` or `d exponent`. */
+        private fun isFloatLiteral(s: String): Boolean {
+            if (s.isEmpty()) return false
+            val first = s[0]
+            if (!isAsciiDigit(first) && first != '+' && first != '-') return false
+            if (s.none { it == '.' || it == 'e' || it == 'E' }) return false
+            var i = 0
+            if (s[i] == '+' || s[i] == '-') i++
+            val (afterInt, okInt) = scanDecPart(s, i)
+            if (!okInt) return false
+            i = afterInt
+            if (i < s.length && s[i] == '.') {
+                i++
+                val (afterFrac, okFrac) = scanDecPart(s, i)
+                if (!okFrac) return false
+                i = afterFrac
+                if (i < s.length && (s[i] == 'e' || s[i] == 'E')) {
+                    val (afterExp, okExp) = scanExponent(s, i)
+                    if (!okExp) return false
+                    i = afterExp
+                }
+                return i == s.length
+            }
+            if (i < s.length && (s[i] == 'e' || s[i] == 'E')) {
+                val (afterExp, okExp) = scanExponent(s, i)
+                if (!okExp) return false
+                i = afterExp
+                return i == s.length
+            }
+            return false
+        }
+
+        /** § 3.7's fourteen escapes, keyed by the byte after `\`. */
+        private const val RECOGNIZED_ESCAPE_CHARS = "\\,}]{[nr.:\"'`u"
+
+        /** Raw (undecoded) text contains a `\`+recognised-escape-char pair. */
+        private fun containsRecognizedEscape(text: String): Boolean {
+            var i = 0
+            while (i < text.length) {
+                if (text[i] == '\\' && i + 1 < text.length && RECOGNIZED_ESCAPE_CHARS.indexOf(text[i + 1]) >= 0) {
+                    return true
+                }
+                i++
+            }
+            return false
+        }
     }
 
     private var myBuffer: CharSequence = ""
@@ -131,7 +300,7 @@ class KtavLexer : LexerBase() {
     // -------------------------------------------------------------------
 
     private fun scanLineStart(c: Char) {
-        if (c == ' ' || c == '\t') {
+        if (isHorizontalWs(c)) {
             scanHorizWhitespace()
             return
         }
@@ -161,15 +330,14 @@ class KtavLexer : LexerBase() {
         }
         if (isKeyChar(c)) {
             if (lineHasSeparatorBeforeNewline(myTokenStart)) {
-                scanIdentifier(asKey = true)
+                scanKeySegment()
                 myState = AFTER_KEY
             } else {
-                // No `:` on this line ⇒ a bare array-item scalar. The WHOLE
-                // trimmed line is one value; commas / brackets / dots here are
-                // literal string content (commas separate items only inside an
-                // INLINE `[a, b]`). Reading to EOL keeps `a, b` and `1.2.3.4`
-                // one token instead of flagging the comma as a bad character
-                // or splitting on dots. Mirrors the LSP's per-line classifier.
+                // No `:` on this line (or an unterminated quoted key segment
+                // swallowed it — § 5.3.3) ⇒ a bare array-item scalar. The
+                // WHOLE trimmed line is one value; commas / brackets / dots
+                // here are literal string content. Mirrors the reference
+                // parser's per-line classifier and degrades gracefully.
                 scanToEndOfLine(recognise = true)
                 myState = LINE_START
             }
@@ -192,8 +360,8 @@ class KtavLexer : LexerBase() {
             // do NOT trigger KEY_DOT / COLON here.
             c == '\\' -> scanIdentifier(asKey = true)
             c == ':' -> scanColonMarker()
-            c == ' ' || c == '\t' -> scanHorizWhitespace()
-            isKeyChar(c) -> scanIdentifier(asKey = true)
+            isHorizontalWs(c) -> scanHorizWhitespace()
+            isKeyChar(c) -> scanKeySegment()
             else -> {
                 myTokenEnd++
                 myTokenType = Tokens.BAD_CHARACTER
@@ -203,39 +371,58 @@ class KtavLexer : LexerBase() {
 
     /**
      * Char belongs to a key/identifier — everything except whitespace and
-     * the structural delimiters. `#` IS a key char in 0.5.0 (a lone `#` is
-     * content); only `##` at line start opens a comment. Non-ASCII letters
+     * the structural delimiters. `#` IS a key char (a lone `#` is content;
+     * only `##` at line start opens a comment). Non-ASCII letters
      * (Cyrillic / CJK / emoji) belong to keys just like ASCII.
      *
-     * Spec 0.6.0: `\` is also a key char — it is the escape lead. The
-     * scanner handles `\x` as a two-char unit, so `\.` and `\:` stay
-     * inside the KEY token. (The escaped byte itself does not need to
-     * be a key char; it is admitted unconditionally by the escape rule.)
+     * `\` is also a key char — it is the escape lead; `scanIdentifier`
+     * handles `\x` as a two-char unit so `\.` / `\:` stay inside the KEY
+     * token. A quote character (`"`, `'`, `` ` ``) is likewise an ordinary
+     * key char here — § 5.3.3's positional rule (quote opens a segment
+     * only as its first code point) is handled by `scanKeySegment`, not
+     * by excluding quotes from this predicate.
      */
     private fun isKeyChar(c: Char): Boolean {
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r') return false
+        if (isKtavWhitespace(c)) return false
         return when (c) {
             '{', '}', '[', ']', '(', ')', ':', '.', ',' -> false
             else -> true
         }
     }
 
+    /**
+     * Quote-and-escape-aware lookahead: does this line (starting at a fresh
+     * key segment) have a real, unescaped `:` pair separator before EOL?
+     * A quoted segment (§ 5.3.3) makes `: . , { } [ ]` inside it opaque; an
+     * UNTERMINATED quoted segment swallows the rest of the line — including
+     * any `:` in it — so this correctly reports "no separator" for it,
+     * which is how the line then degrades to a bare value (§ 5.3.3 case 3).
+     */
     private fun lineHasSeparatorBeforeNewline(from: Int): Boolean {
         var i = from
+        var atSegmentStart = true
         while (i < myBufferEnd) {
             val ch = myBuffer[i]
             if (ch == '\n') return false
-            // Spec 0.6.0: `\` escapes the next byte, so a `\:` does NOT
-            // act as the separator — skip over the pair and keep looking.
-            if (ch == '\\') {
-                i = (i + 2).coerceAtMost(myBufferEnd)
+            if (atSegmentStart && (ch == '"' || ch == '\'' || ch == '`')) {
+                var j = i + 1
+                var closed = false
+                while (j < myBufferEnd) {
+                    val qc = myBuffer[j]
+                    if (qc == '\n') break
+                    if (qc == '\\') { j = (j + 2).coerceAtMost(myBufferEnd); continue }
+                    if (qc == ch) { closed = true; j++; break }
+                    j++
+                }
+                if (!closed) return false
+                i = j
+                atSegmentStart = false
                 continue
             }
-            // Only an UNESCAPED `:` makes a line a `key: value` pair. A `.`
-            // alone does not (a bare dotted run like `1.2.3.4` is a string
-            // array item, not a dotted key — the dotted key still needs its
-            // `:`).
+            if (ch == '\\') { i = (i + 2).coerceAtMost(myBufferEnd); atSegmentStart = false; continue }
+            if (ch == '.') { i++; atSegmentStart = true; continue }
             if (ch == ':') return true
+            atSegmentStart = false
             i++
         }
         return false
@@ -256,7 +443,7 @@ class KtavLexer : LexerBase() {
     }
 
     private fun scanValueString(c: Char, asRaw: Boolean) {
-        if (c == ' ' || c == '\t') {
+        if (isHorizontalWs(c)) {
             scanHorizWhitespace()
             return
         }
@@ -286,19 +473,23 @@ class KtavLexer : LexerBase() {
         val depth = inDepth(myState)
         val stack = inStack(myState)
         val expectKey = inExpectKey(myState)
+        // Pending value is the body of a `::` raw marker: no keyword/number
+        // inference, and a leading `{`/`[` is literal, not a nested compound
+        // (§ 5.2 preamble, § 5.8.5).
+        val rawPending = !expectKey && inRawValue(myState)
 
-        if (c == ' ' || c == '\t') {
+        if (isHorizontalWs(c)) {
             scanHorizWhitespace()
             return
         }
         when (c) {
-            '{' -> {
+            '{' -> if (!rawPending) {
                 myTokenEnd = myTokenStart + 1
                 myTokenType = Tokens.LBRACE
                 myState = encodeInline(depth + 1, (stack shl 1) or 1, expectKey = true)
                 return
             }
-            '[' -> {
+            '[' -> if (!rawPending) {
                 myTokenEnd = myTokenStart + 1
                 myTokenType = Tokens.LBRACKET
                 myState = encodeInline(depth + 1, stack shl 1, expectKey = false)
@@ -313,35 +504,24 @@ class KtavLexer : LexerBase() {
                 myState = encodeInline(depth, stack, expectKey = containerIsObject)
                 return
             }
-            ':' -> {
-                // Separator inside an object pair (only meaningful when a key
-                // was just read). `::` raw marker also possible.
+            ':' -> if (expectKey) {
+                // Separator right after a key: `::` raw marker or plain `:`.
+                // (A `:` elsewhere — mid-value — is literal content, handled
+                // by the value scan below.)
                 val dbl = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == ':'
                 myTokenEnd = if (dbl) myTokenStart + 2 else myTokenStart + 1
                 myTokenType = if (dbl) Tokens.DOUBLE_COLON else Tokens.COLON
-                myState = encodeInline(depth, stack, expectKey = false)
+                myState = encodeInline(depth, stack, expectKey = false, rawValue = dbl)
                 return
             }
         }
         if (expectKey) {
-            // Key run: up to an UNESCAPED structural delimiter. Spec 0.6.0:
-            // `\:` and `\.` (and `\,` etc.) inside an inline key stay part
-            // of the KEY token — the escape lead consumes the next byte.
-            var e = myTokenStart
-            while (e < myBufferEnd) {
-                val ch = myBuffer[e]
-                if (ch == '\\') { e = (e + 2).coerceAtMost(myBufferEnd); continue }
-                if (ch == '\n' || ch == ':' || ch == ',' || ch == '{' || ch == '}' || ch == '[' || ch == ']') break
-                e++
-            }
-            myTokenEnd = e
-            myTokenType = Tokens.KEY
-            // expectKey stays true until the `:` separator flips it.
+            scanInlineKey()
         } else {
-            // Value scalar: up to an unescaped `,` / `}` / `]`. `{` / `[`
-            // mid-run are literal content (head/rest rule); a value that
-            // *begins* with `{` / `[` was already handled as a nested
-            // compound by the dispatch above.
+            // Value scalar (plain or raw): up to an unescaped `,` / `}` / `]`.
+            // `{` / `[` mid-run are always literal content (head/rest rule,
+            // § 5.8.5) — a value that *begins* with `{` / `[` was already
+            // handled as a nested compound above when not raw-pending.
             var e = myTokenStart
             while (e < myBufferEnd) {
                 val ch = myBuffer[e]
@@ -351,10 +531,48 @@ class KtavLexer : LexerBase() {
                 e++
             }
             myTokenEnd = e
-            val text = myBuffer.subSequence(myTokenStart, e).toString().trim()
-            myTokenType = classifyScalar(text)
+            myTokenType = if (rawPending) {
+                Tokens.STRING_VALUE
+            } else {
+                val text = myBuffer.subSequence(myTokenStart, e).trimKtav()
+                classifyScalar(text, allowEscape = true)
+            }
             // Stay in inline; next char is a separator / closer.
         }
+    }
+
+    /**
+     * Inline key run, quote-aware (§ 5.3.3): a `"`/`'`/`` ` ``-quoted span
+     * is opaque to `: . , { } [ ]` inside it. An unterminated quote
+     * degrades gracefully — it swallows the rest of the line into this KEY
+     * token instead of corrupting the (still-valid) inline state.
+     */
+    private fun scanInlineKey() {
+        var e = myTokenStart
+        while (e < myBufferEnd) {
+            val ch = myBuffer[e]
+            if (ch == '\\') { e = (e + 2).coerceAtMost(myBufferEnd); continue }
+            if (ch == '"' || ch == '\'' || ch == '`') {
+                var j = e + 1
+                var closed = false
+                while (j < myBufferEnd) {
+                    val qc = myBuffer[j]
+                    if (qc == '\n') break
+                    if (qc == '\\') { j = (j + 2).coerceAtMost(myBufferEnd); continue }
+                    if (qc == ch) { closed = true; j++; break }
+                    j++
+                }
+                if (closed) { e = j; continue }
+                while (j < myBufferEnd && myBuffer[j] != '\n') j++
+                e = j
+                break
+            }
+            if (ch == '\n' || ch == ':' || ch == ',' || ch == '{' || ch == '}' || ch == '[' || ch == ']') break
+            e++
+        }
+        myTokenEnd = e
+        myTokenType = Tokens.KEY
+        // expectKey stays true until the `:` separator flips it.
     }
 
     private fun closeInline(close: IElementType, depth: Int, stack: Int) {
@@ -373,6 +591,35 @@ class KtavLexer : LexerBase() {
     // -------------------------------------------------------------------
     // Token-level scanners
     // -------------------------------------------------------------------
+
+    /**
+     * A key segment: quoted (§ 5.3.3, opened by `"`/`'`/`` ` `` as the
+     * segment's first code point) or bare (delegates to `scanIdentifier`).
+     * An unterminated quote degrades gracefully — consumed to EOL as an
+     * ordinary KEY run rather than left in an invalid state; this path is
+     * normally unreachable from a fresh line scan (`lineHasSeparatorBeforeNewline`
+     * already routed an unterminated line to the bare-value branch) but stays
+     * safe if incremental relex restarts mid-key with edited-in content.
+     */
+    private fun scanKeySegment() {
+        val quote = myBuffer[myTokenStart]
+        if (quote == '"' || quote == '\'' || quote == '`') {
+            var j = myTokenStart + 1
+            var closed = false
+            while (j < myBufferEnd) {
+                val ch = myBuffer[j]
+                if (ch == '\n') break
+                if (ch == '\\') { j = (j + 2).coerceAtMost(myBufferEnd); continue }
+                if (ch == quote) { closed = true; j++; break }
+                j++
+            }
+            if (!closed) { while (j < myBufferEnd && myBuffer[j] != '\n') j++ }
+            myTokenEnd = j
+            myTokenType = Tokens.KEY
+            return
+        }
+        scanIdentifier(asKey = true)
+    }
 
     private fun scanIdentifier(asKey: Boolean) {
         myTokenEnd = myTokenStart
@@ -401,10 +648,7 @@ class KtavLexer : LexerBase() {
 
     private fun scanHorizWhitespace() {
         myTokenEnd = myTokenStart
-        while (myTokenEnd < myBufferEnd) {
-            val ch = myBuffer[myTokenEnd]
-            if (ch == ' ' || ch == '\t') myTokenEnd++ else break
-        }
+        while (myTokenEnd < myBufferEnd && isHorizontalWs(myBuffer[myTokenEnd])) myTokenEnd++
         myTokenType = TokenType.WHITE_SPACE
     }
 
@@ -412,57 +656,26 @@ class KtavLexer : LexerBase() {
     private fun scanToEndOfLine(recognise: Boolean) {
         myTokenEnd = myTokenStart
         while (myTokenEnd < myBufferEnd && myBuffer[myTokenEnd] != '\n') myTokenEnd++
-        val text = myBuffer.subSequence(myTokenStart, myTokenEnd).toString().trim()
+        val text = myBuffer.subSequence(myTokenStart, myTokenEnd).trimKtav()
         myTokenType = if (recognise) classifyScalar(text) else Tokens.STRING_VALUE
     }
 
-    /** Classify a scalar's surface form into a highlight token (spec 0.5.0). */
-    private fun classifyScalar(text: String): IElementType = when {
-        text == "true" || text == "false" -> Tokens.BOOLEAN
-        text == "null" -> Tokens.NULL
-        looksNumeric(text) -> if (isFloatForm(text)) Tokens.FLOAT_VALUE else Tokens.INT_VALUE
-        else -> Tokens.STRING_VALUE
-    }
-
     /**
-     * Number heuristic — a faithful port of the LSP's `looks_numeric`
-     * (tokens.rs): decimal / hex (`0x`) / octal (`0o`) / binary (`0b`) /
-     * float (one `.` and/or one exponent), underscores allowed. A run with
-     * more than one `.` — an IPv4 address (`127.0.0.1`) or a version
-     * (`1.2.3`) — is NOT numeric and falls through to a string.
+     * Classify a scalar's surface form into a highlight token (§ 5.2).
+     * [allowEscape] applies only to an inline scalar body (§ 3.7 escape
+     * processing happens there, never for a multi-line pair/array-item
+     * value): a recognised escape anywhere in the body forces String,
+     * regardless of what the decoded text would otherwise look like.
      */
-    private fun looksNumeric(s: String): Boolean {
-        if (s.isEmpty()) return false
-        val rest = if (s[0] == '+' || s[0] == '-') s.substring(1) else s
-        if (rest.isEmpty()) return false
-        if (rest.length >= 2 && rest[0] == '0') {
-            when (rest[1]) {
-                'x', 'X' -> return rest.length > 2 &&
-                    rest.substring(2).all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == '_' }
-                'o', 'O' -> return rest.length > 2 && rest.substring(2).all { it in '0'..'7' || it == '_' }
-                'b', 'B' -> return rest.length > 2 && rest.substring(2).all { it == '0' || it == '1' || it == '_' }
-            }
+    private fun classifyScalar(text: String, allowEscape: Boolean = false): IElementType {
+        if (allowEscape && containsRecognizedEscape(text)) return Tokens.STRING_VALUE
+        return when {
+            text == "true" || text == "false" -> Tokens.BOOLEAN
+            text == "null" -> Tokens.NULL
+            hasRedundantLeadingZero(text) -> Tokens.STRING_VALUE
+            matchesIntegerGrammar(text) -> Tokens.INT_VALUE
+            isFloatLiteral(text) -> Tokens.FLOAT_VALUE
+            else -> Tokens.STRING_VALUE
         }
-        var dots = 0
-        var exps = 0
-        var hasDigit = false
-        for (ch in rest) {
-            when {
-                ch.isDigit() -> hasDigit = true
-                ch == '_' || ch == '+' || ch == '-' -> {}
-                ch == '.' -> dots++
-                ch == 'e' || ch == 'E' -> exps++
-                else -> return false
-            }
-        }
-        return hasDigit && dots <= 1 && exps <= 1
-    }
-
-    /** A numeric whose surface form is a float (decimal with `.` or exponent). */
-    private fun isFloatForm(s: String): Boolean {
-        val rest = if (s.isNotEmpty() && (s[0] == '+' || s[0] == '-')) s.substring(1) else s
-        val lower = rest.lowercase()
-        if (lower.startsWith("0x") || lower.startsWith("0o") || lower.startsWith("0b")) return false
-        return rest.contains('.') || rest.contains('e') || rest.contains('E')
     }
 }

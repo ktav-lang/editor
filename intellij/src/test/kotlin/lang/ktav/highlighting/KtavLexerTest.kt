@@ -317,4 +317,224 @@ class KtavLexerTest {
         assertEquals(KtavTokenTypes.INT_VALUE, toks[5].second)   // 1
         assertEquals(KtavTokenTypes.RBRACE, toks[6].second)      // }
     }
+
+    // ---------------------------------------------------------------
+    // Spec 0.8.0: exact § 3.6 number grammar / § 5.2 redundant-zero rule
+    // ---------------------------------------------------------------
+
+    private fun classify(body: String): IElementType {
+        val toks = tokens("v: $body\n")
+        assertEquals("expected exactly one value token for body <$body>", 3, toks.size)
+        assertEquals("v", toks[0].first)
+        return toks[2].second
+    }
+
+    @Test
+    fun exact_grammar_integers() {
+        val cases = listOf("0", "7", "-7", "+7", "1_000", "0x1A", "0o755", "0b1010", "-0x1f", "0x1_A", "-0")
+        for (c in cases) assertEquals("`$c` should be INT_VALUE", KtavTokenTypes.INT_VALUE, classify(c))
+    }
+
+    @Test
+    fun exact_grammar_floats() {
+        val cases = listOf("0.5", "-0.5", "1e3", "1E3", "1e+3", "1_0.5_0", "6.022e23", "0e0")
+        for (c in cases) assertEquals("`$c` should be FLOAT_VALUE", KtavTokenTypes.FLOAT_VALUE, classify(c))
+    }
+
+    @Test
+    fun exact_grammar_rejects_fall_through_to_string() {
+        val cases = listOf(
+            "01234", "00", "0_7", "-045", "+007", "01.5", "05e3",
+            "1_", "_1", "1__0", "0x", "0x_1", "0X1A", "0b102", "0o9",
+            "1.", ".5", "1e", "1e+", "1.5e", "1_.5", "1._5", "1.2.3",
+            "2026-09-28", "127.0.0.1", "-", "+", "True", "NULL",
+        )
+        for (c in cases) assertEquals("`$c` should be STRING_VALUE", KtavTokenTypes.STRING_VALUE, classify(c))
+    }
+
+    @Test
+    fun non_ascii_digits_are_not_numeric() {
+        // Arabic-Indic digits ١٢٣ — Char.isDigit() would wrongly accept these.
+        assertEquals(KtavTokenTypes.STRING_VALUE, classify("\u0661\u0662\u0663"))
+    }
+
+    @Test
+    fun i64_overflow_stays_numeric_for_highlighting() {
+        // Highlighting only infers from the § 3.6 grammar; it does not
+        // range-check against i64.
+        assertEquals(KtavTokenTypes.INT_VALUE, classify("99999999999999999999999999"))
+    }
+
+    @Test
+    fun nbsp_and_ideographic_space_around_keyword_are_whitespace() {
+        // U+00A0 NBSP and U+3000 ideographic space are § 3.3 whitespace,
+        // not key/value content — Kotlin's default trim()/isWhitespace()
+        // handle one but not the other; the explicit predicate must handle
+        // both. Leading whitespace becomes its own WHITESPACE token (so the
+        // value token's text is exactly "true"); trailing whitespace stays
+        // inside the value token's span through EOL — same as a plain
+        // trailing space always has — but is trimmed before classification,
+        // so the type is still correctly inferred.
+        val nbsp = tokens("a:\u00A0true\n")
+        assertEquals(KtavTokenTypes.BOOLEAN, nbsp[2].second)
+        assertEquals("true", nbsp[2].first)
+
+        val ideographic = tokens("a:\u3000true\n")
+        assertEquals(KtavTokenTypes.BOOLEAN, ideographic[2].second)
+        assertEquals("true", ideographic[2].first)
+
+        // Trailing whitespace doesn't defeat classification either.
+        assertEquals(KtavTokenTypes.BOOLEAN, tokens("a: true\u00A0\n")[2].second)
+        assertEquals(KtavTokenTypes.BOOLEAN, tokens("a: true\u3000\n")[2].second)
+    }
+
+    // ---------------------------------------------------------------
+    // Spec 0.7.0/0.8.0: quoted keys (§ 5.3.3)
+    // ---------------------------------------------------------------
+
+    @Test
+    fun double_quoted_key_with_embedded_colon() {
+        val toks = tokens("\"a:b\": 1\n")
+        assertEquals(KtavTokenTypes.KEY, toks[0].second)
+        assertEquals("\"a:b\"", toks[0].first)
+        assertEquals(KtavTokenTypes.COLON, toks[1].second)
+        assertEquals(KtavTokenTypes.INT_VALUE, toks[2].second)
+    }
+
+    @Test
+    fun single_quoted_segment_in_dotted_path_with_embedded_dot() {
+        val toks = tokens("'x.y'.z: 2\n")
+        assertEquals(KtavTokenTypes.KEY, toks[0].second)
+        assertEquals("'x.y'", toks[0].first)
+        assertEquals(KtavTokenTypes.KEY_DOT, toks[1].second)
+        assertEquals(KtavTokenTypes.KEY, toks[2].second)
+        assertEquals("z", toks[2].first)
+        assertEquals(KtavTokenTypes.COLON, toks[3].second)
+        assertEquals(KtavTokenTypes.INT_VALUE, toks[4].second)
+    }
+
+    @Test
+    fun backtick_quoted_key() {
+        val toks = tokens("`k`: 3\n")
+        assertEquals(KtavTokenTypes.KEY, toks[0].second)
+        assertEquals("`k`", toks[0].first)
+        assertEquals(KtavTokenTypes.COLON, toks[1].second)
+        assertEquals(KtavTokenTypes.INT_VALUE, toks[2].second)
+    }
+
+    @Test
+    fun quoted_key_inside_inline_object_with_comma() {
+        // The comma inside the quoted key is opaque — one pair, not two.
+        val toks = tokens("{\"a,b\": 1}\n")
+        val types = toks.map { it.second }
+        assertEquals(KtavTokenTypes.LBRACE, types[0])
+        assertEquals(KtavTokenTypes.KEY, types[1])
+        assertEquals("\"a,b\"", toks[1].first)
+        assertEquals(KtavTokenTypes.COLON, types[2])
+        assertEquals(KtavTokenTypes.INT_VALUE, types[3])
+        assertEquals(KtavTokenTypes.RBRACE, types[4])
+        assertEquals(5, toks.size)
+    }
+
+    @Test
+    fun unterminated_quoted_key_degrades_to_bare_value_no_crash() {
+        // No closing `"` before EOL: no separator found ⇒ the whole line
+        // is a bare (string) value, not a crash and not a bad-state key.
+        val toks = tokens("\"abc: 1\n")
+        assertEquals(1, toks.size)
+        assertEquals(KtavTokenTypes.STRING_VALUE, toks[0].second)
+        assertEquals("\"abc: 1", toks[0].first)
+        assertEquals(false, toks.any { it.second == TokenType.BAD_CHARACTER })
+    }
+
+    // ---------------------------------------------------------------
+    // Spec 0.8.0: raw (`::`) values always String; escape forces String
+    // ---------------------------------------------------------------
+
+    @Test
+    fun raw_value_inside_inline_object_is_always_string() {
+        val toks = tokens("{r:: 42}\n")
+        assertEquals(KtavTokenTypes.LBRACE, toks[0].second)
+        assertEquals(KtavTokenTypes.KEY, toks[1].second)
+        assertEquals(KtavTokenTypes.DOUBLE_COLON, toks[2].second)
+        assertEquals(KtavTokenTypes.STRING_VALUE, toks[3].second)
+        assertEquals("42", toks[3].first)
+        assertEquals(KtavTokenTypes.RBRACE, toks[4].second)
+    }
+
+    @Test
+    fun raw_value_leading_brace_is_literal_not_nested_compound() {
+        // Per § 5.8.5, `::`'s value never dispatches to nested-compound
+        // parsing: a leading `{` is literal text. The raw scalar still
+        // terminates at the first unescaped `,`/`}`/`]` (here the comma),
+        // so `{open` is the literal String value, not an (unterminated)
+        // nested object.
+        val toks = tokens("{r:: {open, b: 2}\n")
+        assertEquals(KtavTokenTypes.LBRACE, toks[0].second)   // outer {
+        assertEquals(KtavTokenTypes.KEY, toks[1].second)      // r
+        assertEquals(KtavTokenTypes.DOUBLE_COLON, toks[2].second)
+        assertEquals(KtavTokenTypes.STRING_VALUE, toks[3].second)
+        assertEquals("{open", toks[3].first)
+        assertEquals(KtavTokenTypes.COMMA, toks[4].second)
+        assertEquals(KtavTokenTypes.KEY, toks[5].second)      // b
+        assertEquals("b", toks[5].first)
+        assertEquals(KtavTokenTypes.COLON, toks[6].second)
+        assertEquals(KtavTokenTypes.INT_VALUE, toks[7].second)
+        assertEquals(KtavTokenTypes.RBRACE, toks[8].second)   // outer }
+    }
+
+    @Test
+    fun inline_value_with_recognised_escape_is_string() {
+        // A recognised § 3.7 escape anywhere in an inline scalar body
+        // forces String (§ 5.2), independent of what it looks like.
+        val toks = tokens("{a: \\u0031}\n")
+        assertEquals(KtavTokenTypes.STRING_VALUE, toks[3].second)
+    }
+
+    // ---------------------------------------------------------------
+    // Incremental relex: restarting at any token boundary with the saved
+    // state must reproduce the exact same remaining token stream.
+    // ---------------------------------------------------------------
+
+    private fun assertIncrementalRelexStable(text: String) {
+        data class Tok(val start: Int, val end: Int, val type: IElementType)
+
+        val toks = mutableListOf<Tok>()
+        val stateAfter = mutableListOf<Int>()
+        val full = KtavLexer()
+        full.start(text, 0, text.length, 0)
+        while (full.tokenType != null) {
+            toks += Tok(full.tokenStart, full.tokenEnd, full.tokenType!!)
+            stateAfter += full.state
+            full.advance()
+        }
+
+        for (i in toks.indices) {
+            val resumeState = if (i == 0) 0 else stateAfter[i - 1]
+            val relex = KtavLexer()
+            relex.start(text, toks[i].start, text.length, resumeState)
+            for (j in i until toks.size) {
+                assertEquals("token #$j type when restarting at #$i", toks[j].type, relex.tokenType)
+                assertEquals("token #$j start when restarting at #$i", toks[j].start, relex.tokenStart)
+                assertEquals("token #$j end when restarting at #$i", toks[j].end, relex.tokenEnd)
+                relex.advance()
+            }
+            assertEquals("no extra trailing token when restarting at #$i", null, relex.tokenType)
+        }
+    }
+
+    @Test
+    fun incremental_relex_stable_across_plain_and_inline_content() {
+        assertIncrementalRelexStable(
+            "a\\.b: 1\n" +
+                "\"c,d\".e: {f:: raw, g: [1, {h: 2}], \"i}j\": 3}\n" +
+                "true\n" +
+                "## comment\n"
+        )
+    }
+
+    @Test
+    fun incremental_relex_stable_with_unterminated_quoted_key() {
+        assertIncrementalRelexStable("\"abc: 1\nnext: 2\n")
+    }
 }
