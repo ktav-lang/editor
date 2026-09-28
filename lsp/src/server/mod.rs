@@ -21,7 +21,7 @@ mod utf16;
 
 use completion::value_item;
 use formatting::end_of_document;
-use hover::{describe_value, lookup_dotted};
+use hover::{describe_value, resolve_value};
 use utf16::{
     convert_diagnostics_to_utf16, convert_semantic_tokens_to_utf16, convert_symbols_to_utf16,
 };
@@ -294,9 +294,14 @@ impl LanguageServer for Backend {
 
         // Read from the cached parse populated on `did_open`/`did_change`
         // — avoids re-running the full parser on every hover request.
+        // `resolve_value` walks the enclosing object/array path (from a
+        // scan of the preceding lines) plus this line's own decoded key
+        // segments, so nested objects, array-of-objects items, and
+        // quoted/escaped keys all resolve to the right `Value` instead
+        // of only ever matching a top-level flat dotted path.
         let value_info = parsed
             .as_deref()
-            .and_then(|v| lookup_dotted(v, key))
+            .and_then(|v| resolve_value(v, &text, pos.line as usize, key))
             .map(describe_value)
             .unwrap_or_else(|| "value".to_string());
 
