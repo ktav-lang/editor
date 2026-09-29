@@ -3,22 +3,22 @@
 //! Position information is approximate: `ktav::Value` does not carry
 //! source spans, so we make a single line-by-line pass over the raw
 //! text collecting `(virtual_depth, key_name, line_range)` for every
-//! pair we see, then walk the parsed `Value` and pop hits in order with
-//! a depth-aware sequential cursor. The earlier implementation rescanned
+//! pair we see, then walk the parsed `Value` and take hits from
+//! depth/name queues. The earlier implementation rescanned
 //! the entire document inside `locate_key` for every key — at large
 //! sizes that was a hard O(N²) (11.5s on a 500 KiB doc with thousands
-//! of top-level keys); the cursor walk is O(N).
+//! of top-level keys); indexing avoids repeated source scans.
 //!
-//! The cursor only advances forward, and the parser preserves
-//! insertion order in `ObjectMap` (it is an `IndexMap`), so the DFS
-//! over `Value` and the linear scan visit keys in the same source
-//! order — hits line up by construction.
+//! The parser preserves first-insertion order in `ObjectMap`, but a
+//! dotted object can reopen after a sibling. DFS order then differs
+//! from source order, so one global forward cursor would skip hits.
 //!
 //! The resulting outline is best-effort: clients only need positions
 //! accurate enough to jump near the symbol; precise highlighting is
 //! the semantic-tokens path.
 
 use std::borrow::Cow;
+use std::collections::{HashMap, VecDeque};
 
 use ktav::Value;
 use tower_lsp::lsp_types::{DocumentSymbol, Position, Range, SymbolKind};
@@ -35,12 +35,10 @@ use crate::tokens::{find_key_separator, is_ktav_ws, split_dotted};
 pub fn build_symbols(value: &Value, text: &str) -> Vec<DocumentSymbol> {
     let root_is_array = matches!(value, Value::Array(_));
     let (hits, arrays, root_array) = collect_key_hits(text, root_is_array);
-    let mut cursor = Cursor {
-        hits: &hits,
-        pos: 0,
-    };
+    let mut cursor = Cursor::new(&hits);
+    let mut prefix = Vec::new();
     match value {
-        Value::Object(map) => build_object_at(map, &mut cursor, &arrays, 0),
+        Value::Object(map) => build_object_at(map, &mut cursor, &arrays, 0, &mut prefix),
         Value::Array(items) => build_array_items(items, &mut cursor, &arrays, root_array, 0, text),
         _ => Vec::new(),
     }
@@ -97,7 +95,14 @@ fn build_array_items(
             deprecated: None,
             range,
             selection_range: range,
-            children: build_children(v, cursor, arrays, child_array_id, depth + 1),
+            children: build_children(
+                v,
+                cursor,
+                arrays,
+                child_array_id,
+                depth + 1,
+                &mut Vec::new(),
+            ),
         });
     }
     out
@@ -205,12 +210,22 @@ fn build_object_at(
     cursor: &mut Cursor<'_>,
     arrays: &[InlineArray],
     depth: u32,
+    prefix: &mut Vec<String>,
 ) -> Vec<DocumentSymbol> {
     let mut out = Vec::with_capacity(map.len());
     for (k, v) in map {
-        let (range, array_id) = cursor
-            .lookup(depth, k.as_str())
-            .unwrap_or((zero_range(), None));
+        let (range, array_id, reset_prefix) =
+            cursor
+                .lookup(depth, prefix, k.as_str())
+                .unwrap_or((zero_range(), None, false));
+        let children = if matches!(v, Value::Object(_)) && !reset_prefix {
+            prefix.push(k.to_string());
+            let children = build_children(v, cursor, arrays, array_id, depth + 1, prefix);
+            prefix.pop();
+            children
+        } else {
+            build_children(v, cursor, arrays, array_id, depth + 1, &mut Vec::new())
+        };
         #[allow(deprecated)]
         out.push(DocumentSymbol {
             name: k.to_string(),
@@ -220,7 +235,7 @@ fn build_object_at(
             deprecated: None,
             range,
             selection_range: range,
-            children: build_children(v, cursor, arrays, array_id, depth + 1),
+            children,
         });
     }
     out
@@ -232,9 +247,10 @@ fn build_children(
     arrays: &[InlineArray],
     inline_id: Option<usize>,
     depth: u32,
+    prefix: &mut Vec<String>,
 ) -> Option<Vec<DocumentSymbol>> {
     match value {
-        Value::Object(map) => Some(build_object_at(map, cursor, arrays, depth)),
+        Value::Object(map) => Some(build_object_at(map, cursor, arrays, depth, prefix)),
         Value::Array(items) => {
             let mut kids = Vec::with_capacity(items.len());
             for (i, v) in items.iter().enumerate() {
@@ -258,6 +274,7 @@ fn build_children(
                         arrays,
                         inline_item.and_then(|item| item.array_id),
                         depth + 1,
+                        &mut Vec::new(),
                     ),
                 });
             }
@@ -311,6 +328,9 @@ fn zero_range() -> Range {
 struct KeyHit<'a> {
     depth: u32,
     name: &'a str,
+    dotted_prefix: Vec<String>,
+    /// An explicit object value starts a fresh dotted-key scope.
+    resets_prefix: bool,
     line: u32,
     /// Column span of this hit within `line`, in bytes. `(0, line_len)`
     /// for a hit that names its own top-level physical line (the
@@ -327,6 +347,7 @@ struct InlineItem {
     array_id: Option<usize>,
 }
 
+// Inline and block arrays use the same item-span table.
 struct InlineArray {
     line: u32,
     items: Vec<InlineItem>,
@@ -334,36 +355,58 @@ struct InlineArray {
 
 struct Cursor<'a> {
     hits: &'a [KeyHit<'a>],
-    pos: usize,
+    by_depth: HashMap<u32, HashMap<Vec<String>, HashMap<Cow<'a, str>, VecDeque<usize>>>>,
 }
 
 impl<'a> Cursor<'a> {
-    /// Advance forward through the hit list until we find a hit at the
-    /// requested depth and matching name. Returns the line range or
-    /// `None` if we walked off the end (defensive: shouldn't happen for
-    /// docs that parsed successfully, but a stale cache from
-    /// `did_change` could still in principle slip through).
-    fn lookup(&mut self, depth: u32, name: &str) -> Option<(Range, Option<usize>)> {
-        while self.pos < self.hits.len() {
-            let h = &self.hits[self.pos];
-            self.pos += 1;
-            if h.depth == depth && decode_symbol_key(h.name).is_some_and(|key| key == name) {
-                return Some((
-                    Range {
-                        start: Position {
-                            line: h.line,
-                            character: h.col_start,
-                        },
-                        end: Position {
-                            line: h.line,
-                            character: h.col_end,
-                        },
-                    },
-                    h.array_id,
-                ));
+    fn new(hits: &'a [KeyHit<'a>]) -> Self {
+        let mut by_depth: HashMap<
+            u32,
+            HashMap<Vec<String>, HashMap<Cow<'a, str>, VecDeque<usize>>>,
+        > = HashMap::new();
+        for (index, hit) in hits.iter().enumerate() {
+            if let Some(name) = decode_symbol_key(hit.name) {
+                by_depth
+                    .entry(hit.depth)
+                    .or_default()
+                    .entry(hit.dotted_prefix.clone())
+                    .or_default()
+                    .entry(name)
+                    .or_default()
+                    .push_back(index);
             }
         }
-        None
+        Self { hits, by_depth }
+    }
+
+    /// Take the next source occurrence at this depth and dotted-key scope.
+    fn lookup(
+        &mut self,
+        depth: u32,
+        prefix: &[String],
+        name: &str,
+    ) -> Option<(Range, Option<usize>, bool)> {
+        let index = self
+            .by_depth
+            .get_mut(&depth)?
+            .get_mut(prefix)?
+            .get_mut(name)?
+            .pop_front()?;
+        let h = &self.hits[index];
+        Some((
+            Range {
+                start: Position {
+                    line: h.line,
+                    character: h.col_start,
+                },
+                end: Position {
+                    line: h.line,
+                    character: h.col_end,
+                },
+            },
+            h.array_id,
+            h.resets_prefix,
+        ))
     }
 }
 
@@ -462,14 +505,14 @@ fn collect_key_hits(
     root_is_array: bool,
 ) -> (Vec<KeyHit<'_>>, Vec<InlineArray>, Option<usize>) {
     let mut hits: Vec<KeyHit<'_>> = Vec::new();
-    let mut arrays = Vec::new();
+    let mut arrays: Vec<InlineArray> = Vec::new();
     let mut root_array = None;
     let mut multi = Multi::None;
     let mut virtual_depth: u32 = 0;
     // Per physical compound (object/array/multi-line) on the stack: how
     // many virtual depths we pushed for it. A pair-with-opener `a.b: {`
     // pushes `segment_count` (2 for `a.b`); a lone opener pushes 1.
-    let mut compound_pushes: Vec<u32> = Vec::new();
+    let mut compound_pushes: Vec<(u32, Option<usize>)> = Vec::new();
     let mut first_content_line = true;
 
     for (i, line) in crate::lines::content_lines(text).into_iter().enumerate() {
@@ -485,7 +528,7 @@ fn collect_key_hits(
             };
             if is_term {
                 multi = Multi::None;
-                if let Some(n) = compound_pushes.pop() {
+                if let Some((n, _)) = compound_pushes.pop() {
                     virtual_depth = virtual_depth.saturating_sub(n);
                 }
             }
@@ -506,16 +549,29 @@ fn collect_key_hits(
             0
         };
         let leading_ws = bom_offset + (line.len() - trimmed.len()) as u32;
+        let tail = trimmed.trim_end();
 
         // Lone closer line drops one physical compound off the stack.
-        if trimmed == "}" || trimmed == "]" {
-            if let Some(n) = compound_pushes.pop() {
+        if tail == "}" || tail == "]" {
+            if let Some((n, _)) = compound_pushes.pop() {
                 virtual_depth = virtual_depth.saturating_sub(n);
             }
             continue;
         }
 
-        let tail = trimmed.trim_end();
+        let line_no = i as u32;
+        let line_len = bom_offset + line.len() as u32;
+        let block_item = compound_pushes
+            .last()
+            .and_then(|(_, array_id)| *array_id)
+            .map(|array_id| {
+                let item = arrays[array_id].items.len();
+                arrays[array_id].items.push(InlineItem {
+                    range: inline_range(line_no, 0, line_len),
+                    array_id: None,
+                });
+                (array_id, item)
+            });
 
         // Lone opener line — pushes a compound, no key recorded. The
         // FIRST content line's own bracket is transparent when it
@@ -529,7 +585,20 @@ fn collect_key_hits(
                     "((" => multi = Multi::Verbatim,
                     _ => {}
                 }
-                compound_pushes.push(1);
+                let array_id = if tail == "[" {
+                    let id = arrays.len();
+                    arrays.push(InlineArray {
+                        line: line_no,
+                        items: Vec::new(),
+                    });
+                    if let Some((parent, item)) = block_item {
+                        arrays[parent].items[item].array_id = Some(id);
+                    }
+                    Some(id)
+                } else {
+                    None
+                };
+                compound_pushes.push((1, array_id));
                 virtual_depth += 1;
             }
             continue;
@@ -558,8 +627,13 @@ fn collect_key_hits(
                 base_depth,
                 &mut hits,
                 &mut arrays,
-                i as u32,
+                line_no,
             );
+            if trimmed.starts_with('[') {
+                if let Some((parent, item)) = block_item {
+                    arrays[parent].items[item].array_id = id;
+                }
+            }
             if is_root_wrapper && root_is_array {
                 root_array = id;
             }
@@ -586,9 +660,8 @@ fn collect_key_hits(
         // a `\.` inside a segment is a literal dot, not a separator;
         // split on UNESCAPED `.` only. Spec 0.7.0: a `.` inside a quoted
         // segment (§ 5.3.3) does not split it.
-        let line_len = bom_offset + line.len() as u32;
-        let line_no = i as u32;
         let mut seg_count: u32 = 0;
+        let mut dotted_prefix = Vec::new();
         for (_, seg) in split_dotted(0, key_part) {
             if seg.is_empty() {
                 continue;
@@ -596,11 +669,16 @@ fn collect_key_hits(
             hits.push(KeyHit {
                 depth: virtual_depth + seg_count,
                 name: seg,
+                dotted_prefix: dotted_prefix.clone(),
+                resets_prefix: false,
                 line: line_no,
                 col_start: bom_offset,
                 col_end: line_len,
                 array_id: None,
             });
+            if let Some(decoded) = decode_symbol_key(seg) {
+                dotted_prefix.push(decoded.into_owned());
+            }
             seg_count += 1;
         }
 
@@ -631,6 +709,8 @@ fn collect_key_hits(
                 );
                 if value.starts_with('[') {
                     hits[key_hit].array_id = id;
+                } else {
+                    hits[key_hit].resets_prefix = true;
                 }
             }
         }
@@ -647,7 +727,21 @@ fn collect_key_hits(
         let opens_compound = pushed_multi.is_some() || tail.ends_with(" {") || tail.ends_with(" [");
 
         if opens_compound {
-            compound_pushes.push(seg_count);
+            if tail.ends_with(" {") {
+                hits.last_mut().expect("pair has a key hit").resets_prefix = true;
+            }
+            let array_id = if tail.ends_with(" [") {
+                let id = arrays.len();
+                arrays.push(InlineArray {
+                    line: line_no,
+                    items: Vec::new(),
+                });
+                hits.last_mut().expect("pair has a key hit").array_id = Some(id);
+                Some(id)
+            } else {
+                None
+            };
+            compound_pushes.push((seg_count, array_id));
             virtual_depth += seg_count;
             if let Some(m) = pushed_multi {
                 multi = m;
@@ -740,6 +834,9 @@ fn collect_inline_hits<'a>(
                 }
                 Some(id)
             } else {
+                if let Some(key) = pending_key {
+                    hits[key].resets_prefix = true;
+                }
                 None
             };
             frames.push((array_id, parent_item));
@@ -770,6 +867,7 @@ fn collect_inline_hits<'a>(
             text: key_text,
         } => {
             let mut n = 0u32;
+            let mut dotted_prefix = Vec::new();
             for (seg_col, seg) in split_dotted(col_base + start as u32, key_text) {
                 if seg.is_empty() {
                     continue;
@@ -777,11 +875,16 @@ fn collect_inline_hits<'a>(
                 hits.push(KeyHit {
                     depth: depth + n,
                     name: seg,
+                    dotted_prefix: dotted_prefix.clone(),
+                    resets_prefix: false,
                     line,
                     col_start: seg_col,
                     col_end: seg_col + seg.len() as u32,
                     array_id: None,
                 });
+                if let Some(decoded) = decode_symbol_key(seg) {
+                    dotted_prefix.push(decoded.into_owned());
+                }
                 n += 1;
             }
             pending_bump = if n > 0 { Some(n) } else { None };
@@ -837,21 +940,118 @@ mod tests {
     }
 
     fn assert_range(sym: &DocumentSymbol, line: u32, start: u32, end: u32) {
-        assert_eq!(
-            sym.range,
-            Range {
-                start: Position {
-                    line,
-                    character: start
-                },
-                end: Position {
-                    line,
-                    character: end
-                },
+        let expected = Range {
+            start: Position {
+                line,
+                character: start,
             },
-            "range for {}",
+            end: Position {
+                line,
+                character: end,
+            },
+        };
+        assert_eq!(sym.range, expected, "range for {}", sym.name);
+        assert_eq!(
+            sym.selection_range, expected,
+            "selectionRange for {}",
             sym.name
         );
+    }
+
+    #[test]
+    fn spec_reopened_dotted_key_keeps_sibling_and_child_positions() {
+        let text = include_str!(
+            "../../../spec/versions/0.8/tests/valid/dotted_keys/reopen_after_sibling.ktav"
+        );
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(
+            syms.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(),
+            ["a", "c"]
+        );
+        let a = find(&syms, "a");
+        assert_range(a, 0, 0, 6);
+        let children = a.children.as_ref().unwrap();
+        assert_range(find(children, "b"), 0, 0, 6);
+        assert_range(find(children, "d"), 2, 0, 6);
+        assert_range(find(&syms, "c"), 1, 0, 4);
+    }
+
+    #[test]
+    fn reopened_dotted_key_with_inline_sibling_keeps_each_scope() {
+        let text = "a.b: 1\nc: {b: 2}\na.d: 3\nnext: 4\n";
+        let syms = build_symbols(&parse(text), text);
+        let a = find(&syms, "a");
+        assert_range(find(a.children.as_ref().unwrap(), "b"), 0, 0, 6);
+        assert_range(find(a.children.as_ref().unwrap(), "d"), 2, 0, 6);
+        let c = find(&syms, "c");
+        assert_range(c, 1, 0, 9);
+        assert_range(find(c.children.as_ref().unwrap(), "b"), 1, 4, 5);
+        assert_range(find(&syms, "next"), 3, 0, 7);
+    }
+
+    #[test]
+    fn reopened_dotted_parents_do_not_exchange_same_named_children() {
+        let text = "a.x: 1\nb.x: 2\nb.y: 3\na.y: 4\n";
+        let syms = build_symbols(&parse(text), text);
+        let a = find(&syms, "a").children.as_ref().unwrap();
+        let b = find(&syms, "b").children.as_ref().unwrap();
+        assert_range(find(a, "x"), 0, 0, 6);
+        assert_range(find(a, "y"), 3, 0, 6);
+        assert_range(find(b, "x"), 1, 0, 6);
+        assert_range(find(b, "y"), 2, 0, 6);
+    }
+
+    #[test]
+    fn inline_reopened_dotted_parents_keep_same_named_children() {
+        let text = "cfg: {a.x: 1, b.x: 2, b.y: 3, a.y: 4}\n";
+        let syms = build_symbols(&parse(text), text);
+        let cfg = find(&syms, "cfg").children.as_ref().unwrap();
+        let a = find(cfg, "a").children.as_ref().unwrap();
+        let b = find(cfg, "b").children.as_ref().unwrap();
+        assert_range(find(a, "x"), 0, 8, 9);
+        assert_range(find(a, "y"), 0, 32, 33);
+        assert_range(find(b, "x"), 0, 16, 17);
+        assert_range(find(b, "y"), 0, 24, 25);
+    }
+
+    #[test]
+    fn spec_block_array_scalars_have_item_positions() {
+        let text = include_str!("../../../spec/versions/0.8/tests/valid/arrays/scalars.ktav");
+        let syms = build_symbols(&parse(text), text);
+        let tags = find(&syms, "tags");
+        assert_range(tags, 0, 0, 7);
+        let items = tags.children.as_ref().unwrap();
+        assert_eq!(items.len(), 3);
+        for (item, (line, end)) in items.iter().zip([(1, 11), (2, 6), (3, 8)]) {
+            assert_range(item, line, 0, end);
+        }
+    }
+
+    #[test]
+    fn block_array_skips_comments_and_links_nested_array_items() {
+        let text = "tags: [\n    ## note\n\n    one\n    [two, three]\n    [\n        four\n    ]\n    five\n]\nafter: 1\n";
+        let syms = build_symbols(&parse(text), text);
+        let items = find(&syms, "tags").children.as_ref().unwrap();
+        assert_eq!(items.len(), 4);
+        assert_range(&items[0], 3, 0, 7);
+        assert_range(&items[1], 4, 0, 16);
+        let inline_items = items[1].children.as_ref().unwrap();
+        assert_range(&inline_items[0], 4, 5, 8);
+        assert_range(&inline_items[1], 4, 10, 15);
+        assert_range(&items[2], 5, 0, 5);
+        assert_range(&items[2].children.as_ref().unwrap()[0], 6, 0, 12);
+        assert_range(&items[3], 8, 0, 8);
+        assert_range(find(&syms, "after"), 10, 0, 8);
+    }
+
+    #[test]
+    fn block_array_closer_with_trailing_space_is_not_an_item() {
+        let text = "tags: [\n    one\n]   \nafter: 1\n";
+        let syms = build_symbols(&parse(text), text);
+        let items = find(&syms, "tags").children.as_ref().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_range(&items[0], 1, 0, 7);
+        assert_range(find(&syms, "after"), 3, 0, 8);
     }
 
     #[test]
