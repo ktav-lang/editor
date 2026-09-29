@@ -20,6 +20,16 @@
   Marketplace description's example also had `# ...` inline comments,
   which are not valid Ktav (`#` is ordinary content outside a leading
   `##`) — rewritten with standalone `##` lines.
+- Lexer: the body of a multi-line `(` / `((` block is now opaque
+  (`MULTILINE_TEXT`, closed by `)` / `))`) — before, `{`, `[` and
+  `key: value` lines inside it were lexed as structure and a bare `(`
+  array item was a bad character. A `\r` before `\n` is whitespace, so
+  CRLF documents keep `true` and numbers typed.
+- `KtavCorpusCoverageTest` runs the lexer over every valid fixture (no
+  gaps or overlaps in the token stream; number, keyword and null counts
+  match the fixture's expected value). Three older `KtavLexerTest`
+  assertions compared against the platform's `TokenType.BAD_CHARACTER`
+  instead of the plugin's own and could never fail — fixed.
 
 >>>>> lang=ru
 ### Плагин IntelliJ
@@ -46,6 +56,16 @@
   inline-комментарии `# ...`, которые не являются валидным Ktav (`#` —
   обычный символ вне ведущего `##`) — переписан на отдельные строки
   `##`.
+- Лексер: тело многострочного блока `(` / `((` теперь непрозрачно
+  (`MULTILINE_TEXT`, закрывается `)` / `))`) — раньше строки `{`, `[` и
+  `key: value` внутри него лексились как структура, а одиночный элемент
+  массива `(` давал bad character. `\r` перед `\n` — пробел, поэтому в
+  документах с CRLF `true` и числа сохраняют тип.
+- `KtavCorpusCoverageTest` прогоняет лексер по каждой valid-фикстуре (без
+  дыр и перекрытий в потоке токенов; число чисел, ключевых слов и null
+  совпадает с ожидаемым значением фикстуры). Три старых ассерта
+  `KtavLexerTest` сравнивали с `TokenType.BAD_CHARACTER` платформы, а не
+  с собственным типом плагина, и не могли упасть — исправлено.
 
 >>>>> lang=zh
 ### IntelliJ 插件
@@ -65,4 +85,12 @@
   之前才成立。Marketplace 描述中的示例也含有 `# ...` 这类行内注释,
   这在 Ktav 中并不合法(`#` 若不在行首 `##` 之后即为普通内容)——
   已改写为独立的 `##` 行。
+- 词法分析器:多行 `(` / `((` 块的正文现在是不透明的(`MULTILINE_TEXT`,
+  由 `)` / `))` 关闭)——此前其中的 `{`、`[` 和 `key: value` 行会被当作
+  结构处理,数组中单独的 `(` 条目会成为非法字符。`\n` 之前的 `\r` 视为
+  空白,因此 CRLF 文档中的 `true` 和数字保持其类型。
+- `KtavCorpusCoverageTest` 对每个 valid 样例运行词法分析器(token 流无空洞
+  也无重叠;数字、关键字和 null 的数量与样例期望值一致)。三条较早的
+  `KtavLexerTest` 断言比较的是平台的 `TokenType.BAD_CHARACTER` 而不是插件
+  自己的类型,永远不会失败——已修复。
 

@@ -1,5 +1,11 @@
 # LSP benchmark baseline
 
+> **Not current for 0.8.0.** All measurements below were captured
+> against `ktav-lsp` 0.2.0 (2026-05-08) on ad hoc Windows 10 dev
+> hosts; they have not been re-run since and are not a claim about
+> current performance. Use them only as historical methodology
+> reference, not as today's numbers.
+
 Captured with `cargo bench -- --quick` on a Windows 10 dev host
 (unspecified hardware, foreground noise NOT suppressed). Numbers are
 indicative — single-digit-percent regressions here are within noise.

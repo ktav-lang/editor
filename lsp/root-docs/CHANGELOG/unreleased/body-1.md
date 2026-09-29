@@ -18,6 +18,11 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   ordinary line-shape rules onto their content lines, and an inline key
   escaping a structural byte after a comma no longer desyncs the
   scanner. A new corpus-wide test guards both.
+- LF, CR and CRLF documents behave the same in every handler; the
+  formatter no longer treats a single `#` as a comment or `key:: ((` as a
+  block opener; a leading BOM is ignored; symbols get ranges for inline
+  keys. Corpus tests now also cover symbols, hover, tokens and
+  formatting — see the root [`CHANGELOG.md`](../CHANGELOG.md).
 
 >>>>> lang=ru
 ## [0.8.0] — 2026-09-28
@@ -39,6 +44,12 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   экранирование структурного байта после запятой в inline-ключе больше
   не десинхронизирует сканер. Новый тест по всему корпусу защищает оба
   случая.
+- Документы с LF, CR и CRLF ведут себя одинаково во всех обработчиках;
+  форматтер больше не считает одиночный `#` комментарием, а `key:: ((` —
+  открывающей строкой блока; ведущий BOM игнорируется; у symbols есть
+  диапазоны для inline-ключей. Тесты корпуса теперь покрывают и symbols,
+  hover, токены и форматирование — см. корневой
+  [`CHANGELOG.md`](../../CHANGELOG.md).
 
 >>>>> lang=zh
 ## [0.8.0] — 2026-09-28
@@ -55,4 +66,8 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 - Semantic tokens:多行字符串块(`(` / `((`)的内容行不再受普通逐行规则
   影响;inline 键中逗号之后的结构字节转义也不再使扫描器失步。新增覆盖
   整个语料库的测试防止两者回归。
+- LF、CR 和 CRLF 文档在所有处理器中表现一致;格式化器不再把单个 `#`
+  当作注释,也不再把 `key:: ((` 当作块起始行;行首 BOM 被忽略;符号对
+  内联键有了范围。语料库测试现在还覆盖符号、hover、token 和格式化——见
+  根目录 [`CHANGELOG.md`](../../CHANGELOG.md)。
 

@@ -26,6 +26,11 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   ordinary line-shape rules onto their content lines, and an inline key
   escaping a structural byte after a comma no longer desyncs the
   scanner. A new corpus-wide test guards both.
+- LF, CR and CRLF documents behave the same in every handler; the
+  formatter no longer treats a single `#` as a comment or `key:: ((` as a
+  block opener; a leading BOM is ignored; symbols get ranges for inline
+  keys. Corpus tests now also cover symbols, hover, tokens and
+  formatting — see the root [`CHANGELOG.md`](../CHANGELOG.md).
 
 ## [0.5.0] — 2026-05-27
 

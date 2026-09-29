@@ -28,6 +28,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   toggle (it's `##`) or claim LSP4IJ / a non-bundled binary are
   needed — the plugin has its own built-in LSP client and bundles a
   per-platform `ktav-lsp` binary.
+- Lexer: multi-line `(` / `((` block bodies are opaque and CRLF no longer
+  breaks value typing; a corpus-wide lexer test covers every valid
+  fixture.
 
 ## 0.5.1
 

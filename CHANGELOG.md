@@ -141,9 +141,33 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   Number/Keyword/"null" *tokens* `semantic_tokens` emits (five
   magnitude-overflow-to-String fixtures are pinned exceptions, since
   highlighting is lexical and does not enforce i64/f64 range).
-- Known limitation: a document whose only line terminator is a lone
-  CR (§ 3.2) is still split on LF by the position mapping shared by
-  all handlers; a systemic fix is not part of this release.
+- Every handler now splits a document into lines on LF, CR and CRLF
+  alike (§ 3.2, and what the LSP position model counts) through one
+  helper, `tokens::lines`. A CR-only document gets correct positions,
+  tokens, hover, completion, symbols, diagnostics (ranges no longer come
+  from `ktav::Span::line_col`, which counts only `\n`) and formatting. The
+  formatter always emits LF.
+- Formatter: a comment is only a leading `##` (a single `#` is ordinary
+  content, so `#child: {` nests like any key); block and compound openers
+  are recognised structurally, so `key:: ((` — a literal string — no longer
+  opens a multi-line block; the `name: (value)` → `name:: (value)`
+  canonicalisation finds the key separator like the parser does and leaves
+  the empty forms `()` / `(())` alone; a leading BOM is kept.
+- `key:: {`, `key:: ((` and friends are String values, never openers;
+  `(())` is classified as an empty-compound shortcut (§ 5.7).
+- A leading BOM (§ 3.1) is no longer part of the first key for hover,
+  symbols, tokens or diagnostics.
+- Document symbols: keys inside inline objects and arrays get their own
+  ranges (they used to collapse onto line 0), and the top-level `{ … }` /
+  `[ … ]` wrapper is transparent.
+- Hover skips comment and block-content lines through the shared
+  classifier instead of its own text heuristics.
+- Corpus tests: `spec_conformance.rs` now requires complete
+  `.ktav` / `.canonical.ktav` / `.json` triplets and the exact fixture count
+  per category, and an `invalid/` fixture without an oracle fails instead of
+  being skipped; `editor_features_corpus.rs` checks document symbols, hover
+  and semantic tokens on all 223 valid fixtures, and that formatting is
+  idempotent and value-preserving on all 446 `.ktav` files.
 
 ### TextMate grammar (VS Code + shared `grammars/`)
 
@@ -183,6 +207,12 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 - A tokenizer test (`vscode/src/test/unit/grammar-tokens.test.ts`, on
   `vscode-textmate` + `vscode-oniguruma`) runs the real grammar over
   these vectors in whole-line, array-item and inline contexts.
+- A document that is a single-line inline object or array at the top
+  level (no leading key) was not highlighted at all; the root patterns
+  now include `top-level-inline-object` / `top-level-inline-array`. A
+  corpus-wide tokenizer test (`corpus-coverage.test.ts`) runs the grammar
+  over every valid fixture: no `invalid.*` scope, and the number, boolean
+  and null scope counts match the fixture's expected value.
 
 ### IntelliJ plugin
 
@@ -205,6 +235,16 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   Marketplace description's example also had `# ...` inline comments,
   which are not valid Ktav (`#` is ordinary content outside a leading
   `##`) — rewritten with standalone `##` lines.
+- Lexer: the body of a multi-line `(` / `((` block is now opaque
+  (`MULTILINE_TEXT`, closed by `)` / `))`) — before, `{`, `[` and
+  `key: value` lines inside it were lexed as structure and a bare `(`
+  array item was a bad character. A `\r` before `\n` is whitespace, so
+  CRLF documents keep `true` and numbers typed.
+- `KtavCorpusCoverageTest` runs the lexer over every valid fixture (no
+  gaps or overlaps in the token stream; number, keyword and null counts
+  match the fixture's expected value). Three older `KtavLexerTest`
+  assertions compared against the platform's `TokenType.BAD_CHARACTER`
+  instead of the plugin's own and could never fail — fixed.
 
 ### Spec submodule
 
@@ -229,6 +269,11 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   packed extension could not load its language client; production
   dependencies are now packed (devDependencies are not).
 - CI: the docs job uses `actions/setup-node@v6`.
+- Documentation: the VS Code and LSP READMEs now agree that the
+  Marketplace and Open VSX extension bundles `ktav-lsp` for six
+  platforms (a separate install is only needed elsewhere);
+  `intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.md` and
+  `lsp/docs/bench-baseline.md` are marked as historical.
 
 ## [0.6.1] — 2026-06-05
 

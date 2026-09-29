@@ -22,11 +22,15 @@ With the [`ktav-lsp`](https://github.com/ktav-lang/editor/tree/main/lsp) languag
 
 ## Language server
 
-The extension talks to the `ktav-lsp` binary over stdio. Prebuilt binaries for
-Linux, macOS and Windows are attached to every
-[GitHub release](https://github.com/ktav-lang/editor/releases) — download the one
-for your platform and point `ktav.server.path` at it, or drop it on your `PATH`.
-To build from source instead, run `cargo build --release` in the
+The extension talks to the `ktav-lsp` binary over stdio. The VSIX
+published to the Marketplace and Open VSX already bundles a `ktav-lsp`
+binary for each of the six platforms CI builds — Linux, macOS and
+Windows on x64 and arm64 — so it works out of the box; see
+[Discovery order](#discovery-order) below for how the extension finds it.
+On an unsupported platform, download a binary from a
+[GitHub release](https://github.com/ktav-lang/editor/releases) and point
+`ktav.server.path` at it, or drop it on your `PATH`. To build from source
+instead, run `cargo build --release` in the
 [`lsp/`](https://github.com/ktav-lang/editor/tree/main/lsp) directory.
 
 ### Discovery order

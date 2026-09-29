@@ -13,6 +13,8 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   over the vectors.
 - The packaged extension now includes its production dependencies
   (`vscode-languageclient`); the 0.6.1 VSIX was built without them.
+- TextMate grammar: a top-level single-line inline object or array is
+  highlighted; a corpus-wide tokenizer test covers every valid fixture.
 
 >>>>> lang=ru
 ## [0.8.0] — 2026-09-28
@@ -29,6 +31,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   грамматику по этим векторам.
 - Упакованное расширение теперь включает production-зависимости
   (`vscode-languageclient`); VSIX 0.6.1 был собран без них.
+- Грамматика TextMate: однострочный inline-объект или массив верхнего
+  уровня теперь подсвечивается; тест токенизатора по всему корпусу
+  покрывает каждую valid-фикстуру.
 
 >>>>> lang=zh
 ## [0.8.0] — 2026-09-28
@@ -43,4 +48,6 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 - 新增真实的分词器测试(`npm run test:unit`),用这些向量运行语法。
 - 打包后的扩展现在包含其生产依赖(`vscode-languageclient`);0.6.1 的
   VSIX 构建时缺少它们。
+- TextMate 语法:顶层单行内联对象或数组现在会被高亮;覆盖整个语料库的
+  分词器测试涵盖每个 valid 样例。
 

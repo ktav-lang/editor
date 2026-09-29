@@ -69,8 +69,9 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 
 ### VS Code
 
-使用 [Ktav VS Code 扩展](../../vscode) —— 它包含语言配置并桥接
-`ktav-lsp`。请单独安装
+使用 [Ktav VS Code 扩展](../../vscode) —— 它包含语言配置,并且在 CI
+构建二进制的六个平台上还捆绑了 `ktav-lsp` 本身,因此无需单独安装。
+仅在不受支持的平台上,或从源代码构建扩展时,才需要自行安装
 [`ktav-lsp`](https://crates.io/crates/ktav-lsp)。
 
 ### Emacs (`eglot`)

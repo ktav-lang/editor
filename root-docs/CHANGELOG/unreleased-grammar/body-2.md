@@ -35,6 +35,12 @@
 - A tokenizer test (`vscode/src/test/unit/grammar-tokens.test.ts`, on
   `vscode-textmate` + `vscode-oniguruma`) runs the real grammar over
   these vectors in whole-line, array-item and inline contexts.
+- A document that is a single-line inline object or array at the top
+  level (no leading key) was not highlighted at all; the root patterns
+  now include `top-level-inline-object` / `top-level-inline-array`. A
+  corpus-wide tokenizer test (`corpus-coverage.test.ts`) runs the grammar
+  over every valid fixture: no `invalid.*` scope, and the number, boolean
+  and null scope counts match the fixture's expected value.
 
 >>>>> lang=ru
 - Квотированные сегменты ключа: паттерн точечных ключей, общий для
@@ -77,6 +83,13 @@
 - Тест токенизатора (`vscode/src/test/unit/grammar-tokens.test.ts` на
   `vscode-textmate` + `vscode-oniguruma`) прогоняет настоящую грамматику
   по этим векторам в контекстах строки, элемента массива и inline.
+- Документ, целиком являющийся однострочным inline-объектом или
+  массивом верхнего уровня (без ключа), вообще не подсвечивался; корневые
+  patterns теперь включают `top-level-inline-object` /
+  `top-level-inline-array`. Тест токенизатора по всему корпусу
+  (`corpus-coverage.test.ts`) прогоняет грамматику по каждой valid-фикстуре:
+  ни одного scope `invalid.*`, а число scope чисел, булевых и null
+  совпадает с ожидаемым значением фикстуры.
 
 >>>>> lang=zh
 - 带引号的键片段:所有 `pair-*` / `inline-pair` 规则共享的点分键
@@ -108,4 +121,9 @@
 - 新增分词器测试(`vscode/src/test/unit/grammar-tokens.test.ts`,基于
   `vscode-textmate` + `vscode-oniguruma`),在整行、数组元素和内联上下文
   中用真实语法跑这些向量。
+- 顶层就是单行内联对象或数组(没有前导键)的文档此前完全不被高亮;
+  根 patterns 现在包含 `top-level-inline-object` /
+  `top-level-inline-array`。新增覆盖整个语料库的分词器测试
+  (`corpus-coverage.test.ts`),对每个 valid 样例运行该语法:不出现
+  `invalid.*` scope,数字、布尔和 null 的 scope 数量与样例的期望值一致。
 

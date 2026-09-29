@@ -18,6 +18,11 @@
   packed extension could not load its language client; production
   dependencies are now packed (devDependencies are not).
 - CI: the docs job uses `actions/setup-node@v6`.
+- Documentation: the VS Code and LSP READMEs now agree that the
+  Marketplace and Open VSX extension bundles `ktav-lsp` for six
+  platforms (a separate install is only needed elsewhere);
+  `intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.md` and
+  `lsp/docs/bench-baseline.md` are marked as historical.
 
 >>>>> lang=ru
 ### Репозиторий и релизная оснастка
@@ -39,6 +44,11 @@
   упакованное расширение не могло загрузить языковой клиент; теперь
   упаковываются production-зависимости (devDependencies — нет).
 - CI: job docs использует `actions/setup-node@v6`.
+- Документация: README VS Code и LSP теперь согласованы в том, что
+  расширение из Marketplace и Open VSX содержит `ktav-lsp` для шести
+  платформ (отдельная установка нужна только в других случаях);
+  `intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.md` и
+  `lsp/docs/bench-baseline.md` помечены как исторические.
 
 >>>>> lang=zh
 ### 仓库与发布工具
@@ -57,4 +67,8 @@
   `node_modules`,因此打包后的扩展无法加载语言客户端;现在会打包生产
   依赖(不含 devDependencies)。
 - CI:docs job 使用 `actions/setup-node@v6`。
+- 文档:VS Code 与 LSP 的 README 现在一致说明,Marketplace 与 Open VSX
+  上的扩展已为六个平台捆绑 `ktav-lsp`(仅其他情况才需要单独安装);
+  `intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.md` 与
+  `lsp/docs/bench-baseline.md` 已标注为历史文档。
 

@@ -22,10 +22,13 @@
 
 ## 语言服务器
 
-扩展通过 stdio 与 `ktav-lsp` 二进制通信。适用于 Linux、macOS 和 Windows 的
-预编译二进制随每个 [GitHub 发布](https://github.com/ktav-lang/editor/releases)
-一同提供 —— 下载对应平台的版本,并通过 `ktav.server.path` 指向它,
-或直接将其放入 `PATH`。若要从源代码构建,请在
+扩展通过 stdio 与 `ktav-lsp` 二进制通信。发布到 Marketplace 和 Open
+VSX 的 VSIX 已经为 CI 构建的六个平台 —— Linux、macOS 和 Windows 的
+x64 与 arm64 —— 各自捆绑了一份 `ktav-lsp`,因此开箱即用;具体查找
+顺序见下方“查找顺序”一节。在不受支持的平台上,请从
+[GitHub 发布](https://github.com/ktav-lang/editor/releases)下载对应
+版本,并通过 `ktav.server.path` 指向它,或将其放入 `PATH`。若要从
+源代码构建,请在
 [`lsp/`](https://github.com/ktav-lang/editor/tree/main/lsp) 目录中运行
 `cargo build --release`。
 

@@ -16,6 +16,8 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   over the vectors.
 - The packaged extension now includes its production dependencies
   (`vscode-languageclient`); the 0.6.1 VSIX was built without them.
+- TextMate grammar: a top-level single-line inline object or array is
+  highlighted; a corpus-wide tokenizer test covers every valid fixture.
 
 ## 0.5.0
 

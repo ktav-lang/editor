@@ -15,6 +15,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   toggle (it's `##`) or claim LSP4IJ / a non-bundled binary are
   needed — the plugin has its own built-in LSP client and bundles a
   per-platform `ktav-lsp` binary.
+- Lexer: multi-line `(` / `((` block bodies are opaque and CRLF no longer
+  breaks value typing; a corpus-wide lexer test covers every valid
+  fixture.
 
 >>>>> lang=ru
 ## [0.8.0] — 2026-09-28
@@ -32,6 +35,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   переключения комментария (это `##`) и не утверждается, что нужен
   LSP4IJ или что бинарник не вложен — у плагина свой встроенный
   LSP-клиент, а бинарник `ktav-lsp` вложен под каждую платформу.
+- Лексер: тела многострочных блоков `(` / `((` непрозрачны, а CRLF больше
+  не ломает типизацию значений; тест лексера по всему корпусу покрывает
+  каждую valid-фикстуру.
 
 >>>>> lang=zh
 ## [0.8.0] — 2026-09-28
@@ -47,4 +53,6 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 - Marketplace/Settings 文案不再将注释切换写成 `#`(应为 `##`),也不再
   声称需要 LSP4IJ 或未内置二进制文件 —— 插件拥有自己内置的 LSP 客户端,
   并为每个平台内置了 `ktav-lsp` 二进制文件。
+- 词法分析器:多行 `(` / `((` 块的正文是不透明的,CRLF 不再破坏值的
+  类型判断;覆盖整个语料库的词法分析器测试涵盖每个 valid 样例。
 

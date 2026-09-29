@@ -1,5 +1,24 @@
 # TextMate Bundle Auto-Registration Problem in IntelliJ Plugins
 
+> **Historical document.** Describes a rejected approach that tried to
+> auto-register a bundled TextMate grammar at runtime. Since 0.2.0
+> (2026-05-07) the plugin instead ships a native `KtavLexer` /
+> `KtavSyntaxHighlighterFactory` (wired via `KtavParserDefinition`) for
+> syntax highlighting — no TextMate bundle, no `KtavTextMateLoader`,
+> no manual registration step. Kept for context on why that path was
+> abandoned; statements below about a "current implementation" refer
+> to the pre-0.2.0 attempt, not the shipped plugin.
+>
+> **Исторический документ.** Описывает отвергнутый подход с попыткой
+> автоматически регистрировать bundled TextMate-грамматику во время
+> выполнения. Начиная с 0.2.0 (2026-05-07) плагин вместо этого
+> использует нативный `KtavLexer` / `KtavSyntaxHighlighterFactory`
+> (подключены через `KtavParserDefinition`) для подсветки синтаксиса —
+> без TextMate-бандла, без `KtavTextMateLoader`, без шага ручной
+> регистрации. Документ сохранён как контекст, почему тот путь был
+> отвергнут; упоминания «текущей реализации» ниже относятся к
+> попытке до 0.2.0, а не к текущему плагину.
+
 ## Summary
 
 При разработке плагина Ktav для IntelliJ столкнулись с проблемой автоматической регистрации bundled TextMate грамматики. TextMate API IntelliJ имеет серьёзные ограничения, которые делают программную регистрацию невозможной или нестабильной.
@@ -10,7 +29,7 @@
 
 ## Архитектура решения
 
-### Текущая реализация (KtavTextMateLoader.kt)
+### Реализация из отвергнутой попытки (KtavTextMateLoader.kt, до 0.2.0)
 
 ```
 1. appFrameCreated hook (IDE startup)
@@ -223,17 +242,21 @@ Ktav.tmbundle/
 4. ✓ Написать подробную документацию
 5. ✓ На будущее: когда JetBrains выпустит публичный API, переключиться на auto-registration
 
-## Текущий код
+## Код отвергнутой попытки (историческое состояние, до 0.2.0)
 
-**Файлы**:
+**Файлы** (в текущем плагине отсутствуют — заменены нативным лексером):
 - `src/main/kotlin/lang/ktav/KtavTextMateLoader.kt` - основная логика
 - `src/main/kotlin/lang/ktav/KtavProjectActivity.kt` - project lifecycle hook
 - `src/main/resources/META-INF/plugin.xml` - конфигурация плагина
 
-**Статус**:
+**Статус на момент отказа от подхода**:
 - Bundle extraction: ✓ Работает
 - Settings update: ⚠️ Работает, но не применяется
 - Auto-registration: ✗ Невозможно надёжно реализовать
+
+С 0.2.0 подсветку даёт `KtavParserDefinition` +
+`KtavSyntaxHighlighterFactory` (нативный `KtavLexer`), см.
+`intellij/src/main/resources/META-INF/plugin.xml`.
 
 ## References
 

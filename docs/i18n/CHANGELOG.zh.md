@@ -116,8 +116,27 @@ MINOR 递进视为破坏性变更。
   的数量必须与 `semantic_tokens` 输出的 Number/Keyword/"null" *token*
   数量一致(五个数值溢出为 String 的样例为固定的例外——高亮是词法层面
   的,不检查 i64/f64 的取值范围)。
-- 已知限制:仅以单独 CR(§ 3.2)作为行终止符的文档,仍会在所有处理器
-  共用的位置映射中按 LF 拆分;系统性修复不在本次发布范围内。
+- 所有处理器现在都通过同一个辅助模块 `tokens::lines`,将文档按 LF、CR
+  和 CRLF 一视同仁地拆分为行(§ 3.2,LSP 的位置模型也是如此计数)。
+  仅含 CR 的文档现在能得到正确的位置、token、hover、补全、符号、诊断
+  (范围不再取自只统计 `\n` 的 `ktav::Span::line_col`)以及格式化。
+  格式化器始终输出 LF。
+- 格式化器:注释只是行首的 `##`(单个 `#` 是普通内容,因此 `#child: {`
+  与任何键一样产生嵌套);块与复合值的起始行按结构识别,所以字面字符串
+  `key:: ((` 不再开启多行块;`name: (value)` → `name:: (value)` 的规范化
+  与解析器一样查找键分隔符,并且不改动空形式 `()` / `(())`;行首 BOM 会
+  被保留。
+- `key:: {`、`key:: ((` 等是字符串值,不是起始行;`(())` 被归类为空复合值
+  简写(§ 5.7)。
+- 行首 BOM(§ 3.1)不再成为 hover、符号、token 和诊断中第一个键的一部分。
+- 文档符号:内联对象与数组中的键拥有各自的范围(此前会塌缩到第 0 行),
+  顶层的 `{ … }` / `[ … ]` 外壳是透明的。
+- Hover 通过共享分类器跳过注释与块内容行,而不是使用自己的文本启发式。
+- 语料库测试:`spec_conformance.rs` 现在要求 `.ktav` / `.canonical.ktav` /
+  `.json` 三件套完整且每个类别的样例数量精确,缺少 oracle 的 `invalid/`
+  样例会失败而不是被跳过;`editor_features_corpus.rs` 在全部 223 个 valid
+  样例上检查文档符号、hover 和 semantic tokens,并在全部 446 个 `.ktav`
+  文件上检查格式化幂等且保持值不变。
 
 ### TextMate grammar (VS Code + shared `grammars/`)
 
@@ -150,6 +169,11 @@ MINOR 递进视为破坏性变更。
 - 新增分词器测试(`vscode/src/test/unit/grammar-tokens.test.ts`,基于
   `vscode-textmate` + `vscode-oniguruma`),在整行、数组元素和内联上下文
   中用真实语法跑这些向量。
+- 顶层就是单行内联对象或数组(没有前导键)的文档此前完全不被高亮;
+  根 patterns 现在包含 `top-level-inline-object` /
+  `top-level-inline-array`。新增覆盖整个语料库的分词器测试
+  (`corpus-coverage.test.ts`),对每个 valid 样例运行该语法:不出现
+  `invalid.*` scope,数字、布尔和 null 的 scope 数量与样例的期望值一致。
 
 ### IntelliJ 插件
 
@@ -168,6 +192,14 @@ MINOR 递进视为破坏性变更。
   之前才成立。Marketplace 描述中的示例也含有 `# ...` 这类行内注释,
   这在 Ktav 中并不合法(`#` 若不在行首 `##` 之后即为普通内容)——
   已改写为独立的 `##` 行。
+- 词法分析器:多行 `(` / `((` 块的正文现在是不透明的(`MULTILINE_TEXT`,
+  由 `)` / `))` 关闭)——此前其中的 `{`、`[` 和 `key: value` 行会被当作
+  结构处理,数组中单独的 `(` 条目会成为非法字符。`\n` 之前的 `\r` 视为
+  空白,因此 CRLF 文档中的 `true` 和数字保持其类型。
+- `KtavCorpusCoverageTest` 对每个 valid 样例运行词法分析器(token 流无空洞
+  也无重叠;数字、关键字和 null 的数量与样例期望值一致)。三条较早的
+  `KtavLexerTest` 断言比较的是平台的 `TokenType.BAD_CHARACTER` 而不是插件
+  自己的类型,永远不会失败——已修复。
 
 ### Spec submodule
 
@@ -189,6 +221,10 @@ MINOR 递进视为破坏性变更。
   `node_modules`,因此打包后的扩展无法加载语言客户端;现在会打包生产
   依赖(不含 devDependencies)。
 - CI:docs job 使用 `actions/setup-node@v6`。
+- 文档:VS Code 与 LSP 的 README 现在一致说明,Marketplace 与 Open VSX
+  上的扩展已为六个平台捆绑 `ktav-lsp`(仅其他情况才需要单独安装);
+  `intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.md` 与
+  `lsp/docs/bench-baseline.md` 已标注为历史文档。
 
 ## [0.6.1] — 2026-06-05
 

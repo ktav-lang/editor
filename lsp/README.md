@@ -74,8 +74,10 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 ### VS Code
 
 Use the [Ktav VS Code extension](../vscode) — it bundles language
-configuration and bridges to `ktav-lsp` for you. Install
-[`ktav-lsp`](https://crates.io/crates/ktav-lsp) separately.
+configuration and, on the six platforms CI ships binaries for, a
+`ktav-lsp` binary too, so no separate install is needed. Install
+[`ktav-lsp`](https://crates.io/crates/ktav-lsp) yourself only on an
+unsupported platform, or when building the extension from source.
 
 ### Emacs (`eglot`)
 
