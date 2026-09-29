@@ -18,6 +18,16 @@
 //!
 //! The output is byte-equal to the input when every line is already
 //! at the right indent.
+//!
+//! § 3.2: LF, CR and CRLF are equivalent line terminators — splitting
+//! goes through [`crate::lines`] so a CR-only or CRLF document is
+//! reindented line-for-line just like its LF equivalent. Output is
+//! always LF-canonical (a multi-line string's parsed value already
+//! normalises every terminator to `\n` — see `ktav`'s own multi-line
+//! handling — so re-emitting with `\n` never changes what the document
+//! means, only its on-disk bytes).
+
+use crate::tokens::{classify_line, find_key_separator, LineKind, ValueKind};
 
 const INDENT: &str = "    ";
 
@@ -33,29 +43,39 @@ enum Multi {
 
 /// Re-emit `src` with canonical indentation. Blank lines, comments,
 /// and multi-line string contents are preserved.
+///
+/// § 3.1: a leading BOM is metadata, not content — [`crate::lines::split_lines`]
+/// (which every line below goes through) already excludes it from line
+/// 0's own text, so the reindent logic below never sees it. It is
+/// re-emitted verbatim at the very start of the output: dropping it
+/// would silently change the file's encoding metadata for a client that
+/// never asked for that, and the reverse (adding one where none existed)
+/// would be just as surprising — so format is BOM-preserving, not
+/// BOM-normalising.
 pub fn reindent(src: &str) -> String {
+    let bom = &src[..crate::lines::leading_bom_len(src)];
     let mut out = String::with_capacity(src.len() + 32);
+    out.push_str(bom);
     let mut depth: usize = 0;
     let mut multi = Multi::None;
 
-    // `split('\n')` on `"a\n"` yields `["a", ""]` — the trailing empty
-    // entry represents "no characters after the final newline", not a
+    // `split_lines("a\n")` yields `["a", ""]` — the trailing empty entry
+    // represents "no characters after the final terminator", not a
     // blank line. Drop it so we don't emit an extra `\n`. (If the user
     // actually wrote `a\n\n`, that's `["a", "", ""]` — we still drop
-    // only the last, preserving the explicit blank.)
+    // only the last, preserving the explicit blank.) The splitter
+    // already strips whichever terminator (LF/CR/CRLF) each line had, so
+    // there's no separate CR-stripping step here.
     let lines: Vec<&str> = {
-        let mut v: Vec<&str> = src.split('\n').collect();
+        let mut v = crate::lines::split_lines(src);
         if v.last().map(|s| s.is_empty()).unwrap_or(false) {
             v.pop();
         }
         v
     };
-    let trailing_newline = src.ends_with('\n');
+    let trailing_newline = crate::lines::ends_with_terminator(src);
 
-    for raw_line in lines {
-        // Strip a single trailing CR (Windows line endings) — we always
-        // emit `\n` and let the editor reapply CRLF on save if it wants.
-        let line = raw_line.strip_suffix('\r').unwrap_or(raw_line);
+    for line in lines {
         let trimmed = line.trim();
 
         // ---- Inside multi-line string: copy verbatim ----
@@ -95,7 +115,11 @@ pub fn reindent(src: &str) -> String {
         }
 
         // ---- Comment: keep at current depth ----
-        if trimmed.starts_with('#') {
+        // Spec 0.5.0: a comment is a LEADING `##` — one `#` is an
+        // ordinary character (e.g. a valid, unquoted key: `#child: {`).
+        // Delegate to the shared classifier so this never disagrees with
+        // semantic tokens on what counts as a comment.
+        if matches!(classify_line(trimmed), LineKind::Comment { .. }) {
             push_indent(&mut out, depth);
             out.push_str(trimmed);
             out.push('\n');
@@ -116,19 +140,19 @@ pub fn reindent(src: &str) -> String {
         out.push('\n');
 
         // ---- Update depth / detect multi-line opener for the NEXT line ----
-        // We classify the line by its trailing token. Order matters —
-        // `((` must be checked before `(` so we don't mis-match the
-        // first paren of `((`.
-        if trimmed.ends_with("((") && !trimmed.ends_with(")((") {
-            multi = Multi::Verbatim;
-        } else if ends_with_lone_lparen(trimmed) {
-            multi = Multi::Stripped;
-        } else if trimmed == "{"
-            || trimmed == "["
-            || trimmed.ends_with(": {")
-            || trimmed.ends_with(": [")
-        {
-            depth += 1;
+        // Structural, not textual: only a line whose *value* IS a
+        // compound opener (`{`, `[`, `(`, `((`, exactly) changes nesting.
+        // Delegating to `classify_line` (the same classifier semantic
+        // tokens use) instead of a trailing-token heuristic avoids the
+        // false positives a suffix match invites — a Raw pair (`key::
+        // ((`) is a literal string, not an opener; a value that merely
+        // ends in `: {` (an escaped-colon key like `a\: {`, or a long
+        // scalar that happens to end in `{`) isn't one either; an empty
+        // inline form (`{}`, `[]`, `()`) doesn't nest at all.
+        match opener_of(trimmed) {
+            Opener::Multi(m) => multi = m,
+            Opener::Brace => depth += 1,
+            Opener::None => {}
         }
     }
 
@@ -162,12 +186,17 @@ pub fn reindent(src: &str) -> String {
 /// this rewrite is safe (no observable behaviour change), it only
 /// removes visual confusion with multi-line openers.
 fn canonicalise_paren_scalar(trimmed: &str) -> std::borrow::Cow<'_, str> {
-    // Find the FIRST `:` separator. We accept `:` and `::` as markers;
-    // only the plain `:` is the case we rewrite (`::` already means
-    // "raw" and isn't ambiguous). Typed markers `:i` / `:f` were removed
-    // in spec 0.5.0 and no longer exist.
+    // Find the key/value separator the same way the parser does: the
+    // first UNESCAPED `:`, opaque to `<quoted-segment>` content (§ 5.3.3)
+    // and to an escaped `\:` inside the key (§ 3.7). A naive first-byte
+    // scan (as a prior version of this did) would treat a `:` inside a
+    // quoted key (`"a:b": (x)`) as the separator, splicing `::` into the
+    // middle of the quoted text instead of right after it. We accept
+    // `:` and `::` as markers; only the plain `:` is the case we
+    // rewrite (`::` already means "raw" and isn't ambiguous). Typed
+    // markers `:i` / `:f` were removed in spec 0.5.0 and no longer exist.
     let bytes = trimmed.as_bytes();
-    let colon = match bytes.iter().position(|&b| b == b':') {
+    let colon = match find_key_separator(trimmed) {
         Some(p) => p,
         None => return std::borrow::Cow::Borrowed(trimmed),
     };
@@ -209,6 +238,17 @@ fn canonicalise_paren_scalar(trimmed: &str) -> std::borrow::Cow<'_, str> {
         return std::borrow::Cow::Borrowed(trimmed);
     }
 
+    // `()` / `(())` are the one-line empty-stripped / empty-verbatim
+    // forms — under a Plain marker they mean the empty STRING (same as
+    // `{}` means the empty Object), not the literal 2-/4-byte text.
+    // Rewriting either to `::` would change the parsed value: `key:: ()`
+    // is the literal string "()", not "". Distinct from every other
+    // paren-wrapped value, where Plain and Raw already agree byte-for-byte
+    // (`key: (value)` and `key:: (value)` both yield `String("(value)")`).
+    if value == "()" || value == "(())" {
+        return std::borrow::Cow::Borrowed(trimmed);
+    }
+
     // Inline `(`-starting value: rewrite `:` → `::`. Keep the same
     // whitespace shape: replace exactly the single `:` token.
     let key_part = &trimmed[..colon];
@@ -216,23 +256,55 @@ fn canonicalise_paren_scalar(trimmed: &str) -> std::borrow::Cow<'_, str> {
     std::borrow::Cow::Owned(format!("{}::{}", key_part, after_colon))
 }
 
-/// Does the line end with a single `(` (stripped multi-line opener)
-/// rather than `((`? A lone `(` after `:`+space, or a bare `(` line.
-fn ends_with_lone_lparen(s: &str) -> bool {
-    if s == "(" {
-        return true;
+/// How a line changes nesting for the line that follows it.
+enum Opener {
+    /// No effect — scalar pair/item, closer, comment, blank, or one of
+    /// the empty inline forms (`{}`, `[]`, `()`).
+    None,
+    /// Opens a `{` / `[` compound — `depth` goes up by one.
+    Brace,
+    /// Opens a `(` / `((` multi-line string body.
+    Multi(Multi),
+}
+
+/// Classify `trimmed` (a non-blank, non-comment, non-closer line)
+/// structurally via [`classify_line`]: does its *value* — a pair's value
+/// (`key: {`) or a bare array item (`{` on its own line) — spell exactly
+/// one of the six compound-opener forms? Only an EXACT match opens
+/// anything; `{}` / `[]` / `()` are complete inline values, and a Raw
+/// (`::`) pair's body is always a literal string (§ 4), never an
+/// opener, regardless of what it looks like.
+fn opener_of(trimmed: &str) -> Opener {
+    let (value_kind, value_text) = match classify_line(trimmed) {
+        LineKind::Pair {
+            value_kind,
+            value_text,
+            ..
+        } => (value_kind, value_text),
+        LineKind::ArrayItem {
+            kind,
+            start,
+            length,
+        } => {
+            let lo = start as usize;
+            let hi = lo + length as usize;
+            (kind, trimmed.get(lo..hi).unwrap_or(""))
+        }
+        LineKind::Blank
+        | LineKind::Comment { .. }
+        | LineKind::CloseBrace { .. }
+        | LineKind::RawArrayItem { .. } => return Opener::None,
+    };
+    if value_kind != ValueKind::CompoundOpen {
+        return Opener::None;
     }
-    if !s.ends_with('(') {
-        return false;
+    match value_text {
+        "{" | "[" => Opener::Brace,
+        "(" => Opener::Multi(Multi::Stripped),
+        "((" => Opener::Multi(Multi::Verbatim),
+        // `{}` / `[]` / `()` — empty inline value, nothing to nest into.
+        _ => Opener::None,
     }
-    // Look at the char before the trailing `(`. If it's another `(` we
-    // have a `((` opener — handled separately.
-    let bytes = s.as_bytes();
-    if bytes.len() >= 2 && bytes[bytes.len() - 2] == b'(' {
-        return false;
-    }
-    // Otherwise (e.g. `body: (`) it's a single-paren opener.
-    true
 }
 
 fn push_indent(out: &mut String, depth: usize) {
@@ -253,7 +325,27 @@ mod tests {
 
     #[test]
     fn comments_preserved() {
-        let src = "# top\nname: a\n# inline\nother: b\n";
+        // Spec 0.5.0: a comment is a leading `##`.
+        let src = "## top\nname: a\n## inline\nother: b\n";
+        assert_eq!(reindent(src), src);
+    }
+
+    #[test]
+    fn single_hash_key_is_not_a_comment() {
+        // A lone `#` is an ordinary character — `#child` is a valid key,
+        // not a comment, and `#child: {` opens a compound like any other
+        // pair. Before the fix, `trimmed.starts_with('#')` swallowed this
+        // line whole: it never bumped `depth`, so `a: 1` below rendered
+        // at depth 0 instead of 1, and the closing `}` never dedented.
+        let src = "#child: {\n    a: 1\n}\n";
+        assert_eq!(reindent(src), src);
+    }
+
+    #[test]
+    fn single_hash_scalar_item_is_not_a_comment() {
+        // Top-level Array of bare-scalar items (spec § 5.0.1) — a lone
+        // `#` is ordinary content, kept as-is, not dropped as a comment.
+        let src = "#not-a-comment\nother-item\n";
         assert_eq!(reindent(src), src);
     }
 
@@ -348,11 +440,138 @@ mod tests {
     }
 
     #[test]
+    fn empty_paren_forms_are_not_rewritten_to_raw() {
+        // valid/inline/paren_empty_string_matches_raw_body.ktav: `()` and
+        // `(())` under a Plain marker mean the empty STRING — rewriting
+        // either to `::` would turn it into the literal 2-/4-byte text
+        // "()" / "(())" instead, changing the parsed value.
+        assert_eq!(reindent("a: ()\n"), "a: ()\n");
+        assert_eq!(reindent("b: (())\n"), "b: (())\n");
+    }
+
+    #[test]
+    fn quoted_key_with_colon_paren_scalar_gets_raw_marker_after_the_key() {
+        // `"a:b": (x)` — the quoted key's OWN `:` must not be mistaken
+        // for the key/value separator (§ 5.3.3). Before the fix (a naive
+        // first-byte `:` scan) this spliced `::` into the middle of the
+        // quoted key instead of right after it.
+        let src = "\"a:b\": (x)\n";
+        let want = "\"a:b\":: (x)\n";
+        assert_eq!(reindent(src), want);
+    }
+
+    #[test]
     fn colon_not_followed_by_whitespace_unchanged() {
         // `x:(5)` has no space after `:`, so it isn't a valid pair
         // separator (§ 6.10) — not our job to rewrite malformed input.
         let src = "x:(5)\n";
         let want = "x:(5)\n";
         assert_eq!(reindent(src), want);
+    }
+
+    // ---- Structural opener detection (§ 4 / § 4.1) ----
+
+    #[test]
+    fn raw_double_paren_value_is_not_an_opener() {
+        // § 4: `::` is a raw-scalar production — `key:: ((` is the
+        // literal string "((", not a multi-line opener. Before the fix
+        // (`trimmed.ends_with("((")`), this line switched the reindenter
+        // into verbatim multi-line mode, which then swallowed `sibling`
+        // and the closing `}` as literal content instead of reindenting
+        // them.
+        let src = "outer: {\n    key:: ((\n    sibling: 1\n}\n";
+        assert_eq!(reindent(src), src);
+    }
+
+    #[test]
+    fn raw_single_paren_value_is_not_an_opener() {
+        let src = "outer: {\n    key:: (\n    sibling: 1\n}\n";
+        assert_eq!(reindent(src), src);
+    }
+
+    #[test]
+    fn raw_brace_value_is_not_an_opener() {
+        let src = "outer: {\n    key:: {\n    sibling: 1\n}\n";
+        assert_eq!(reindent(src), src);
+    }
+
+    #[test]
+    fn escaped_colon_key_ending_in_brace_is_not_an_opener() {
+        // `a\: {` has no unescaped `:` at all — it's a bare scalar item,
+        // not a pair with a trailing `{` opener. A trailing-token
+        // heuristic (`trimmed.ends_with(": {")`) would false-positive
+        // here; the structural classifier correctly sees no separator.
+        let src = "a\\: {\nsibling\n";
+        assert_eq!(reindent(src), src);
+    }
+
+    #[test]
+    fn value_that_merely_ends_in_brace_is_not_an_opener() {
+        // The value is the whole string "text ending with a brace {" —
+        // not exactly "{" — so it does not open a compound, even though
+        // the line's tail looks like one.
+        let src = "note: text ending with a brace {\nsibling: 1\n";
+        assert_eq!(reindent(src), src);
+    }
+
+    #[test]
+    fn quoted_key_containing_brace_still_opens_correctly() {
+        // A quoted key may itself contain `: {` as literal text; the
+        // classifier is opaque to quoted segments (§ 5.3.3), so the real
+        // separator and the real (structural) opener after it are still
+        // found correctly.
+        let src = "\"x: {\": {\n    a: 1\n}\n";
+        assert_eq!(reindent(src), src);
+    }
+
+    // ---- § 3.2: LF / CR / CRLF are equivalent line terminators ----
+
+    #[test]
+    fn cr_only_document_formats_like_lf() {
+        let lf = "outer: {\n    inner: 1\n}\n";
+        let cr = "outer: {\rinner: 1\r}\r";
+        assert_eq!(reindent(cr), lf);
+    }
+
+    #[test]
+    fn crlf_document_formats_like_lf() {
+        let lf = "outer: {\n    inner: 1\n}\n";
+        let crlf = "outer: {\r\ninner: 1\r\n}\r\n";
+        assert_eq!(reindent(crlf), lf);
+    }
+
+    #[test]
+    fn cr_only_no_trailing_terminator_preserved() {
+        let src = "a: 1\rb: 2";
+        let want = "a: 1\nb: 2";
+        assert_eq!(reindent(src), want);
+    }
+
+    #[test]
+    fn cr_only_comment_and_multiline_block_formatted_like_lf() {
+        let lf = "## note\nkey: (\n    line1\n    line2\n)\ndone: 1\n";
+        let cr = "## note\rkey: (\r    line1\r    line2\r)\rdone: 1\r";
+        assert_eq!(reindent(cr), lf);
+    }
+
+    // ---- § 3.1: leading BOM is metadata, preserved not lost ----
+
+    #[test]
+    fn leading_bom_is_preserved_and_not_reindented_as_content() {
+        let src = "\u{FEFF}host: value\n";
+        assert_eq!(reindent(src), src);
+    }
+
+    #[test]
+    fn leading_bom_document_still_reindents_its_content() {
+        let src = "\u{FEFF}outer: {\n  inner: 1\n}\n";
+        let want = "\u{FEFF}outer: {\n    inner: 1\n}\n";
+        assert_eq!(reindent(src), want);
+    }
+
+    #[test]
+    fn no_bom_input_yields_no_bom_output() {
+        let src = "host: value\n";
+        assert!(!reindent(src).starts_with('\u{FEFF}'));
     }
 }

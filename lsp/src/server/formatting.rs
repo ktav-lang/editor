@@ -19,11 +19,38 @@ use super::PositionEncoding;
 /// end-of-line offset and leaving trailing bytes of the last line
 /// unreplaced by a formatting edit.
 pub(super) fn end_of_document(text: &str, encoding: PositionEncoding) -> (u32, u32) {
-    let last_line = text.split('\n').count().saturating_sub(1) as u32;
-    let last_line_text = text.split('\n').next_back().unwrap_or("");
+    // § 3.2: LF, CR and CRLF are equivalent line terminators — go
+    // through the shared splitter so the replaced range's end matches
+    // the client's own line count on a non-LF document.
+    let lines = crate::lines::split_lines(text);
+    let last_line = lines.len().saturating_sub(1) as u32;
+    let last_line_text = lines.last().copied().unwrap_or("");
     let last_col = match encoding {
         PositionEncoding::Utf8 => last_line_text.len() as u32,
         PositionEncoding::Utf16 => byte_to_utf16(last_line_text, last_line_text.len()),
     };
     (last_line, last_col)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn end_of_document_agrees_across_line_terminators() {
+        // § 3.2: LF, CR and CRLF are equivalent line terminators.
+        let lf = "a: 1\nb: 2\n";
+        let cr = "a: 1\rb: 2\r";
+        let crlf = "a: 1\r\nb: 2\r\n";
+        let want = end_of_document(lf, PositionEncoding::Utf8);
+        assert_eq!(end_of_document(cr, PositionEncoding::Utf8), want);
+        assert_eq!(end_of_document(crlf, PositionEncoding::Utf8), want);
+        assert_eq!(want, (2, 0));
+    }
+
+    #[test]
+    fn end_of_document_no_trailing_terminator_cr() {
+        let text = "a: 1\rb: 2";
+        assert_eq!(end_of_document(text, PositionEncoding::Utf8), (1, 4));
+    }
 }

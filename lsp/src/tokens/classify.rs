@@ -117,16 +117,22 @@ pub fn classify_line(raw: &str) -> LineKind<'_> {
     let inner_ws = body.len() - body.trim_start_matches(is_ktav_ws).len();
     let value = body.trim_start_matches(is_ktav_ws);
 
+    // § 4: `::` (Raw) is a dedicated raw-scalar production — its body is
+    // ALWAYS a literal String, never dispatched through compound-opener
+    // or value-shape rules. `key:: ((` is the two-byte literal string
+    // "((", not a multi-line opener; checking the compound-opener shape
+    // before the marker (as a prior version of this did) misclassified
+    // every Raw pair whose body happened to spell out `{`, `[`, `(`,
+    // `((`, `{}`, `[]` or `()`.
     let value_kind = if value.is_empty() {
         // Default to String — UI never reads it when length==0.
         ValueKind::String
-    } else if matches!(value, "{" | "[" | "(" | "((" | "{}" | "[]" | "()") {
+    } else if marker == Marker::Raw {
+        ValueKind::String
+    } else if matches!(value, "{" | "[" | "(" | "((" | "{}" | "[]" | "()" | "(())") {
         ValueKind::CompoundOpen
     } else {
-        match marker {
-            Marker::Raw => ValueKind::String,
-            Marker::Plain => classify_value(value),
-        }
+        classify_value(value)
     };
 
     LineKind::Pair {
@@ -348,7 +354,7 @@ pub fn line_is_multiline_content(text: &str, line_idx: usize) -> bool {
     }
 
     let mut multi: Option<Form> = None;
-    for (i, raw) in text.split('\n').enumerate() {
+    for (i, raw) in crate::lines::split_lines(text).into_iter().enumerate() {
         if i == line_idx {
             return multi.is_some();
         }

@@ -1,7 +1,9 @@
 use super::*;
 use crate::diagnostics::parse_for_diagnostics;
 use crate::semantic::semantic_tokens;
+use crate::symbols::build_symbols;
 use crate::tokens::byte_to_utf16;
+use tower_lsp::LanguageServer;
 
 /// Decode a delta-encoded token stream into absolute
 /// `(line, start_col, length)` triples — easier to assert against.
@@ -207,4 +209,83 @@ fn end_of_document_astral_last_line_utf16() {
     // (each scalar counted once, undercounting the surrogate pair).
     let text = "a: 1\nk: 😀";
     assert_eq!(end_of_document(text, PositionEncoding::Utf16), (1, 5));
+}
+
+// ---- § 3.1: leading BOM is metadata, not content ----
+
+/// spec/versions/0.8/tests/valid/scalars/leading_bom.ktav: a raw UTF-8
+/// BOM (`EF BB BF`) followed by `host: value`. Before the § 3.1 fix in
+/// `crate::lines`, hover resolved the key as `"\u{feff}host"` (the BOM
+/// glued onto the key by a naive line slice) — not found in the parsed
+/// `Value` (whose key is plain `"host"`), so hover fell back to the
+/// generic "value" message instead of "string: `value`".
+#[test]
+fn hover_resolves_key_on_line_with_leading_bom() {
+    let text = "\u{FEFF}host: value\n";
+    let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
+    let (service, _socket) = tower_lsp::LspService::new(Backend::new);
+    let backend = service.inner();
+    let uri = Url::parse("file:///bom-fixture.ktav").unwrap();
+
+    rt.block_on(backend.did_open(DidOpenTextDocumentParams {
+        text_document: TextDocumentItem {
+            uri: uri.clone(),
+            language_id: "ktav".to_string(),
+            version: 1,
+            text: text.to_string(),
+        },
+    }));
+
+    let hover = rt
+        .block_on(backend.hover(HoverParams {
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position: Position {
+                    line: 0,
+                    character: 0,
+                },
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        }))
+        .expect("hover must not error");
+    let md = match hover.expect("hover must resolve a value").contents {
+        HoverContents::Markup(m) => m.value,
+        other => format!("{other:?}"),
+    };
+    assert!(md.contains("**host**"), "got {md:?}");
+    assert!(
+        md.contains("string: `value`"),
+        "expected the resolved value's type, got {md:?}"
+    );
+}
+
+#[test]
+fn document_symbols_resolve_key_on_line_with_leading_bom() {
+    let text = "\u{FEFF}host: value\n";
+    let value = ktav::parse(text).expect("fixture must parse");
+    let syms = build_symbols(&value, text);
+    let host = syms.iter().find(|s| s.name == "host").expect("host key");
+    assert_eq!(host.range.start.line, 0);
+    assert_eq!(
+        host.range.start.character, 0,
+        "BOM must not shift the key's column"
+    );
+}
+
+#[test]
+fn semantic_tokens_property_span_excludes_leading_bom() {
+    let text = "\u{FEFF}host: value\n";
+    let toks = semantic_tokens(text);
+    let first = toks.first().expect("at least one token");
+    // PROPERTY token index is 4 (see `token_types`); its span must start
+    // at column 0 and cover exactly "host" (4 bytes) — never the BOM.
+    assert_eq!(first.token_type, 4);
+    assert_eq!(first.delta_start, 0);
+    assert_eq!(first.length, 4);
+}
+
+#[test]
+fn reindent_preserves_leading_bom_and_content() {
+    let text = "\u{FEFF}host: value\n";
+    assert_eq!(crate::reindent::reindent(text), text);
 }

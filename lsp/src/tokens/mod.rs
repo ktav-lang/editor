@@ -47,6 +47,7 @@ mod classify;
 mod encoding;
 mod key_paths;
 mod kinds;
+pub mod lines;
 
 pub(crate) use classify::is_ktav_ws;
 #[cfg(test)]

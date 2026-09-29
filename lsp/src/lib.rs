@@ -22,4 +22,11 @@ pub mod tokens;
 // consumers (integration tests and benches import these paths directly).
 pub use analysis::{semantic, symbols};
 
+/// Shared line-splitting model (§ 3.2: LF / CR / CRLF are equivalent).
+/// Lives under [`tokens`] (it's the same "single source of truth for
+/// line shape" concern) but re-exported at the crate root, both for
+/// `crate::lines::...` callers throughout this crate and so integration
+/// tests can reach it as `ktav_lsp::lines`.
+pub use tokens::lines;
+
 pub use server::Backend;

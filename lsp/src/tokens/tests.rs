@@ -69,6 +69,50 @@ fn raw_marker() {
 }
 
 #[test]
+fn empty_compound_shortcuts_are_compound_open_under_plain_marker() {
+    // § 5.7: `{}`, `[]`, `()`, `(())` are the four single-line empty forms.
+    for line in ["k: {}", "k: []", "k: ()", "k: (())"] {
+        match pair(line) {
+            LineKind::Pair { value_kind, .. } => {
+                assert_eq!(value_kind, ValueKind::CompoundOpen, "line={line}")
+            }
+            other => panic!("line={line} got {:?}", other),
+        }
+    }
+}
+
+#[test]
+fn raw_marker_value_that_looks_like_a_compound_opener_is_still_string() {
+    // § 4: `::` is a dedicated raw-scalar production — its body is
+    // always a literal String, never a compound opener. `key:: ((` is
+    // the two-byte literal "((", not a multi-line opener; `key:: {` is
+    // the one-byte literal "{", not an object opener.
+    for (line, want_text) in [
+        ("key:: ((", "(("),
+        ("key:: (", "("),
+        ("key:: {", "{"),
+        ("key:: [", "["),
+        ("key:: {}", "{}"),
+        ("key:: []", "[]"),
+        ("key:: ()", "()"),
+    ] {
+        match pair(line) {
+            LineKind::Pair {
+                marker,
+                value_kind,
+                value_text,
+                ..
+            } => {
+                assert_eq!(marker, Marker::Raw, "line={line}");
+                assert_eq!(value_kind, ValueKind::String, "line={line}");
+                assert_eq!(value_text, want_text, "line={line}");
+            }
+            other => panic!("line={line} got {:?}", other),
+        }
+    }
+}
+
+#[test]
 fn typed_letter_glued_is_plain() {
     // `port:istanbul` — `i` followed by non-ws → Plain marker, value
     // = `istanbul`. Mirrors `ktav` classify_separator.
@@ -189,6 +233,21 @@ fn line_is_multiline_content_bare_array_item_opener() {
     assert!(line_is_multiline_content(text, 2));
     assert!(line_is_multiline_content(text, 3)); // the `)` terminator
     assert!(!line_is_multiline_content(text, 4));
+}
+
+#[test]
+fn line_is_multiline_content_agrees_across_line_terminators() {
+    // § 3.2: LF, CR and CRLF are equivalent line terminators — the
+    // multi-line-block scanner must land on the same line indices
+    // regardless of which one the document uses.
+    let lf = "motd: (\n    port: 8080\n)\ndone: 1\n";
+    let cr = "motd: (\r    port: 8080\r)\rdone: 1\r";
+    let crlf = "motd: (\r\n    port: 8080\r\n)\r\ndone: 1\r\n";
+    for idx in 0..4 {
+        let want = line_is_multiline_content(lf, idx);
+        assert_eq!(line_is_multiline_content(cr, idx), want, "cr idx={idx}");
+        assert_eq!(line_is_multiline_content(crlf, idx), want, "crlf idx={idx}");
+    }
 }
 
 #[test]

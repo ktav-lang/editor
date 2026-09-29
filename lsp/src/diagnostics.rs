@@ -21,6 +21,7 @@ use ktav::{Error, ErrorKind, Span};
 use regex::Regex;
 use tower_lsp::lsp_types::{Diagnostic, DiagnosticSeverity, Position, Range};
 
+use crate::lines::{byte_to_line_col, split_lines};
 use crate::tokens::{classify_line, LineKind};
 
 /// Parse `text` and return diagnostics. Empty vec on success.
@@ -64,17 +65,23 @@ fn range_from_span(text: &str, span: Span, fallback_line: Option<u32>) -> Range 
         return full_line_range(text, line);
     }
 
-    let (start_line, start_col) = span.line_col(text);
-    let end_span = Span::new(span.end, span.end);
-    let (end_line, end_col) = end_span.line_col(text);
+    // NOT `span.line_col(text)`: `ktav::Span::line_col` only counts `\n`
+    // as a line break, so on a lone-CR document it silently under-counts
+    // lines (verified against `ktav` 0.8: it reports line 1 for an error
+    // that `ErrorKind::line()` itself — computed by the parser's own
+    // CR-aware line tracking — correctly reports as line 2+). Our own
+    // § 3.2-compliant splitter treats LF/CR/CRLF as equivalent, so it
+    // stays right regardless of the document's line terminator.
+    let (start_line, start_col) = byte_to_line_col(text, span.start as usize);
+    let (end_line, end_col) = byte_to_line_col(text, span.end as usize);
 
     Range {
         start: Position {
-            line: start_line.saturating_sub(1),
+            line: start_line,
             character: start_col,
         },
         end: Position {
-            line: end_line.saturating_sub(1),
+            line: end_line,
             character: end_col,
         },
     }
@@ -337,11 +344,11 @@ fn extract_quoted_key(msg: &str) -> Option<String> {
 }
 
 fn nth_line(text: &str, idx: usize) -> Option<&str> {
-    text.split('\n').nth(idx)
+    split_lines(text).get(idx).copied()
 }
 
 fn last_non_blank_line(text: &str) -> u32 {
-    let lines: Vec<&str> = text.split('\n').collect();
+    let lines = split_lines(text);
     for (i, l) in lines.iter().enumerate().rev() {
         if !l.trim().is_empty() {
             return i as u32;
@@ -351,7 +358,7 @@ fn last_non_blank_line(text: &str) -> u32 {
 }
 
 fn full_line_range(text: &str, line: u32) -> Range {
-    let lines: Vec<&str> = text.split('\n').collect();
+    let lines = split_lines(text);
     let idx = line as usize;
     let len = lines.get(idx).map(|s| s.len() as u32).unwrap_or(0);
     Range {
@@ -402,6 +409,22 @@ mod tests {
         // Tightened to the key segment `port` (cols 0..4).
         assert_eq!(r.start.character, 0);
         assert_eq!(r.end.character, 4);
+    }
+
+    #[test]
+    fn duplicate_key_diagnostic_agrees_across_line_terminators() {
+        // § 3.2: LF, CR and CRLF are equivalent line terminators. Before
+        // routing `range_from_span` through the shared § 3.2 splitter,
+        // `ktav::Span::line_col` (LF-only internally) reported line 0
+        // for the CR-only variant instead of line 1.
+        let lf = "port: 80\nport: 443\n";
+        let cr = "port: 80\rport: 443\r";
+        let crlf = "port: 80\r\nport: 443\r\n";
+        let want = parse_for_diagnostics(lf);
+        assert_eq!(want.len(), 1);
+        assert_eq!(want[0].range.start.line, 1);
+        assert_eq!(parse_for_diagnostics(cr)[0].range, want[0].range);
+        assert_eq!(parse_for_diagnostics(crlf)[0].range, want[0].range);
     }
 
     #[test]

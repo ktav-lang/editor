@@ -276,7 +276,8 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
 
-        let line = text.split('\n').nth(pos.line as usize).unwrap_or("");
+        let lines = crate::lines::split_lines(&text);
+        let line = lines.get(pos.line as usize).copied().unwrap_or("");
         // Route through the shared classifier so dotted keys, `:: literal`
         // array-items, comments and brace-only lines behave consistently
         // with semantic tokens / diagnostics.
@@ -336,7 +337,8 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
 
-        let line = text.split('\n').nth(pos.line as usize).unwrap_or("");
+        let lines = crate::lines::split_lines(&text);
+        let line = lines.get(pos.line as usize).copied().unwrap_or("");
         // `pos.character` is in the negotiated encoding (UTF-8 bytes or
         // UTF-16 code units) — slice accordingly so non-ASCII lines work.
         let upto = prefix_by_encoding(line, pos.character, self.encoding());

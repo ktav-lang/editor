@@ -6,7 +6,7 @@ use tower_lsp::lsp_types::{Diagnostic, DocumentSymbol, Position, SemanticToken};
 use crate::tokens::byte_to_utf16;
 
 pub(super) fn convert_diagnostics_to_utf16(diags: &mut [Diagnostic], text: &str) {
-    let lines: Vec<&str> = text.split('\n').collect();
+    let lines = crate::lines::split_lines(text);
     for d in diags {
         convert_position_to_utf16(&mut d.range.start, &lines);
         convert_position_to_utf16(&mut d.range.end, &lines);
@@ -14,7 +14,7 @@ pub(super) fn convert_diagnostics_to_utf16(diags: &mut [Diagnostic], text: &str)
 }
 
 pub(super) fn convert_symbols_to_utf16(symbols: &mut [DocumentSymbol], text: &str) {
-    let lines: Vec<&str> = text.split('\n').collect();
+    let lines = crate::lines::split_lines(text);
     fn walk(syms: &mut [DocumentSymbol], lines: &[&str]) {
         for s in syms {
             convert_position_to_utf16(&mut s.range.start, lines);
@@ -37,7 +37,7 @@ fn convert_position_to_utf16(pos: &mut Position, lines: &[&str]) {
 /// Re-encode the absolute (line, start, length) implied by a delta-encoded
 /// `SemanticToken` stream from byte offsets to UTF-16 code units.
 pub(super) fn convert_semantic_tokens_to_utf16(toks: &mut [SemanticToken], text: &str) {
-    let lines: Vec<&str> = text.split('\n').collect();
+    let lines = crate::lines::split_lines(text);
     let mut abs_line: u32 = 0;
     let mut abs_start_bytes: u32 = 0;
     let mut prev_emit_line: u32 = 0;

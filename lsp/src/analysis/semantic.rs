@@ -50,13 +50,10 @@ pub fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
     // cross-line state this module needs.
     let mut multi: Option<MultiForm> = None;
 
-    // § 3.2 also terminates lines on a lone CR, but every other position
-    // helper in this crate (utf16.rs, diagnostics.rs, symbols.rs, hover)
-    // splits on `\n` alone; splitting differently here would desync
-    // semantic-token line numbers from every other feature's positions on
-    // a lone-CR document. Left unhandled — a workspace-wide `\n`/`\r`/
-    // `\r\n` line-splitter would need to land in every module at once.
-    for (line_idx, line) in text.split('\n').enumerate() {
+    // § 3.2: LF, CR and CRLF are all valid line terminators — go through
+    // the shared splitter so semantic-token line numbers never desync
+    // from diagnostics / symbols / hover on a non-LF document.
+    for (line_idx, line) in crate::lines::split_lines(text).into_iter().enumerate() {
         let line_idx = line_idx as u32;
         multi = match multi {
             Some(form) => emit_multiline_line(line_idx, line, form, &mut abs),
@@ -278,26 +275,39 @@ fn starts_inline_compound(text: &str) -> bool {
     matches!(text.as_bytes().first(), Some(b'{') | Some(b'['))
 }
 
-/// Tokenize a single-line inline compound (`{k: v, …}` / `[v1, v2]`, nesting
-/// allowed) into structural + scalar sub-tokens. `base` is the absolute
-/// (byte) column of `text[0]`.
-///
-/// Brackets, commas and `:` / `::` separators become OPERATOR tokens so the
-/// editor treats them as real brackets (enabling bracket matching) instead of
-/// folding the whole value into one opaque string. Object keys become
-/// PROPERTY; scalar values are classified (STRING / NUMBER / KEYWORD).
-///
-/// The grammar's head/rest rule is preserved: `{` / `[` open a nested compound
-/// only at a value position; once a scalar run has begun they are ordinary
-/// literal content (`hello{world`).
-///
-/// § 5.3.3: a key run opaque-scans a `<quoted-segment>` (`"`, `'` or `` ` ``
-/// opening at the run's own first byte) so structural bytes inside it never
-/// split the token. § 5.8.2: a `::` pair value is a raw String, never
-/// dispatched through § 5.2 typing. § 5.2's escape provenance rule: any
-/// backslash in a scalar run forces String, regardless of what the decoded
-/// body would otherwise look like.
-fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
+/// One structural event produced while walking an inline compound's text
+/// (`{...}` / `[...]`) — shared by [`emit_inline`] (semantic tokens) and
+/// `analysis::symbols`'s inline-key collector, so the quote/escape-aware
+/// scanning rules (§ 5.3.3 quoted segments, § 3.7 escapes, § 5.8.5 raw
+/// values) never diverge between the two. All positions are byte offsets
+/// into the `text` passed to [`walk_inline`].
+pub(crate) enum InlineEvent<'a> {
+    /// `{` or `[`.
+    Open { pos: usize },
+    /// `}` or `]`.
+    Close { pos: usize },
+    /// `,`.
+    Comma { pos: usize },
+    /// `:` or `::` between a key and its value.
+    Sep { pos: usize, raw: bool },
+    /// An object key run, already trimmed of trailing whitespace.
+    Key { start: usize, text: &'a str },
+    /// A scalar value run, already trimmed of surrounding whitespace.
+    /// `forced_string` is set for a raw (`::`) value or one containing a
+    /// recognised escape — § 5.2's typing never applies to either.
+    Value {
+        start: usize,
+        text: &'a str,
+        forced_string: bool,
+    },
+}
+
+/// Walk a single-line inline compound (`{k: v, …}` / `[v1, v2]`, nesting
+/// allowed), emitting one [`InlineEvent`] per structural token in source
+/// order. The grammar's head/rest rule is preserved: `{` / `[` open a
+/// nested compound only at a value position; once a scalar run has begun
+/// they are ordinary literal content (`hello{world`).
+pub(crate) fn walk_inline<'a>(text: &'a str, mut emit: impl FnMut(InlineEvent<'a>)) {
     let b = text.as_bytes();
     let mut i = 0usize;
     // Container stack: true = object, false = array.
@@ -306,17 +316,6 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
     let mut expect_key = false;
     // Set by a `::` separator; cleared once the following value is consumed.
     let mut raw_value = false;
-
-    let push = |out: &mut Vec<AbsToken>, start: usize, len: usize, tt: u32| {
-        if len > 0 {
-            out.push(AbsToken {
-                line,
-                start: base + start as u32,
-                length: len as u32,
-                token_type: tt,
-            });
-        }
-    };
 
     // § 3.3: whitespace inside an inline compound is the full 25-code-point
     // set, not just ASCII space/tab. ASCII structural bytes (`{}[]:,` and
@@ -342,7 +341,7 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
             // value — a leading `{` / `[` there is literal content, never
             // a nested-compound opener. Falls through to the `_` arm.
             c @ (b'{' | b'[') if !raw_value => {
-                push(out, i, 1, TOK_OPERATOR);
+                emit(InlineEvent::Open { pos: i });
                 let is_obj = c == b'{';
                 stack.push(is_obj);
                 expect_key = is_obj;
@@ -350,14 +349,14 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
                 i += 1;
             }
             b'}' | b']' => {
-                push(out, i, 1, TOK_OPERATOR);
+                emit(InlineEvent::Close { pos: i });
                 stack.pop();
                 expect_key = false;
                 raw_value = false;
                 i += 1;
             }
             b',' => {
-                push(out, i, 1, TOK_OPERATOR);
+                emit(InlineEvent::Comma { pos: i });
                 expect_key = matches!(stack.last(), Some(true));
                 raw_value = false;
                 i += 1;
@@ -369,7 +368,10 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
                 } else {
                     1
                 };
-                push(out, i, len, TOK_OPERATOR);
+                emit(InlineEvent::Sep {
+                    pos: i,
+                    raw: len == 2,
+                });
                 expect_key = false;
                 raw_value = len == 2;
                 i += len;
@@ -408,7 +410,7 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
                     }
                     let run = &text[start..i];
                     let run = run.trim_end_matches(is_ktav_ws);
-                    push(out, start, run.len(), TOK_PROPERTY);
+                    emit(InlineEvent::Key { start, text: run });
                     // expect_key stays set; the `:` arm clears it.
                 } else {
                     // Scalar value: run until an unescaped `,` / `}` / `]`.
@@ -427,22 +429,60 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
                     let run = &text[start..i];
                     let body = run.trim_matches(is_ktav_ws);
                     let lead = run.len() - run.trim_start_matches(is_ktav_ws).len();
-                    let tt = if raw_value || escaped {
-                        TOK_STRING
-                    } else {
-                        match classify_value(body) {
-                            ValueKind::Bool => TOK_KEYWORD,
-                            ValueKind::Null => TOK_NULL,
-                            ValueKind::Number => TOK_NUMBER,
-                            _ => TOK_STRING,
-                        }
-                    };
-                    push(out, start + lead, body.len(), tt);
+                    emit(InlineEvent::Value {
+                        start: start + lead,
+                        text: body,
+                        forced_string: raw_value || escaped,
+                    });
                     raw_value = false;
                 }
             }
         }
     }
+}
+
+/// Tokenize an inline compound into structural + scalar sub-tokens via
+/// [`walk_inline`]. `base` is the absolute (byte) column of `text[0]`.
+///
+/// Brackets, commas and `:` / `::` separators become OPERATOR tokens so the
+/// editor treats them as real brackets (enabling bracket matching) instead of
+/// folding the whole value into one opaque string. Object keys become
+/// PROPERTY; scalar values are classified (STRING / NUMBER / KEYWORD).
+fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
+    let push = |out: &mut Vec<AbsToken>, start: usize, len: usize, tt: u32| {
+        if len > 0 {
+            out.push(AbsToken {
+                line,
+                start: base + start as u32,
+                length: len as u32,
+                token_type: tt,
+            });
+        }
+    };
+    walk_inline(text, |ev| match ev {
+        InlineEvent::Open { pos } => push(out, pos, 1, TOK_OPERATOR),
+        InlineEvent::Close { pos } => push(out, pos, 1, TOK_OPERATOR),
+        InlineEvent::Comma { pos } => push(out, pos, 1, TOK_OPERATOR),
+        InlineEvent::Sep { pos, raw } => push(out, pos, if raw { 2 } else { 1 }, TOK_OPERATOR),
+        InlineEvent::Key { start, text } => push(out, start, text.len(), TOK_PROPERTY),
+        InlineEvent::Value {
+            start,
+            text,
+            forced_string,
+        } => {
+            let tt = if forced_string {
+                TOK_STRING
+            } else {
+                match classify_value(text) {
+                    ValueKind::Bool => TOK_KEYWORD,
+                    ValueKind::Null => TOK_NULL,
+                    ValueKind::Number => TOK_NUMBER,
+                    _ => TOK_STRING,
+                }
+            };
+            push(out, start, text.len(), tt);
+        }
+    });
 }
 
 fn encode_deltas(toks: &[AbsToken]) -> Vec<SemanticToken> {
@@ -660,6 +700,19 @@ mod tests {
                 (2, 0, 1, TOK_OPERATOR),
             ]
         );
+    }
+
+    #[test]
+    fn tokens_agree_across_line_terminators() {
+        // § 3.2: LF, CR and CRLF are equivalent line terminators — the
+        // decoded (line, col, length, type) stream must be identical
+        // regardless of which one the document uses.
+        let lf = "a: 1\nb: {\n    c: 2\n}\n";
+        let cr = "a: 1\rb: {\r    c: 2\r}\r";
+        let crlf = "a: 1\r\nb: {\r\n    c: 2\r\n}\r\n";
+        let want = toks(lf);
+        assert_eq!(toks(cr), want);
+        assert_eq!(toks(crlf), want);
     }
 
     #[test]

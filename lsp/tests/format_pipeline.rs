@@ -57,15 +57,24 @@ fn blank_lines_inside_array_preserved() {
 
 #[test]
 fn top_level_comment_preserved() {
-    let src = "# this is the config\nname: a\n";
+    // Spec 0.5.0: a comment is a leading `##`.
+    let src = "## this is the config\nname: a\n";
     assert_eq!(reindent(src), src);
 }
 
 #[test]
 fn nested_comment_preserved_with_indent() {
-    let src = "obj: {\n# inner comment\nb: 2\n}\n";
-    let want = "obj: {\n    # inner comment\n    b: 2\n}\n";
+    let src = "obj: {\n## inner comment\nb: 2\n}\n";
+    let want = "obj: {\n    ## inner comment\n    b: 2\n}\n";
     assert_eq!(reindent(src), want);
+}
+
+#[test]
+fn single_hash_key_opens_compound_like_any_other_key() {
+    // A lone `#` is ordinary content (spec 0.5.0), not a comment marker —
+    // `#child: {` is a normal pair whose value opens a nested object.
+    let src = "#child: {\n    a: 1\n}\n";
+    assert_eq!(reindent(src), src);
 }
 
 // ---- Multi-line strings ----
@@ -134,7 +143,7 @@ fn colon_without_trailing_space_not_rewritten() {
 #[test]
 fn complex_document_canonicalised() {
     let src = "\
-# main config
+## main config
 name: server-1
 
 valx: (фывфыв)
@@ -143,7 +152,7 @@ connection: {
     host: localhost
     port: 8080
 
-    # nested comment
+    ## nested comment
     timeout: 5.0
 }
 
@@ -155,7 +164,7 @@ queries: [
     // Expected: `valx: (фывфыв)` rewritten to `valx:: (фывфыв)`,
     // everything else preserved (it's already canonical).
     let want = "\
-# main config
+## main config
 name: server-1
 
 valx:: (фывфыв)
@@ -164,7 +173,7 @@ connection: {
     host: localhost
     port: 8080
 
-    # nested comment
+    ## nested comment
     timeout: 5.0
 }
 
@@ -200,6 +209,14 @@ fn no_trailing_newline_in_input_preserved() {
 fn crlf_line_endings_normalised_to_lf() {
     let src = "a: 1\r\nb: 2\r\n";
     let want = "a: 1\nb: 2\n";
+    assert_eq!(reindent(src), want);
+}
+
+#[test]
+fn cr_only_line_endings_normalised_to_lf() {
+    // § 3.2: a lone CR is a line terminator too, equivalent to LF/CRLF.
+    let src = "a: {\r    b: 1\r}\r";
+    let want = "a: {\n    b: 1\n}\n";
     assert_eq!(reindent(src), want);
 }
 

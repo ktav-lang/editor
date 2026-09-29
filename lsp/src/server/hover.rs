@@ -20,7 +20,7 @@
 
 use ktav::Value;
 
-use crate::tokens::{find_key_separator, split_dotted};
+use crate::tokens::{classify_line, find_key_separator, split_dotted, LineKind, Marker, ValueKind};
 
 /// One path segment: a decoded object key, or an array index.
 enum Seg {
@@ -38,17 +38,36 @@ enum Opener {
     Raw(bool),
 }
 
-fn detect_opener(tail: &str) -> Option<Opener> {
-    if tail.ends_with(" ((") {
-        Some(Opener::Raw(true))
-    } else if tail.ends_with(" (") {
-        Some(Opener::Raw(false))
-    } else if tail.ends_with(" {") {
-        Some(Opener::Object)
-    } else if tail.ends_with(" [") {
-        Some(Opener::Array)
-    } else {
-        None
+/// Structural replacement for a trailing-suffix opener check: classify
+/// the WHOLE line via [`classify_line`] (the same classifier semantic
+/// tokens / the reindenter use — see `reindent::opener_of`) and read off
+/// its value's compound-opener shape, rather than pattern-matching the
+/// line's tail. A Raw (`::`) marker's value is always a literal string
+/// (§ 4) — never an opener, however it looks (`key:: ((` is the two-byte
+/// string `"(("`, not a verbatim block); a value that merely ends in
+/// `{`/`[`/`(`/`((` without BEING exactly that (a longer string, or an
+/// escaped separator like `a\: {`) is not one either, unlike a suffix
+/// match on the line's tail.
+fn detect_opener(line: &str) -> Option<Opener> {
+    let LineKind::Pair {
+        marker,
+        value_kind,
+        value_text,
+        ..
+    } = classify_line(line)
+    else {
+        return None;
+    };
+    if marker == Marker::Raw || value_kind != ValueKind::CompoundOpen {
+        return None;
+    }
+    match value_text {
+        "{" => Some(Opener::Object),
+        "[" => Some(Opener::Array),
+        "(" => Some(Opener::Raw(false)),
+        "((" => Some(Opener::Raw(true)),
+        // "{}" / "[]" / "()" — empty inline value, nothing to nest into.
+        _ => None,
     }
 }
 
@@ -108,7 +127,7 @@ fn enclosing_path(text: &str, line: usize, root_is_array: bool) -> Option<(Vec<S
     let mut root_index: usize = 0;
     let mut first_content_line = true;
 
-    for (i, raw_line) in text.split('\n').enumerate() {
+    for (i, raw_line) in crate::lines::split_lines(text).into_iter().enumerate() {
         if i >= line {
             break;
         }
@@ -127,7 +146,12 @@ fn enclosing_path(text: &str, line: usize, root_is_array: bool) -> Option<(Vec<S
         }
 
         let trimmed = raw_line.trim_start();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
+        // Spec 0.5.0: a comment is a LEADING `##` — a lone `#` is an
+        // ordinary character (e.g. `#child: {` is a valid key, not a
+        // comment). Delegate to the shared classifier so this never
+        // disagrees with semantic tokens / the reindenter on what
+        // counts as a comment.
+        if trimmed.is_empty() || matches!(classify_line(trimmed), LineKind::Comment { .. }) {
             continue;
         }
         let tail = trimmed.trim_end();
@@ -223,7 +247,7 @@ fn enclosing_path(text: &str, line: usize, root_is_array: bool) -> Option<(Vec<S
             path.push(Seg::Key(s));
         }
 
-        match detect_opener(tail) {
+        match detect_opener(trimmed) {
             Some(Opener::Object) => stack.push(Open::Compound {
                 array: false,
                 seg_count,
@@ -583,6 +607,48 @@ mod tests {
         let text = "items: [\n{\n    name: alice\n}\n]\n";
         let root = parse(text);
         assert!(resolve_value(&root, text, 99, "name").is_none());
+    }
+
+    #[test]
+    fn resolve_nested_object_key_agrees_across_line_terminators() {
+        // § 3.2: LF, CR and CRLF are equivalent line terminators — the
+        // enclosing-path scan must land on the same nesting regardless
+        // of which one the document uses. Line 1 is `port: 80` in every
+        // variant, since a document's own parse (which IS CR-aware, see
+        // `ktav`'s parser) agrees on the Value tree either way.
+        let cr = "server: {\r    port: 80\r}\r";
+        let crlf = "server: {\r\n    port: 80\r\n}\r\n";
+        for text in [cr, crlf] {
+            let root = parse(text);
+            let v = resolve_value(&root, text, 1, "port").expect("value");
+            assert_eq!(describe_value(v), "integer: `80`");
+        }
+    }
+
+    #[test]
+    fn resolve_single_hash_key_is_not_treated_as_a_comment() {
+        // Spec 0.5.0: a comment is a LEADING `##` — `#child: v` is a
+        // valid key `#child`, not a comment. Before the fix,
+        // `enclosing_path`'s own `trimmed.starts_with('#')` swallowed
+        // this line, so a sibling key after it resolved with a missing
+        // enclosing-path entry.
+        let text = "#child: v\nnext: 1\n";
+        let root = parse(text);
+        let v = resolve_value(&root, text, 0, "#child").expect("value");
+        assert_eq!(describe_value(v), "string: `v`");
+        let v2 = resolve_value(&root, text, 1, "next").expect("value");
+        assert_eq!(describe_value(v2), "integer: `1`");
+    }
+
+    #[test]
+    fn resolve_double_colon_raw_value_is_not_treated_as_an_opener() {
+        // § 4: `key:: ((` is the two-byte literal string "((", not a
+        // verbatim multi-line opener — `outer`'s enclosing path must
+        // not gain a bogus Raw frame that swallows `sibling`.
+        let text = "outer: {\n    key:: ((\n    sibling: 1\n}\n";
+        let root = parse(text);
+        let v = resolve_value(&root, text, 2, "sibling").expect("value");
+        assert_eq!(describe_value(v), "integer: `1`");
     }
 
     #[test]
