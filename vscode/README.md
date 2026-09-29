@@ -65,7 +65,7 @@ The extension is also published to [Open VSX](https://open-vsx.org/) for VSCodiu
 ## Example
 
 ```ktav
-## Ktav — no quotes, no commas, no indentation traps.
+## Ktav — optional quotes and no commas between block array items.
 service: socks5-rotator
 ## bare scalars are auto-typed: int / float / bool / null
 port: 20082
@@ -81,7 +81,7 @@ node.token:: 8080
 ## Need a literal '.' or ':' inside a key? Escape it (new in 0.6.0).
 metric.http\.requests: 42
 
-## Comma-free arrays and inline objects.
+## Block array items need no commas; inline object fields do.
 upstreams: [
     { host: a.example, port: 1080, weight: 0.7 }
     { host: b.example, port: 1080, weight: 0.3 }

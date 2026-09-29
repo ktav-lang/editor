@@ -1,25 +1,26 @@
 >>>>> lang=en
-- `Cargo.toml`: `ktav = "0.8"` (was `"0.6"`, the version in the last
+- `Cargo.toml`: `ktav = "=0.8.0"` (was `"0.6"`, the version in the last
   released v0.6.1); `rust-version` raised `1.70` → `1.71`.
-- **Quoted keys were already understood by the `ktav` parser in 0.7.0;**
-  this release extends support to the LSP's own scanners.
-  `ktav::parse`-based diagnostics/symbols already handled 0.7 syntax
-  correctly with no code changes (see below), but the LSP's *own*
-  line-based classifier (`tokens::classify_line`, `split_dotted`,
+- **Quoted keys were supported by the `ktav` parser since 0.7.0, but
+  not fully by the LSP.** Parser-based diagnostics needed no changes;
+  document symbols still needed this release's `decode_symbol_key`
+  and position fixes to match quoted keys and locate them correctly.
+  The LSP's own line-based classifier (`tokens::classify_line`, `split_dotted`,
   used for semantic tokens, hover and completion) and the document-
-  outline scanner (`symbols::collect_key_hits`) each hand-roll their
+  outline scanner (`symbols::collect_key_hits`) each hand-rolled their
   own colon/dot scan over raw text and did not know a `:` or `.`
   inside `"..."` / `'...'` / `` `...` `` is ordinary content. A quoted
   key containing a structural byte — e.g. `"a:b": 1` or
   `a."b.c".d: 1` — would have had its colon/dot misread, corrupting
   semantic highlighting, completion context detection, and the
-  document-symbol outline's key boundaries. Fixed by adding a
+  document-symbol outline's names and positions. Fixed by adding a
   quote-aware separator scan (`tokens::find_key_separator`, replacing
   `tokens::find_unescaped`) and making `tokens::split_dotted`
   quote-opaque; `symbols.rs`'s independent duplicate scanner was
   removed in favour of importing the same two functions from
-  `tokens`, which now lives up to its own "single source of truth"
-  doc comment. A quote character NOT at a segment's first position
+  `tokens`. Document symbols also decode scanned key segments before
+  matching them to parsed keys and use corrected positions. A quote
+  character NOT at a segment's first position
   (`don't: 1`) is unaffected, matching § 5.3.3's positional rule.
 - Fixed a pre-existing span-encoding bug in `textDocument/formatting`,
   found while auditing the byte-offset `Span` contract for this
@@ -128,11 +129,13 @@
   idempotent and value-preserving on all 446 `.ktav` files.
 
 >>>>> lang=ru
-- `Cargo.toml`: `ktav = "0.8"` (было `"0.6"`, версия последнего
+- `Cargo.toml`: `ktav = "=0.8.0"` (было `"0.6"`, версия последнего
   выпущенного релиза v0.6.1); `rust-version` повышен с `1.70` до `1.71`.
-- **Квотированные ключи теперь понимаются и вне парсера `ktav`.**
-  Диагностика и символы на базе `ktav::parse` и без правок корректно
-  обрабатывали синтаксис 0.7 (см. ниже), но собственный построчный
+- **Парсер `ktav` поддерживает квотированные ключи с 0.7.0, но LSP
+  поддерживал их не полностью.** Диагностика на базе парсера не требовала
+  правок; для символов документа в этом выпуске понадобились
+  `decode_symbol_key` и исправления позиций, чтобы сопоставлять и
+  правильно находить квотированные ключи. Собственный построчный
   классификатор LSP (`tokens::classify_line`, `split_dotted`,
   используемый для семантических токенов, hover и автодополнения) и
   сканер структуры документа (`symbols::collect_key_hits`) каждый
@@ -142,13 +145,14 @@
   Квотированный ключ, содержащий структурный байт, — например
   `"a:b": 1` или `a."b.c".d: 1` — получил бы неверно прочитанные
   двоеточие и точку, ломая семантическую подсветку, определение контекста
-  автодополнения и границы ключей в структуре документа. Исправлено
+  автодополнения, имена и позиции ключей в структуре документа. Исправлено
   добавлением кавычек-осведомлённого скана разделителя
   (`tokens::find_key_separator`, заменяющего `tokens::find_unescaped`)
   и переводом `tokens::split_dotted` в режим непрозрачности для
   кавычек; независимый сканер дубликатов в `symbols.rs` удалён в
-  пользу импорта тех же двух функций из `tokens`, которые теперь
-  оправдывают свой doc-комментарий «единственный источник правды».
+  пользу импорта тех же двух функций из `tokens`. Сканированные сегменты
+  ключей также декодируются перед сопоставлением с разобранными ключами;
+  позиции символов исправлены.
   Кавычка НЕ на первой позиции сегмента (`don't: 1`) не затронута —
   это соответствует позиционному правилу § 5.3.3.
 - Исправлен давний баг кодирования диапазонов в
@@ -263,21 +267,23 @@
   форматирования и сохранение значения на всех 446 файлах `.ktav`.
 
 >>>>> lang=zh
-- `Cargo.toml`:`ktav = "0.8"`(原为 `"0.6"`,即上一个已发布版本
+- `Cargo.toml`:`ktav = "=0.8.0"`(原为 `"0.6"`,即上一个已发布版本
   v0.6.1 使用的版本);`rust-version` 从 `1.70` 提升至 `1.71`。
-- **带引号的键现在在 `ktav` 解析器之外也能被正确理解。** 基于
-  `ktav::parse` 的诊断/符号无需任何代码改动即可正确处理 0.7 语法
-  (见下文),但 LSP 自有的按行分类器(`tokens::classify_line`、
+- **`ktav` 解析器自 0.7.0 起支持带引号的键,但 LSP 此前支持并不完整。**
+  基于解析器的诊断无需改动;文档符号则需要本次发布中的
+  `decode_symbol_key` 和位置修复,才能正确匹配、定位带引号的键。
+  LSP 自有的按行分类器(`tokens::classify_line`、
   `split_dotted`,用于语义高亮、悬停提示和自动补全)与文档结构扫描器
   (`symbols::collect_key_hits`)各自手工扫描原始文本中的冒号和点,
   不知道 `"..."` / `'...'` / `` `...` `` 内的 `:` 或 `.` 只是普通
   内容。含结构字节的带引号键 —— 例如 `"a:b": 1` 或 `a."b.c".d: 1`
   —— 其冒号/点会被误读,进而破坏语义高亮、补全上下文检测以及文档
-  符号大纲的键边界。修复方式是新增感知引号的冒号扫描
+  符号大纲的键名和位置。修复方式是新增感知引号的冒号扫描
   (`tokens::find_key_separator`,取代 `tokens::find_unescaped`),并让
   `tokens::split_dotted` 对引号不透明;`symbols.rs` 中独立的重复
-  扫描器已删除,改为从 `tokens` 导入同样的两个函数,它们现在终于
-  配得上自己「单一事实来源」的文档注释。不在片段首位的引号
+  扫描器已删除,改为从 `tokens` 导入同样的两个函数。扫描到的键片段
+  还会先解码再与解析后的键匹配,文档符号的位置也已修复。
+  不在片段首位的引号
   (`don't: 1`)不受影响,符合 § 5.3.3 的位置规则。
 - 修复了 `textDocument/formatting` 中一个既有的跨度编码 bug,是在
   为本次升级审计字节偏移 `Span` 契约时发现的:整档替换编辑的结束

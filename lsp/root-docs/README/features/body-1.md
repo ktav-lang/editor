@@ -12,7 +12,7 @@
   scalars become Property/Number/String, objects become Module, arrays
   become Array.
 - **Semantic tokens** — token types `comment`, `keyword`, `number`,
-  `string`, `property`, `operator`. Editors can use these instead of (or
+  `string`, `property`, `operator`, `null`. Editors can use these instead of (or
   layered over) TextMate grammars for more accurate colouring,
   especially around dotted keys and `::` raw values.
 - **Formatting** — `textDocument/formatting` canonically re-indents
@@ -34,7 +34,7 @@
   скаляры становятся Property/Number/String, объекты — Module, массивы —
   Array.
 - **Semantic tokens** — типы токенов `comment`, `keyword`, `number`,
-  `string`, `property`, `operator`. Редакторы могут использовать их
+  `string`, `property`, `operator`, `null`. Редакторы могут использовать их
   вместо (или поверх) TextMate-грамматик для более точной подсветки,
   особенно вокруг точечных ключей и сырых значений `::`.
 - **Форматирование** — `textDocument/formatting` канонически
@@ -54,7 +54,7 @@
 - **文档符号**:大纲视图反映已解析的对象树;标量为
   Property/Number/String,对象为 Module,数组为 Array。
 - **Semantic tokens**:token 类型 `comment`、`keyword`、`number`、
-  `string`、`property`、`operator`。编辑器可使用它们替代(或叠加于)
+  `string`、`property`、`operator`、`null`。编辑器可使用它们替代(或叠加于)
   TextMate 语法,尤其在点状键和 `::` 原始值附近获得更准确的着色。
 - **格式化**:`textDocument/formatting` 规范化对象/数组/括号分组的
   嵌套缩进(每级 4 个空格),完整保留空行、注释以及多行字符串块的

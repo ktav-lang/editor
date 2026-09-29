@@ -8,83 +8,73 @@
 > no manual registration step. Kept for context on why that path was
 > abandoned; statements below about a "current implementation" refer
 > to the pre-0.2.0 attempt, not the shipped plugin.
->
-> **Исторический документ.** Описывает отвергнутый подход с попыткой
-> автоматически регистрировать bundled TextMate-грамматику во время
-> выполнения. Начиная с 0.2.0 (2026-05-07) плагин вместо этого
-> использует нативный `KtavLexer` / `KtavSyntaxHighlighterFactory`
-> (подключены через `KtavParserDefinition`) для подсветки синтаксиса —
-> без TextMate-бандла, без `KtavTextMateLoader`, без шага ручной
-> регистрации. Документ сохранён как контекст, почему тот путь был
-> отвергнут; упоминания «текущей реализации» ниже относятся к
-> попытке до 0.2.0, а не к текущему плагину.
 
 ## Summary
 
-При разработке плагина Ktav для IntelliJ столкнулись с проблемой автоматической регистрации bundled TextMate грамматики. TextMate API IntelliJ имеет серьёзные ограничения, которые делают программную регистрацию невозможной или нестабильной.
+While developing the Ktav plugin for IntelliJ, we encountered a problem with automatically registering a bundled TextMate grammar. IntelliJ's TextMate API has significant limitations that make programmatic registration impossible or unreliable.
 
-## Что мы пытались сделать
+## What We Tried to Do
 
-Целью было обеспечить автоматическое включение синтаксического выделения для `.ktav` файлов при установке плагина **без** необходимости ручной регистрации через IDE Settings.
+The goal was to enable syntax highlighting for `.ktav` files automatically when the plugin was installed, **without** requiring manual registration in the IDE settings.
 
-## Архитектура решения
+## Solution Architecture
 
-### Реализация из отвергнутой попытки (KtavTextMateLoader.kt, до 0.2.0)
+### Implementation of the Rejected Attempt (KtavTextMateLoader.kt, before 0.2.0)
 
 ```
 1. appFrameCreated hook (IDE startup)
-   ├─ Проверить bundle в file-system (dev mode)
-   ├─ Если не найден, извлечь из plugin JAR
-   └─ Попытаться зарегистрировать в TextMate
+   ├─ Check for the bundle in the file system (development mode)
+   ├─ If not found, extract it from the plugin JAR
+   └─ Attempt to register it with TextMate
 
 2. projectOpened hook (Project load)
-   └─ Повторить регистрацию (для dynamic plugin loading)
+   └─ Retry registration (for dynamic plugin loading)
 
 3. Bundle extraction
-   ├─ Найти ktav-intellij-*.jar в lib/ (исключая searchableOptions)
-   ├─ Извлечь содержимое grammars/ktav/ в temp directory
-   └─ Создать .tmbundle директорию с правильной структурой
+   ├─ Find ktav-intellij-*.jar in lib/ (excluding searchableOptions)
+   ├─ Extract grammars/ktav/ into a temporary directory
+   └─ Create a .tmbundle directory with the correct structure
 
 4. Registration attempt
-   ├─ Попытка 1: Обновить textmate.xml (TextMateUserBundlesSettings)
-   ├─ Попытка 2: Вызвать TextMateService.readBundle()
-   └─ Попытка 3: Вызвать reloadEnabledBundles()
+   ├─ Attempt 1: Update textmate.xml (TextMateUserBundlesSettings)
+   ├─ Attempt 2: Call TextMateService.readBundle()
+   └─ Attempt 3: Call reloadEnabledBundles()
 ```
 
-## Что работает ✓
+## What Worked ✓
 
-1. **Bundle extraction из JAR** - успешно извлекается в формат `.tmbundle`
-2. **JAR filter** - правильно исключает searchableOptions.jar
-3. **Lifecycle hooks** - оба хука срабатывают правильно
-4. **Reflection-based API calls** - успешно вызываются методы TextMateService
-5. **reloadEnabledBundles()** - выполняется без ошибок
+1. **Bundle extraction from the JAR** - successfully produces a `.tmbundle`
+2. **JAR filter** - correctly excludes searchableOptions.jar
+3. **Lifecycle hooks** - both hooks fire as expected
+4. **Reflection-based API calls** - successfully invoke TextMateService methods
+5. **reloadEnabledBundles()** - runs without errors
 
-## Что НЕ работает ✗
+## What Did Not Work ✗
 
-### 1. TextMateService.readBundle() возвращает null
+### 1. TextMateService.readBundle() Returns null
 
 ```kotlin
 val readBundleMethod = serviceCls.getMethod("readBundle", Path::class.java)
 val bundle = readBundleMethod.invoke(service, bundlePath)
-// → Результат: null ❌
+// → Result: null ❌
 ```
 
-**Причина**: Bundle формат не соответствует ожиданиям TextMate API. Возможные причины:
-- Отсутствуют обязательные файлы (например, `info.plist`, `menu.plist`)
-- Неверная структура директорий
-- API ожидает другой формат bundle'а
+**Cause**: The bundle format does not meet the TextMate API's expectations. Possible reasons:
+- Required files are missing (for example, `info.plist` or `menu.plist`)
+- The directory structure is incorrect
+- The API expects a different bundle format
 
-### 2. Обновление textmate.xml работает, но не применяется
+### 2. Updating textmate.xml Works but Does Not Take Effect
 
-Попытка 1: JSON как простой key-value map
+Attempt 1: JSON as a simple key-value map
 ```json
 {
   "ktav": "C:\\path\\to\\Ktav.tmbundle"
 }
 ```
-**Результат**: `XmlSerializationException: Cannot deserialize TextMateUserBundleServiceState`
+**Result**: `XmlSerializationException: Cannot deserialize TextMateUserBundleServiceState`
 
-Попытка 2: JSON как array объектов
+Attempt 2: JSON as an array of objects
 ```json
 [{
   "name": "ktav",
@@ -92,21 +82,21 @@ val bundle = readBundleMethod.invoke(service, bundlePath)
   "path": "C:\\path\\to\\Ktav.tmbundle"
 }]
 ```
-**Результат**: Десериализация не сработала, ошибок не логируется
+**Result**: Deserialization failed, with no errors logged
 
-### 3. textmate.xml недоступен на время регистрации
+### 3. textmate.xml Is Unavailable During Registration
 
-- Plugin инициализируется в момент **appFrameCreated** (очень рано)
-- Файл `textmate.xml` создается IDE позже
-- Попытка найти файл завершается неудачей
-- Даже если переписать файл, IDE может не перечитать его
+- The plugin initializes at **appFrameCreated** (very early)
+- The IDE creates `textmate.xml` later
+- The attempt to locate the file fails
+- Even if the file is rewritten, the IDE might not reread it
 
-### 4. TextMate API очень ограничен
+### 4. The TextMate API Is Very Limited
 
-Доступные методы на `TextMateService` в WebStorm 2025.3:
+Available `TextMateService` methods in WebStorm 2025.3:
 ```
-- readBundle(Path)              → Bundle object или null
-- reloadEnabledBundles()        → void (перезагружает уже включённые)
+- readBundle(Path)              → Bundle object or null
+- reloadEnabledBundles()        → void (reloads already enabled bundles)
 - getFileNameMatcherToScopeNameMapping()
 - getLanguageDescriptorByExtension(String)
 - getLanguageDescriptorByFileName(String)
@@ -115,43 +105,43 @@ val bundle = readBundleMethod.invoke(service, bundlePath)
 - getPreferenceRegistry()
 ```
 
-**Отсутствуют**:
-- `registerEnabledBundle()` - не существует в 2025.3
-- `enableBundle()` - не существует
-- `registerBundle()` - не существует
-- Публичный способ добавить bundle в "включённые"
+**Missing**:
+- `registerEnabledBundle()` - does not exist in 2025.3
+- `enableBundle()` - does not exist
+- `registerBundle()` - does not exist
+- A public way to add a bundle to the enabled list
 
-### 5. Extension point TextMateBundleProvider не существует (или internal)
+### 5. The TextMateBundleProvider Extension Point Does Not Exist (or Is Internal)
 
-Попытка использовать extension point в plugin.xml:
+Attempt to use the extension point in plugin.xml:
 ```xml
 <textmate.bundleProvider
   implementation="lang.ktav.KtavTextMateBundleProvider" />
 ```
 
-**Результат**: `Unresolved reference 'TextMateBundleProvider'` - класс не экспортирован в публичный API
+**Result**: `Unresolved reference 'TextMateBundleProvider'` - the class is not exported through the public API
 
-## Исследование других плагинов
+## Investigation of Other Plugins
 
 ### WDL IDE Plugin (Broad Institute)
 
-Их реализация просто вызывает:
+Their implementation simply calls:
 ```java
 TextMateService.getInstance().registerEnabledBundles(false);
 ```
 
-**Проблема**: Метод `registerEnabledBundles()` не регистрирует новые bundle'ы, а только перезагружает уже существующие. Не ясно, как они добавляют bundle в "включённые".
+**Problem**: `registerEnabledBundles()` does not register new bundles; it only reloads existing ones. It is unclear how they add a bundle to the enabled list.
 
-### Другие плагины
+### Other Plugins
 
-Большинство плагинов используют TextMate bundle'ы либо:
-1. Через bundled_plugins.txt (для официальных плагинов JetBrains)
-2. Через явное копирование в известные директории
-3. Не предоставляют автоматическую регистрацию, требуя ручного добавления
+Most plugins use TextMate bundles in one of these ways:
+1. Through bundled_plugins.txt (for official JetBrains plugins)
+2. By explicitly copying them into known directories
+3. Without automatic registration, requiring users to add them manually
 
-## Структура TextMate Bundle
+## TextMate Bundle Structure
 
-Наш extracted bundle имеет правильную структуру:
+The extracted bundle has the correct structure:
 ```
 Ktav.tmbundle/
 ├── language-configuration.json
@@ -159,11 +149,11 @@ Ktav.tmbundle/
     └── ktav.tmLanguage.json
 ```
 
-Это соответствует стандартному формату VS Code TextMate bundle'а. Однако IDE может ожидать дополнительные файлы или другую структуру.
+This matches the standard VS Code TextMate bundle format. However, the IDE might expect additional files or a different structure.
 
-## TextMateUserBundlesSettings структура
+## TextMateUserBundlesSettings Structure
 
-В WebStorm 2025.3 конфиг хранится в `~\AppData\Roaming\JetBrains\WebStorm2025.3\options\textmate.xml`:
+In WebStorm 2025.3, the configuration is stored at `~\AppData\Roaming\JetBrains\WebStorm2025.3\options\textmate.xml`:
 
 ```xml
 <application>
@@ -173,89 +163,89 @@ Ktav.tmbundle/
 </application>
 ```
 
-**Что здесь происходит**:
-- `TextMateUserBundlesSettings` - это AppState component
-- Содержимое - это JSON, обёрнутый в CDATA
-- При ручной регистрации bundle'а JSON обновляется и переписывается
-- IDE читает JSON при загрузке и вызывает `TextMateUserBundlesSettings.deserialize()`
+**How it works**:
+- `TextMateUserBundlesSettings` is an AppState component
+- Its contents are JSON wrapped in CDATA
+- Manual bundle registration updates and rewrites the JSON
+- The IDE reads the JSON at startup and calls `TextMateUserBundlesSettings.deserialize()`
 
-**Проблема**: Мы не знаем точный JSON schema, который ожидает IDE версии 2025.3
+**Problem**: The exact JSON schema expected by IDE version 2025.3 is unknown
 
-## Почему это сложно
+## Why This Is Difficult
 
-1. **TextMate API internal** - используемые методы не являются публичной частью IntelliJ SDK
-2. **API меняется между версиями** - методы и сигнатуры отличаются между 2024.x и 2025.x
-3. **Нет документации** - JetBrains не документирует внутреннюю работу TextMate плагина
-4. **Timing проблемы** - требуется точная синхронизация инициализации плагина и IDE state
-5. **Нет extension point'а** - нельзя declaratively определить bundle'ы в plugin.xml
-6. **Версионность** - разные IDE версии имеют разные internal API
+1. **Internal TextMate API** - the methods used are not part of the public IntelliJ SDK
+2. **API changes between versions** - methods and signatures differ between 2024.x and 2025.x
+3. **No documentation** - JetBrains does not document the TextMate plugin's internals
+4. **Timing problems** - plugin initialization and IDE state require precise synchronization
+5. **No extension point** - bundles cannot be declared in plugin.xml
+6. **Version differences** - different IDE versions have different internal APIs
 
-## Возможные решения
+## Possible Solutions
 
-### 1. Manual Registration + Good UX ✓ (РЕКОМЕНДУЕТСЯ)
+### 1. Manual Registration with Good UX ✓ (Recommended at the Time)
 
-**Преимущества**:
-- Работает надёжно
-- Не зависит от internal API
-- Совместимо со всеми версиями IDE
+**Advantages**:
+- Works reliably
+- Does not depend on internal APIs
+- Is compatible with all IDE versions
 
-**Реализация**:
-- Bundle автоматически извлекается в temp directory
-- Plugin предлагает пользователю скопировать path
-- Или: Action в меню → "Register Ktav TextMate Bundle" → открыть Settings → TextMate Bundles
-- Либо: Подробная документация с пошаговыми инструкциями
+**Implementation**:
+- Extract the bundle automatically into a temporary directory
+- Have the plugin offer the user a way to copy its path
+- Alternatively, provide a "Register Ktav TextMate Bundle" menu action that opens Settings → TextMate Bundles
+- Or provide detailed, step-by-step documentation
 
-### 2. Write to textmate.xml перед IDE load
+### 2. Write to textmate.xml Before the IDE Loads
 
-**Сложность**: IDE инициализирует эту настройку очень рано, до того как плагин загружается.
+**Difficulty**: The IDE initializes this setting very early, before the plugin loads.
 
-**Возможное решение**:
-- Использовать `AppLifecycleListener.appStarting()` вместо `appFrameCreated()`
-- Писать в textmate.xml ДО того как IDE его прочитает
-- Требует точного timing и может быть нестабильным
+**Possible solution**:
+- Use `AppLifecycleListener.appStarting()` instead of `appFrameCreated()`
+- Write to textmate.xml BEFORE the IDE reads it
+- This requires precise timing and may be unstable
 
-### 3. Использовать другой хранилище конфигурации
+### 3. Use a Different Configuration Store
 
-Вместо textmate.xml, писать в:
-- `.idea/` проекта (но это не совместимо с глобальным TextMate)
-- Custom конфиг плагина (но IDE не будет его читать)
+Instead of textmate.xml, write to:
+- The project's `.idea/` directory (not compatible with global TextMate settings)
+- A custom plugin configuration file (which the IDE will not read)
 
-### 4. Bundled TextMate bundles (официальный способ)
+### 4. Bundled TextMate Bundles (Official Method)
 
-**Требует**:
-- Зарегистрировать bundle в bundled_plugins.txt
-- Возможно только для официальных плагинов JetBrains
-- Недоступно для сторонних разработчиков
+**Requirements**:
+- Register the bundle in bundled_plugins.txt
+- This is possible only for official JetBrains plugins
+- This method is unavailable to third-party developers
 
-### 5. Ожидать улучшения API в будущих версиях IDE
+### 5. Wait for API Improvements in Future IDE Versions
 
-**Состояние**: JetBrains может выпустить публичный extension point в 2026.x или позже
+**Status**: JetBrains might release a public extension point in 2026.x or later
 
-## Рекомендация
+## Recommendation
 
-**Использовать решение #1 (Manual Registration + Good UX)**
+**Use solution 1 (manual registration with good UX).** This was the historical recommendation before the switch to the native lexer.
 
-Это означает:
-1. ✓ Keep текущую реализацию (bundle extraction работает отлично)
-2. ✓ Добавить логирование пути к extracted bundle'у
-3. ✓ Создать IDE Action или Notification для пользователя
-4. ✓ Написать подробную документацию
-5. ✓ На будущее: когда JetBrains выпустит публичный API, переключиться на auto-registration
+That meant:
+1. ✓ Keep the then-current bundle extraction implementation, which worked well
+2. ✓ Log the path to the extracted bundle
+3. ✓ Create an IDE action or notification for the user
+4. ✓ Write detailed documentation
+5. ✓ Switch to automatic registration if JetBrains releases a public API in the future
 
-## Код отвергнутой попытки (историческое состояние, до 0.2.0)
+## Code from the Rejected Attempt (Historical State, Before 0.2.0)
 
-**Файлы** (в текущем плагине отсутствуют — заменены нативным лексером):
-- `src/main/kotlin/lang/ktav/KtavTextMateLoader.kt` - основная логика
+**Files** (absent from the current plugin, replaced by the native lexer):
+- `src/main/kotlin/lang/ktav/KtavTextMateLoader.kt` - main logic
 - `src/main/kotlin/lang/ktav/KtavProjectActivity.kt` - project lifecycle hook
-- `src/main/resources/META-INF/plugin.xml` - конфигурация плагина
+- `src/main/resources/META-INF/plugin.xml` - plugin configuration
 
-**Статус на момент отказа от подхода**:
-- Bundle extraction: ✓ Работает
-- Settings update: ⚠️ Работает, но не применяется
-- Auto-registration: ✗ Невозможно надёжно реализовать
+**Status when the approach was abandoned**:
+- Bundle extraction: ✓ Worked
+- Settings update: ⚠️ Ran but did not take effect
+- Auto-registration: ✗ Could not be implemented reliably
 
-С 0.2.0 подсветку даёт `KtavParserDefinition` +
-`KtavSyntaxHighlighterFactory` (нативный `KtavLexer`), см.
+Since 0.2.0, syntax highlighting has been provided by `KtavParserDefinition` and
+`KtavSyntaxHighlighterFactory` (using the native `KtavLexer`); see
 `intellij/src/main/resources/META-INF/plugin.xml`.
 
 ## References

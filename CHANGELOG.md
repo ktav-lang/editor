@@ -26,7 +26,7 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 
 - All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
   plugin) align on **0.8.0** with the `ktav` crate and the
-  specification: `lsp/Cargo.toml` now depends on `ktav = "0.8"`, the
+  specification: `lsp/Cargo.toml` now depends on `ktav = "=0.8.0"`, the
   spec submodule is re-pinned to `v0.8.0`, and the LSP conformance test
   now walks the 0.8 corpus (it previously walked the long-gone 0.6
   corpus, and its category check was silently disabled by an oracle-key
@@ -41,27 +41,28 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 
 ### LSP server (`ktav-lsp`)
 
-- `Cargo.toml`: `ktav = "0.8"` (was `"0.6"`, the version in the last
+- `Cargo.toml`: `ktav = "=0.8.0"` (was `"0.6"`, the version in the last
   released v0.6.1); `rust-version` raised `1.70` → `1.71`.
-- **Quoted keys were already understood by the `ktav` parser in 0.7.0;**
-  this release extends support to the LSP's own scanners.
-  `ktav::parse`-based diagnostics/symbols already handled 0.7 syntax
-  correctly with no code changes (see below), but the LSP's *own*
-  line-based classifier (`tokens::classify_line`, `split_dotted`,
+- **Quoted keys were supported by the `ktav` parser since 0.7.0, but
+  not fully by the LSP.** Parser-based diagnostics needed no changes;
+  document symbols still needed this release's `decode_symbol_key`
+  and position fixes to match quoted keys and locate them correctly.
+  The LSP's own line-based classifier (`tokens::classify_line`, `split_dotted`,
   used for semantic tokens, hover and completion) and the document-
-  outline scanner (`symbols::collect_key_hits`) each hand-roll their
+  outline scanner (`symbols::collect_key_hits`) each hand-rolled their
   own colon/dot scan over raw text and did not know a `:` or `.`
   inside `"..."` / `'...'` / `` `...` `` is ordinary content. A quoted
   key containing a structural byte — e.g. `"a:b": 1` or
   `a."b.c".d: 1` — would have had its colon/dot misread, corrupting
   semantic highlighting, completion context detection, and the
-  document-symbol outline's key boundaries. Fixed by adding a
+  document-symbol outline's names and positions. Fixed by adding a
   quote-aware separator scan (`tokens::find_key_separator`, replacing
   `tokens::find_unescaped`) and making `tokens::split_dotted`
   quote-opaque; `symbols.rs`'s independent duplicate scanner was
   removed in favour of importing the same two functions from
-  `tokens`, which now lives up to its own "single source of truth"
-  doc comment. A quote character NOT at a segment's first position
+  `tokens`. Document symbols also decode scanned key segments before
+  matching them to parsed keys and use corrected positions. A quote
+  character NOT at a segment's first position
   (`don't: 1`) is unaffected, matching § 5.3.3's positional rule.
 - Fixed a pre-existing span-encoding bug in `textDocument/formatting`,
   found while auditing the byte-offset `Span` contract for this

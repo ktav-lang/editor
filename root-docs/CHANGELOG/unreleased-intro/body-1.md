@@ -10,7 +10,7 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 
 - All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
   plugin) align on **0.8.0** with the `ktav` crate and the
-  specification: `lsp/Cargo.toml` now depends on `ktav = "0.8"`, the
+  specification: `lsp/Cargo.toml` now depends on `ktav = "=0.8.0"`, the
   spec submodule is re-pinned to `v0.8.0`, and the LSP conformance test
   now walks the 0.8 corpus (it previously walked the long-gone 0.6
   corpus, and its category check was silently disabled by an oracle-key
@@ -38,7 +38,7 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 
 - Все три компонента (`ktav-lsp`, расширение VS Code, плагин IntelliJ)
   синхронизированы на версии **0.8.0** с крейтом `ktav` и спецификацией:
-  `lsp/Cargo.toml` теперь зависит от `ktav = "0.8"`, подмодуль spec
+  `lsp/Cargo.toml` теперь зависит от `ktav = "=0.8.0"`, подмодуль spec
   перезакреплён на `v0.8.0`, а тест соответствия LSP теперь проходит
   по корпусу 0.8 (раньше по давно исчезнувшему корпусу 0.6, причём его
   проверка категорий была молча отключена из-за несовпадения ключей
@@ -66,7 +66,7 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 
 - 三个组件(`ktav-lsp`、VS Code 扩展、IntelliJ 插件)同步升至
   **0.8.0**,与 `ktav` crate 和规范保持一致:`lsp/Cargo.toml` 现在
-  依赖 `ktav = "0.8"`,spec 子模块重新锁定到 `v0.8.0`,LSP 一致性
+  依赖 `ktav = "=0.8.0"`,spec 子模块重新锁定到 `v0.8.0`,LSP 一致性
   测试现在遍历 0.8 语料库(此前遍历的是早已消失的 0.6 语料库,而且
   它的类别检查因 oracle 键不匹配而被静默禁用;现在类别从
   `ktav::ErrorEnvelope` 读取)。

@@ -26,6 +26,13 @@ cargo install ktav-lsp
 Это положит бинарь `ktav-lsp` в `~/.cargo/bin/`. Конфигурационный файл
 не требуется.
 
+При обычной установке могут разрешиться более новые транзитивные зависимости.
+После публикации 0.8.0 воспроизвести граф зависимостей этого выпуска можно так:
+
+```bash
+cargo install ktav-lsp --version 0.8.0 --locked
+```
+
 ## Настройка редактора
 
 ### Helix (`languages.toml`)
@@ -105,7 +112,7 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
   скаляры становятся Property/Number/String, объекты — Module, массивы —
   Array.
 - **Semantic tokens** — типы токенов `comment`, `keyword`, `number`,
-  `string`, `property`, `operator`. Редакторы могут использовать их
+  `string`, `property`, `operator`, `null`. Редакторы могут использовать их
   вместо (или поверх) TextMate-грамматик для более точной подсветки,
   особенно вокруг точечных ключей и сырых значений `::`.
 - **Форматирование** — `textDocument/formatting` канонически

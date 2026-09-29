@@ -66,29 +66,29 @@ ext install ktav-lang.ktav
 ## Пример
 
 ```ktav
-## Ktav — no quotes, no commas, no indentation traps.
+## Ktav — кавычки необязательны, а элементы блочного массива не требуют запятых.
 service: socks5-rotator
-## bare scalars are auto-typed: int / float / bool / null
+## Значения без кавычек распознаются автоматически: int / float / bool / null
 port: 20082
 debug: true
 
-## Dotted keys are a flat alternative to nesting.
+## Ключи с точками — альтернатива вложенным объектам.
 node.host: a.example
 node.port: 1080
 
-## '::' forces a literal string — keeps "8080" a string, not a number.
+## '::' задаёт строку явно — 8080 остаётся строкой, а не числом.
 node.token:: 8080
 
-## Need a literal '.' or ':' inside a key? Escape it (new in 0.6.0).
+## Нужна буквальная '.' или ':' в ключе? Экранируйте её (с версии 0.6.0).
 metric.http\.requests: 42
 
-## Comma-free arrays and inline objects.
+## В блочном массиве запятые не нужны; поля объектов в строке разделяются запятыми.
 upstreams: [
     { host: a.example, port: 1080, weight: 0.7 }
     { host: b.example, port: 1080, weight: 0.3 }
 ]
 
-## Multi-line strings.
+## Многострочные строки.
 motd: (
     Welcome to the node.
     Please behave.

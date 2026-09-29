@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Rebuilds this repository's generated Markdown from the root-docs/ unit
 // trees, using @ktav-lang/polydoc: the root README/CHANGELOG/CONTRIBUTING,
-// the lsp/, vscode/ and intellij/ README+CHANGELOG pairs, and
-// grammars/README — each with its Russian and Chinese translations. Run
+// the lsp/, vscode/ and intellij/ README+CHANGELOG pairs, historical
+// lsp/intellij notes, and grammars/README — each with Russian and Chinese
+// translations. Run
 // with --check for a CI-friendly, read-only verification instead of
 // regenerating the files.
 //
@@ -57,6 +58,11 @@ const SETS = [
         ru: 'lsp/docs/CHANGELOG.ru.md',
         zh: 'lsp/docs/CHANGELOG.zh.md',
       },
+      'bench-baseline': {
+        en: 'lsp/docs/bench-baseline.md',
+        ru: 'lsp/docs/bench-baseline.ru.md',
+        zh: 'lsp/docs/bench-baseline.zh.md',
+      },
     },
   },
   {
@@ -88,6 +94,11 @@ const SETS = [
         en: 'intellij/CHANGELOG.md',
         ru: 'intellij/docs/CHANGELOG.ru.md',
         zh: 'intellij/docs/CHANGELOG.zh.md',
+      },
+      TEXTMATE_REGISTRATION_PROBLEM: {
+        en: 'intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.md',
+        ru: 'intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.ru.md',
+        zh: 'intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.zh.md',
       },
     },
   },
@@ -191,7 +202,7 @@ function unitsDirLabel(set, doc) {
 function usage() {
   process.stderr.write(
     'usage: node scripts/build-docs.mjs [--check]\n' +
-    '  (no args)  regenerate every generated .md (en/ru/zh, five documentation sets)\n' +
+    '  (no args)  regenerate every generated .md (en/ru/zh, six documentation sets)\n' +
     '  --check    verify the generated files match the root-docs/ unit trees without writing\n'
   );
 }

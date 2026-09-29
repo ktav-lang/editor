@@ -26,6 +26,13 @@ cargo install ktav-lsp
 This drops a `ktav-lsp` binary into `~/.cargo/bin/`. No configuration file
 required.
 
+An ordinary install may resolve newer transitive dependencies. Once 0.8.0 is
+published, reproduce that release's dependency graph with:
+
+```bash
+cargo install ktav-lsp --version 0.8.0 --locked
+```
+
 ## Editor setup
 
 ### Helix (`languages.toml`)
@@ -103,7 +110,7 @@ unsupported platform, or when building the extension from source.
   scalars become Property/Number/String, objects become Module, arrays
   become Array.
 - **Semantic tokens** — token types `comment`, `keyword`, `number`,
-  `string`, `property`, `operator`. Editors can use these instead of (or
+  `string`, `property`, `operator`, `null`. Editors can use these instead of (or
   layered over) TextMate grammars for more accurate colouring,
   especially around dotted keys and `::` raw values.
 - **Formatting** — `textDocument/formatting` canonically re-indents

@@ -23,6 +23,12 @@ cargo install ktav-lsp
 
 这会将 `ktav-lsp` 二进制安装到 `~/.cargo/bin/`。无需配置文件。
 
+普通安装可能解析到更新的传递依赖。0.8.0 发布后，可用以下命令复现该版本的依赖图：
+
+```bash
+cargo install ktav-lsp --version 0.8.0 --locked
+```
+
 ## 编辑器配置
 
 ### Helix (`languages.toml`)
@@ -96,7 +102,7 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 - **文档符号**:大纲视图反映已解析的对象树;标量为
   Property/Number/String,对象为 Module,数组为 Array。
 - **Semantic tokens**:token 类型 `comment`、`keyword`、`number`、
-  `string`、`property`、`operator`。编辑器可使用它们替代(或叠加于)
+  `string`、`property`、`operator`、`null`。编辑器可使用它们替代(或叠加于)
   TextMate 语法,尤其在点状键和 `::` 原始值附近获得更准确的着色。
 - **格式化**:`textDocument/formatting` 规范化对象/数组/括号分组的
   嵌套缩进(每级 4 个空格),完整保留空行、注释以及多行字符串块的

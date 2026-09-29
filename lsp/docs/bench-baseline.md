@@ -73,7 +73,6 @@ Benches are NOT run in CI — they're a developer tool. Regressions
 should be caught manually by re-running `cargo bench` and diffing
 against this file (or a freshly captured local baseline).
 
-
 ## Post-0.2.x — re-measure (2026-05-08)
 
 Same Win10 host, IDE / language servers running concurrently
@@ -131,7 +130,6 @@ future patch (out of scope for 0.2.x).
   `tests/format_pipeline.rs` (22 cases) but no Criterion benchmark
   yet. Worth adding when the formatter sees production usage profiles.
 
-
 ## Post-optimisation — `build_symbols` O(N²) → O(N) (2026-05-08)
 
 `build_symbols` was rewritten to do a single line-by-line pass over
@@ -172,14 +170,16 @@ Other benches in the same run (release, --quick, IDE-noisy host):
 `parse_for_diagnostics` and `semantic_tokens` were not touched in
 this optimisation pass; their numbers move only with host load.
 
+## Historical post-optimisation baseline (2026-05-08, full)
 
-## Final post-optimisation reference baseline (2026-05-08, full)
+Captured against `ktav-lsp` 0.2.0 with **full** Criterion (no `--quick`,
+100 samples, 5s warm-up) on a quieter Win10 host with IDE / language
+servers closed during the run.
 
-Captured with **full** Criterion (no `--quick`, 100 samples, 5s
-warm-up) on a quieter Win10 host with IDE / language servers closed
-during the run. Reproduce with:
-
-From the `editor/lsp/` crate root:
+The fixture generator and LSP have changed
+since then. These measurements are historical, not a regression reference
+for 0.8.0; capture a fresh 0.8.0 baseline before comparing performance.
+To run the current benchmarks from the `editor/lsp/` crate root:
 
 ```sh
 cargo bench --bench parse_for_diagnostics
@@ -188,9 +188,8 @@ cargo bench --bench build_symbols
 cargo bench --bench encoding_hot_paths
 ```
 
-These numbers are the new reference for regression detection. Past
-sections used `--quick` profiles; treat this section as the source
-of truth.
+Unlike earlier `--quick` measurements, this section used a full Criterion
+run, but its numbers are valid only for that historical build and fixture.
 
 ### `parse_for_diagnostics`
 
