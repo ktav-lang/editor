@@ -281,7 +281,25 @@ jobs:
         env:
           KTAV_LSP_PATH: ${{ github.workspace }}/vscode/bin/linux-x64/ktav-lsp
       - name: Package .vsix
-        run: npx vsce package
+        shell: bash
+        run: |
+          VSIX="ktav-$(node -p "require('./package.json').version").vsix"
+          npx vsce package --out "$VSIX"
+          echo "VSIX=$VSIX" >> "$GITHUB_ENV"
+      - name: Validate packaged VSIX
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          python3 src/test/vsix_archive.py "$VSIX" "$version"
+          python3 -m unittest discover -s src/test -p test_vsix_archive.py
+          sha256sum "$VSIX" > "$VSIX.sha256"
+      - name: Smoke installed VSIX
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          sha256sum --check "$VSIX.sha256"
+          xvfb-run -a node out/test/runVsixSmoke.js "$PWD/$VSIX"
+          sha256sum --check "$VSIX.sha256"
       - name: Publish to VS Code Marketplace
         # Publishes only on a manual dispatch with publish=true; tag pushes
         # build only. The Marketplace PAT requires an Azure DevOps org (behind
@@ -290,7 +308,10 @@ jobs:
         # upload. continue-on-error keeps a failed publish from blocking the run.
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && env.VSCE_PAT != '' }}
         continue-on-error: true
-        run: npx vsce publish --pat "$VSCE_PAT"
+        run: |
+          sha256sum --check "$VSIX.sha256"
+          npx vsce publish --packagePath "$VSIX" --pat "$VSCE_PAT"
+          sha256sum --check "$VSIX.sha256"
       - name: Publish to Open VSX
         # Publishes only on a manual dispatch with publish=true; tag pushes
         # build only. Skipped when OVSX_PAT is unset. continue-on-error so an
@@ -299,13 +320,18 @@ jobs:
         # `ovsx publish ktav-<ver>.vsix --pat <token>` (no rebuild needed).
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && env.OVSX_PAT != '' }}
         continue-on-error: true
-        run: npx ovsx publish --pat "$OVSX_PAT" *.vsix
+        run: |
+          sha256sum --check "$VSIX.sha256"
+          npx ovsx publish "$VSIX" --pat "$OVSX_PAT"
+          sha256sum --check "$VSIX.sha256"
       # The universal VSIX always ships, regardless of whether either publish
       # ran — this is the artifact for manual Marketplace / Open VSX upload.
+      - name: Verify artifact bytes
+        run: sha256sum --check "$VSIX.sha256"
       - uses: actions/upload-artifact@v5
         with:
           name: vscode-vsix
-          path: vscode/*.vsix
+          path: vscode/${{ env.VSIX }}
           if-no-files-found: error
 
   # ------------------------------------------------------------------

@@ -13,7 +13,6 @@ tsconfig.json
 scripts/
 scripts/sync-grammars.js
 **/*.ts
-!out/**/*.js
 out/test/**
 
 # ---------------------------------------------------------------------------

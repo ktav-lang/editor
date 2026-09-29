@@ -1,0 +1,10 @@
+{
+  "name": "ktav-vsix-smoke-driver",
+  "displayName": "Ktav VSIX Smoke Driver",
+  "version": "0.0.1",
+  "publisher": "ktav-tests",
+  "engines": { "vscode": "^1.85.0" },
+  "main": "./extension.js",
+  "activationEvents": ["*"],
+  "extensionKind": ["workspace"]
+}
