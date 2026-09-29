@@ -226,7 +226,7 @@ class KtavLexerTest {
         assertEquals(true, toks.any { it.first == "a, b" && it.second == KtavTokenTypes.STRING_VALUE })
         assertEquals(true, toks.any { it.first == "c, d" && it.second == KtavTokenTypes.STRING_VALUE })
         // The comma must NOT be flagged as a bad character.
-        assertEquals(false, toks.any { it.second == TokenType.BAD_CHARACTER })
+        assertEquals(false, toks.any { it.second == KtavTokenTypes.BAD_CHARACTER })
     }
 
     @Test
@@ -236,7 +236,7 @@ class KtavLexerTest {
         val toks = tokens("arr: [\n    hello{world\n    mid[bracket\n    plain\n]\n")
         assertEquals(true, toks.any { it.first == "hello{world" && it.second == KtavTokenTypes.STRING_VALUE })
         assertEquals(true, toks.any { it.first == "mid[bracket" && it.second == KtavTokenTypes.STRING_VALUE })
-        assertEquals(false, toks.any { it.second == TokenType.BAD_CHARACTER })
+        assertEquals(false, toks.any { it.second == KtavTokenTypes.BAD_CHARACTER })
     }
 
     @Test
@@ -444,7 +444,7 @@ class KtavLexerTest {
         assertEquals(1, toks.size)
         assertEquals(KtavTokenTypes.STRING_VALUE, toks[0].second)
         assertEquals("\"abc: 1", toks[0].first)
-        assertEquals(false, toks.any { it.second == TokenType.BAD_CHARACTER })
+        assertEquals(false, toks.any { it.second == KtavTokenTypes.BAD_CHARACTER })
     }
 
     // ---------------------------------------------------------------

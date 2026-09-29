@@ -60,6 +60,8 @@ class KtavLexer : LexerBase() {
         private const val AFTER_KEY = 1
         private const val VALUE_STRING = 2  // after `:` — keyword/number recognition
         private const val VALUE_RAW = 3     // after `::` — literal text, no recognition
+        private const val MULTILINE_BODY_STRIPPED = 4  // inside `( ... )` — closer is a lone `)`
+        private const val MULTILINE_BODY_VERBATIM = 5  // inside `(( ... ))` — closer is a lone `))`
 
         // Inline states occupy everything >= INLINE_BASE. The remainder
         // encodes: bit0 = expectKey, bit1 = pending value is raw (`::`),
@@ -265,12 +267,27 @@ class KtavLexer : LexerBase() {
     }
 
     private fun advanceImpl(c: Char) {
-        // Newlines reset state to LINE_START regardless of previous state
-        // (inline compounds are single-line; an unterminated one resets).
+        // A lone `\r` (CRLF input) is always its own whitespace token and
+        // never touches state — the `\n` right after it does the actual
+        // line-boundary work below. Handled before any state dispatch so a
+        // CR can never be swallowed into a value/key/body-line token span
+        // (which would otherwise break exact-text classification, e.g.
+        // `true\r` no longer matching the `true` keyword).
+        if (c == '\r') {
+            myTokenEnd = myTokenStart + 1
+            myTokenType = TokenType.WHITE_SPACE
+            return
+        }
+        // Newlines reset state to LINE_START, EXCEPT inside a multiline
+        // block body: that construct is the one deliberately multi-line
+        // state (everything else here — inline compounds included — is
+        // single-line, and an unterminated one resets on `\n`).
         if (c == '\n') {
             myTokenEnd = myTokenStart + 1
             myTokenType = TokenType.WHITE_SPACE
-            myState = LINE_START
+            if (myState != MULTILINE_BODY_STRIPPED && myState != MULTILINE_BODY_VERBATIM) {
+                myState = LINE_START
+            }
             return
         }
 
@@ -291,6 +308,8 @@ class KtavLexer : LexerBase() {
             AFTER_KEY -> scanAfterKey(c)
             VALUE_STRING -> scanValueString(c, asRaw = false)
             VALUE_RAW -> scanValueString(c, asRaw = true)
+            MULTILINE_BODY_STRIPPED -> scanMultilineBodyLine(closer = ")")
+            MULTILINE_BODY_VERBATIM -> scanMultilineBodyLine(closer = "))")
             else -> scanLineStart(c)
         }
     }
@@ -321,6 +340,16 @@ class KtavLexer : LexerBase() {
             val isDouble = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == ')'
             myTokenEnd = if (isDouble) myTokenStart + 2 else myTokenStart + 1
             myTokenType = Tokens.MULTILINE_CLOSE
+            return
+        }
+        // A bare (top-level or array-item) multiline block: `(`/`((` alone
+        // opens a block whose body lines are opaque text until the matching
+        // `)`/`))` — mirrors the `key: (`/`key: ((` case in scanValueString.
+        if (c == '(') {
+            val isDouble = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == '('
+            myTokenEnd = if (isDouble) myTokenStart + 2 else myTokenStart + 1
+            myTokenType = Tokens.MULTILINE_OPEN
+            myState = if (isDouble) MULTILINE_BODY_VERBATIM else MULTILINE_BODY_STRIPPED
             return
         }
         // Array item / pair starting with a marker (`::` or `:`).
@@ -457,6 +486,7 @@ class KtavLexer : LexerBase() {
                     val isDouble = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == '('
                     myTokenEnd = if (isDouble) myTokenStart + 2 else myTokenStart + 1
                     myTokenType = Tokens.MULTILINE_OPEN
+                    myState = if (isDouble) MULTILINE_BODY_VERBATIM else MULTILINE_BODY_STRIPPED
                     return
                 }
             }
@@ -655,9 +685,41 @@ class KtavLexer : LexerBase() {
     /** Read until end of line, classifying the trimmed text when [recognise]. */
     private fun scanToEndOfLine(recognise: Boolean) {
         myTokenEnd = myTokenStart
-        while (myTokenEnd < myBufferEnd && myBuffer[myTokenEnd] != '\n') myTokenEnd++
+        while (myTokenEnd < myBufferEnd && myBuffer[myTokenEnd] != '\n' && myBuffer[myTokenEnd] != '\r') myTokenEnd++
         val text = myBuffer.subSequence(myTokenStart, myTokenEnd).trimKtav()
         myTokenType = if (recognise) classifyScalar(text) else Tokens.STRING_VALUE
+    }
+
+    /**
+     * One line inside a `(...)`/`((...))` multiline block body. The body is
+     * opaque text — no key/value/inline recognition — until a line whose
+     * only (Ktav-whitespace-trimmed) content is exactly [closer] (`)` or
+     * `))`, matching whichever opened this block). Mirrors the TextMate
+     * grammar's `^.*$` body-content rule / `^\s*(\)\)?)\s*$` closer rule.
+     *
+     * A line that starts with leading whitespace before the closer emits
+     * that whitespace as its own token first (state unchanged) so the
+     * closer itself always starts a fresh token — same split top-level
+     * closers already get via the `isHorizontalWs` check in [scanLineStart].
+     */
+    private fun scanMultilineBodyLine(closer: String) {
+        var e = myTokenStart
+        while (e < myBufferEnd && myBuffer[e] != '\n' && myBuffer[e] != '\r') e++
+        val line = myBuffer.subSequence(myTokenStart, e).toString()
+        if (line.trimKtav() == closer) {
+            val closerStart = myTokenStart + line.indexOf(closer)
+            if (closerStart > myTokenStart) {
+                myTokenEnd = closerStart
+                myTokenType = TokenType.WHITE_SPACE
+                return
+            }
+            myTokenEnd = myTokenStart + closer.length
+            myTokenType = Tokens.MULTILINE_CLOSE
+            myState = LINE_START
+            return
+        }
+        myTokenEnd = e
+        myTokenType = Tokens.MULTILINE_TEXT
     }
 
     /**
