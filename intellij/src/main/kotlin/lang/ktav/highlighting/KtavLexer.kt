@@ -62,6 +62,8 @@ class KtavLexer : LexerBase() {
         private const val VALUE_RAW = 3     // after `::` — literal text, no recognition
         private const val MULTILINE_BODY_STRIPPED = 4  // inside `( ... )` — closer is a lone `)`
         private const val MULTILINE_BODY_VERBATIM = 5  // inside `(( ... ))` — closer is a lone `))`
+        private const val MULTILINE_OPEN_STRIPPED = 6
+        private const val MULTILINE_OPEN_VERBATIM = 7
 
         // Inline states occupy everything >= INLINE_BASE. The remainder
         // encodes: bit0 = expectKey, bit1 = pending value is raw (`::`),
@@ -276,8 +278,11 @@ class KtavLexer : LexerBase() {
                 myTokenEnd++
             }
             myTokenType = TokenType.WHITE_SPACE
-            if (myState != MULTILINE_BODY_STRIPPED && myState != MULTILINE_BODY_VERBATIM) {
-                myState = LINE_START
+            myState = when (myState) {
+                MULTILINE_OPEN_STRIPPED -> MULTILINE_BODY_STRIPPED
+                MULTILINE_OPEN_VERBATIM -> MULTILINE_BODY_VERBATIM
+                MULTILINE_BODY_STRIPPED, MULTILINE_BODY_VERBATIM -> myState
+                else -> LINE_START
             }
             return
         }
@@ -299,6 +304,15 @@ class KtavLexer : LexerBase() {
             AFTER_KEY -> scanAfterKey(c)
             VALUE_STRING -> scanValueString(c, asRaw = false)
             VALUE_RAW -> scanValueString(c, asRaw = true)
+            MULTILINE_OPEN_STRIPPED, MULTILINE_OPEN_VERBATIM -> {
+                if (isHorizontalWs(c)) {
+                    scanHorizWhitespace()
+                } else {
+                    // An incremental edit can replace the opener's whitespace tail.
+                    scanToEndOfLine(recognise = false)
+                    myState = LINE_START
+                }
+            }
             MULTILINE_BODY_STRIPPED -> scanMultilineBodyLine(closer = ")")
             MULTILINE_BODY_VERBATIM -> scanMultilineBodyLine(closer = "))")
             else -> scanLineStart(c)
@@ -310,6 +324,12 @@ class KtavLexer : LexerBase() {
     // -------------------------------------------------------------------
 
     private fun scanLineStart(c: Char) {
+        // Only the first document code point is BOM metadata (spec 3.1).
+        if (myTokenStart == 0 && c == '\uFEFF') {
+            myTokenEnd++
+            myTokenType = TokenType.WHITE_SPACE
+            return
+        }
         if (isHorizontalWs(c)) {
             scanHorizWhitespace()
             return
@@ -337,10 +357,7 @@ class KtavLexer : LexerBase() {
         // opens a block whose body lines are opaque text until the matching
         // `)`/`))` — mirrors the `key: (`/`key: ((` case in scanValueString.
         if (c == '(') {
-            val isDouble = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == '('
-            myTokenEnd = if (isDouble) myTokenStart + 2 else myTokenStart + 1
-            myTokenType = Tokens.MULTILINE_OPEN
-            myState = if (isDouble) MULTILINE_BODY_VERBATIM else MULTILINE_BODY_STRIPPED
+            if (!scanMultilineOpener()) scanToEndOfLine(recognise = true)
             return
         }
         // Array item / pair starting with a marker (`::` or `:`).
@@ -469,6 +486,20 @@ class KtavLexer : LexerBase() {
         }
     }
 
+    /** Open a block only for `(`/`((` followed by spec whitespace and EOL/EOF. */
+    private fun scanMultilineOpener(): Boolean {
+        val isDouble = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == '('
+        val openerEnd = myTokenStart + if (isDouble) 2 else 1
+        var e = openerEnd
+        while (e < myBufferEnd && isHorizontalWs(myBuffer[e])) e++
+        if (e < myBufferEnd && !isLineTerminator(myBuffer[e])) return false
+        myTokenEnd = openerEnd
+        myTokenType = Tokens.MULTILINE_OPEN
+        // Opener-tail whitespace is not a body line.
+        myState = if (isDouble) MULTILINE_OPEN_VERBATIM else MULTILINE_OPEN_STRIPPED
+        return true
+    }
+
     private fun scanValueString(c: Char, asRaw: Boolean) {
         if (isHorizontalWs(c)) {
             scanHorizWhitespace()
@@ -480,13 +511,7 @@ class KtavLexer : LexerBase() {
                     myState = encodeInline(1, 1, expectKey = true); return }
                 '[' -> { myTokenEnd++; myTokenType = Tokens.LBRACKET
                     myState = encodeInline(1, 0, expectKey = false); return }
-                '(' -> {
-                    val isDouble = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == '('
-                    myTokenEnd = if (isDouble) myTokenStart + 2 else myTokenStart + 1
-                    myTokenType = Tokens.MULTILINE_OPEN
-                    myState = if (isDouble) MULTILINE_BODY_VERBATIM else MULTILINE_BODY_STRIPPED
-                    return
-                }
+                '(' -> if (scanMultilineOpener()) return
             }
         }
         // Plain scalar value: whole rest of line. Raw (`::`) skips recognition.

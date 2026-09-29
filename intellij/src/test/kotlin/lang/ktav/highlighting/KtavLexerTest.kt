@@ -212,6 +212,224 @@ class KtavLexerTest {
         }
     }
 
+    private fun assertArrayItemTokens(body: String, expected: List<Pair<String, IElementType>>) {
+        assertEquals(expected, tokens(body))
+        assertIncrementalRelexStable(body)
+        for ((prefix, prefixTokens) in listOf(
+            "[\n" to listOf("[" to KtavTokenTypes.LBRACKET),
+            "items: [\n" to listOf(
+                "items" to KtavTokenTypes.KEY, ":" to KtavTokenTypes.COLON,
+                "[" to KtavTokenTypes.LBRACKET,
+            ),
+            "items: [\n[\n" to listOf(
+                "items" to KtavTokenTypes.KEY, ":" to KtavTokenTypes.COLON,
+                "[" to KtavTokenTypes.LBRACKET, "[" to KtavTokenTypes.LBRACKET,
+            ),
+        )) {
+            val closers = if (prefix == "items: [\n[\n") 2 else 1
+            val text = prefix + body + "]\n".repeat(closers)
+            assertEquals(
+                prefixTokens + expected + List(closers) { "]" to KtavTokenTypes.RBRACKET },
+                tokens(text),
+            )
+            assertIncrementalRelexStable(text)
+        }
+    }
+
+    @Test
+    fun parenthesized_array_items_do_not_open_multiline_blocks() {
+        assertEquals(
+            listOf("(value)" to KtavTokenTypes.STRING_VALUE, "true" to KtavTokenTypes.BOOLEAN),
+            tokens("(value)\ntrue\n"),
+        )
+        for (item in listOf("(value)", "((value))", "()", "(())", "(((", "( text", "(( text", "( ## note", "( (")) {
+            for (ending in listOf("\n", "\r", "\r\n")) {
+                assertArrayItemTokens(
+                    "  $item${ending}true${ending}42${ending}1.5${ending}null${ending}",
+                    listOf(
+                        item to KtavTokenTypes.STRING_VALUE,
+                        "true" to KtavTokenTypes.BOOLEAN,
+                        "42" to KtavTokenTypes.INT_VALUE,
+                        "1.5" to KtavTokenTypes.FLOAT_VALUE,
+                        "null" to KtavTokenTypes.NULL,
+                    ),
+                )
+            }
+        }
+    }
+
+    private val horizontalSpecWhitespace = listOf(
+        '\u0009', '\u000B', '\u000C', '\u0020', '\u0085', '\u00A0', '\u1680',
+        '\u2028', '\u2029', '\u202F', '\u205F', '\u3000',
+    ) + ('\u2000'..'\u200A')
+
+    @Test
+    fun exact_array_multiline_openers_accept_only_spec_whitespace() {
+        for ((opener, closer) in listOf("(" to ")", "((" to "))")) {
+            for (ws in listOf("") + horizontalSpecWhitespace.map { it.toString() }) {
+                for (ending in listOf("\n", "\r", "\r\n")) {
+                    assertArrayItemTokens(
+                        "$ws$opener$ws${ending}true${ending}## body${ending}$ws$closer$ws${ending}false${ending}",
+                        listOf(
+                            opener to KtavTokenTypes.MULTILINE_OPEN,
+                            "true" to KtavTokenTypes.MULTILINE_TEXT,
+                            "## body" to KtavTokenTypes.MULTILINE_TEXT,
+                            closer to KtavTokenTypes.MULTILINE_CLOSE,
+                            "false" to KtavTokenTypes.BOOLEAN,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun non_spec_whitespace_after_parentheses_is_literal_content() {
+        for (ch in listOf('\u0000', '\u001C', '\u001D', '\u001E', '\u001F', '\u180E', '\u200B', '\uFEFF')) {
+            for (opener in listOf("(", "((")) {
+                val item = opener + ch
+                assertArrayItemTokens(
+                    "$item\ntrue\n",
+                    listOf(item to KtavTokenTypes.STRING_VALUE, "true" to KtavTokenTypes.BOOLEAN),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun only_the_document_leading_bom_is_metadata() {
+        for (ending in listOf("\n", "\r", "\r\n")) {
+            for ((opener, closer) in listOf("(" to ")", "((" to "))")) {
+                val text = "\uFEFF\u00A0$opener\u3000${ending}true${ending}$closer${ending}false${ending}"
+                assertEquals(
+                    listOf(
+                        opener to KtavTokenTypes.MULTILINE_OPEN,
+                        "true" to KtavTokenTypes.MULTILINE_TEXT,
+                        closer to KtavTokenTypes.MULTILINE_CLOSE,
+                        "false" to KtavTokenTypes.BOOLEAN,
+                    ),
+                    tokens(text),
+                )
+                assertIncrementalRelexStable(text)
+            }
+            assertEquals(
+                listOf(
+                    "(value)" to KtavTokenTypes.STRING_VALUE,
+                    "true" to KtavTokenTypes.BOOLEAN,
+                    "\uFEFF((" to KtavTokenTypes.STRING_VALUE,
+                    "false" to KtavTokenTypes.BOOLEAN,
+                ),
+                tokens("\uFEFF(value)${ending}true${ending}\uFEFF((${ending}false${ending}"),
+            )
+        }
+        assertEquals(
+            listOf("\uFEFF(" to KtavTokenTypes.STRING_VALUE),
+            tokens("\uFEFF\uFEFF("),
+        )
+        assertEquals(listOf("\uFEFF(" to KtavTokenTypes.STRING_VALUE), tokens(" \uFEFF("))
+    }
+
+    @Test
+    fun raw_array_markers_keep_parentheses_literal() {
+        for (item in listOf("(", "((", "(value)", "((value))", "true")) {
+            for (ending in listOf("\n", "\r", "\r\n")) {
+                assertArrayItemTokens(
+                    "::\u00A0$item${ending}true${ending}",
+                    listOf(
+                        "::" to KtavTokenTypes.DOUBLE_COLON,
+                        item to KtavTokenTypes.STRING_VALUE,
+                        "true" to KtavTokenTypes.BOOLEAN,
+                    ),
+                )
+                assertEquals(
+                    listOf(
+                        "raw" to KtavTokenTypes.KEY,
+                        "::" to KtavTokenTypes.DOUBLE_COLON,
+                        item to KtavTokenTypes.STRING_VALUE,
+                        "true" to KtavTokenTypes.BOOLEAN,
+                    ),
+                    tokens("raw:: $item${ending}true${ending}"),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun pair_values_require_exact_multiline_openers_too() {
+        for (item in listOf("(value)", "((value))", "()", "(())", "(((", "(\uFEFF")) {
+            assertEquals(
+                listOf(
+                    "value" to KtavTokenTypes.KEY,
+                    ":" to KtavTokenTypes.COLON,
+                    item to KtavTokenTypes.STRING_VALUE,
+                    "true" to KtavTokenTypes.BOOLEAN,
+                ),
+                tokens("value: $item\ntrue\n"),
+            )
+        }
+    }
+
+    @Test
+    fun inline_parentheses_are_strings_even_when_they_are_exact_openers() {
+        assertEquals(
+            listOf(
+                "[" to KtavTokenTypes.LBRACKET,
+                "(" to KtavTokenTypes.STRING_VALUE,
+                "," to KtavTokenTypes.COMMA,
+                "((" to KtavTokenTypes.STRING_VALUE,
+                "," to KtavTokenTypes.COMMA,
+                "(value)" to KtavTokenTypes.STRING_VALUE,
+                "," to KtavTokenTypes.COMMA,
+                "((value))" to KtavTokenTypes.STRING_VALUE,
+                "]" to KtavTokenTypes.RBRACKET,
+                "true" to KtavTokenTypes.BOOLEAN,
+            ),
+            tokens("[(, ((, (value), ((value))]\ntrue\n"),
+        )
+    }
+
+    @Test
+    fun multiline_opener_lookahead_respects_the_buffer_end() {
+        val text = "((value))\ntrue\n"
+        for ((end, opener) in listOf(1 to "(", 2 to "((")) {
+            val lexer = KtavLexer()
+            lexer.start(text, 0, end, 0)
+            assertEquals(KtavTokenTypes.MULTILINE_OPEN, lexer.tokenType)
+            assertEquals(opener, text.substring(lexer.tokenStart, lexer.tokenEnd))
+            lexer.advance()
+            assertEquals(null, lexer.tokenType)
+        }
+        for (opener in listOf("(", "((")) {
+            assertEquals(listOf(opener to KtavTokenTypes.MULTILINE_OPEN), tokens("$opener\u00A0"))
+            assertEquals(listOf("$opener\u00A0text" to KtavTokenTypes.STRING_VALUE), tokens("$opener\u00A0text"))
+        }
+    }
+
+    @Test
+    fun incremental_edit_of_an_opener_tail_makes_progress_and_resets_at_eol() {
+        for (opener in listOf("(", "((")) {
+            val lexer = KtavLexer()
+            val original = "$opener \nbody\n"
+            lexer.start(original, 0, original.length, 0)
+            assertEquals(KtavTokenTypes.MULTILINE_OPEN, lexer.tokenType)
+            val state = lexer.state
+
+            val edited = "$opener text\ntrue\n"
+            lexer.start(edited, opener.length, edited.length, state)
+            assertEquals(TokenType.WHITE_SPACE, lexer.tokenType)
+            lexer.advance()
+            assertEquals(KtavTokenTypes.STRING_VALUE, lexer.tokenType)
+            assertEquals("text", edited.substring(lexer.tokenStart, lexer.tokenEnd))
+            lexer.advance()
+            assertEquals(TokenType.WHITE_SPACE, lexer.tokenType)
+            lexer.advance()
+            assertEquals(KtavTokenTypes.BOOLEAN, lexer.tokenType)
+            lexer.advance()
+            lexer.advance()
+            assertEquals(null, lexer.tokenType)
+        }
+    }
+
     @Test
     fun typed_marker_removed_spec050() {
         // Spec 0.5.0: `:i` is no longer a marker. `port:i 8080` → key `port`,
