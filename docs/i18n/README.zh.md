@@ -21,7 +21,7 @@
 | [`vscode/`](../../vscode/)    | Visual Studio Code 扩展                          | VS Code Marketplace + Open VSX          |
 | [`intellij/`](../../intellij/)| IntelliJ Platform 插件(IDEA、RustRover、GoLand …) | JetBrains Marketplace                   |
 | [`lsp/`](../../lsp/)          | Language Server Protocol 实现(Rust、`tower-lsp`)  | crates.io 上的 `ktav-lsp`               |
-| [`docs/`](../../docs/)        | Helix / Neovim / Emacs 等编辑器的接入片段        | —                                       |
+| [`docs/`](../../docs/)        | Helix / Neovim / Emacs / Sublime / Zed 等编辑器的接入片段 | —                              |
 
 ## Ktav 用户能得到什么
 
@@ -38,29 +38,30 @@
 ## 架构
 
 ```
-                    ┌─────────────────────────────────────────┐
-                    │  ktav-lsp  (Rust binary, this repo)    │
-                    │  • parses via the `ktav` crate         │
-                    │  • diagnostics, hover, completion,     │
-                    │    semantic tokens, document symbols   │
-                    └─────────────────────────────────────────┘
-                                       ▲
-                                       │ LSP (JSON-RPC over stdio)
-                ┌──────────────────────┼──────────────────────┐
-                │                      │                      │
-       ┌────────┴────────┐   ┌─────────┴─────────┐   ┌────────┴────────┐
-       │ VS Code         │   │ IntelliJ Platform │   │ Helix / Neovim  │
-       │ ext (`vscode/`) │   │ plugin (`intellij/`)│  │ + LSP config    │
-       │                 │   │                     │  │                 │
-       │ TextMate grammar│   │ TextMate grammar    │  │ (LSP semantic   │
-       │ from grammars/  │   │ from grammars/      │  │  tokens for     │
-       │                 │   │                     │  │  highlighting)  │
-       └─────────────────┘   └─────────────────────┘  └─────────────────┘
+                       ┌─────────────────────────────────────┐
+                       │ ktav-lsp  (Rust binary, this repo)  │
+                       │ • parses via the `ktav` crate       │
+                       │ • diagnostics, hover, completion,   │
+                       │   semantic tokens, document symbols │
+                       └─────────────────────────────────────┘
+                                          ▲
+                                          │ LSP (JSON-RPC over stdio)
+                 ┌────────────────────────┼───────────────────────┐
+                 │                        │                       │
+       ┌─────────┴────────┐   ┌───────────┴──────────┐   ┌────────┴───────┐
+       │ VS Code          │   │ IntelliJ Platform    │   │ Helix / Neovim │
+       │ ext (`vscode/`)  │   │ plugin (`intellij/`) │   │ + LSP config   │
+       │                  │   │                      │   │                │
+       │ TextMate grammar │   │ Native lexer         │   │ (LSP semantic  │
+       │ from grammars/   │   │ (no TextMate)        │   │  tokens for    │
+       │                  │   │                      │   │  highlighting) │
+       └──────────────────┘   └──────────────────────┘   └────────────────┘
 ```
 
-TextMate 语法即时提供表层高亮(无需语言服务器)。LSP 层增加*智能*
-功能 —— 诊断、悬停、补全。两层可叠加:只安装扩展即有高亮;将
-`ktav-lsp` 加入 PATH 即可获得其余功能。
+TextMate 语法(VS Code)与 IntelliJ 的原生词法分析器都能即时提供
+表层高亮(无需语言服务器)。LSP 层增加*智能*功能 —— 诊断、悬停、
+补全。两层可叠加:只安装扩展/插件即有高亮;将 `ktav-lsp` 加入
+PATH 即可获得其余功能。
 
 ## 用户安装
 
@@ -122,7 +123,7 @@ require("lspconfig").ktav.setup({})
 - `grammars/` —— 纯 JSON,无需构建
 - `vscode/` —— Node + `vsce`
 - `intellij/` —— JDK 17 + Gradle
-- `lsp/` —— Rust 1.70+
+- `lsp/` —— Rust 1.71+
 
 一个 tag 同时触发全部四个子项目的发布(参见 [`.github/workflows/release.yml`](../../.github/workflows/release.yml))。
 

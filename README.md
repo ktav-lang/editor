@@ -21,7 +21,7 @@
 | [`vscode/`](vscode/)    | Visual Studio Code extension                                     | VS Code Marketplace + Open VSX                          |
 | [`intellij/`](intellij/)| IntelliJ Platform plugin (IntelliJ IDEA, RustRover, GoLand, …)   | JetBrains Marketplace                                   |
 | [`lsp/`](lsp/)          | Language Server Protocol implementation (Rust, `tower-lsp`)      | crates.io as `ktav-lsp`                                 |
-| [`docs/`](docs/)        | Editor-specific setup snippets (Helix, Neovim, Emacs)            | —                                                       |
+| [`docs/`](docs/)        | Editor-specific setup snippets (Helix, Neovim, Emacs, Sublime, Zed) | —                                                     |
 
 ## What you get as a Ktav user
 
@@ -36,30 +36,31 @@
 ## Architecture
 
 ```
-                    ┌─────────────────────────────────────────┐
-                    │  ktav-lsp  (Rust binary, this repo)    │
-                    │  • parses via the `ktav` crate         │
-                    │  • diagnostics, hover, completion,     │
-                    │    semantic tokens, document symbols   │
-                    └─────────────────────────────────────────┘
-                                       ▲
-                                       │ LSP (JSON-RPC over stdio)
-                ┌──────────────────────┼──────────────────────┐
-                │                      │                      │
-       ┌────────┴────────┐   ┌─────────┴─────────┐   ┌────────┴────────┐
-       │ VS Code         │   │ IntelliJ Platform │   │ Helix / Neovim  │
-       │ ext (`vscode/`) │   │ plugin (`intellij/`)│  │ + LSP config    │
-       │                 │   │                     │  │                 │
-       │ TextMate grammar│   │ TextMate grammar    │  │ (LSP semantic   │
-       │ from grammars/  │   │ from grammars/      │  │  tokens for     │
-       │                 │   │                     │  │  highlighting)  │
-       └─────────────────┘   └─────────────────────┘  └─────────────────┘
+                       ┌─────────────────────────────────────┐
+                       │ ktav-lsp  (Rust binary, this repo)  │
+                       │ • parses via the `ktav` crate       │
+                       │ • diagnostics, hover, completion,   │
+                       │   semantic tokens, document symbols │
+                       └─────────────────────────────────────┘
+                                          ▲
+                                          │ LSP (JSON-RPC over stdio)
+                 ┌────────────────────────┼───────────────────────┐
+                 │                        │                       │
+       ┌─────────┴────────┐   ┌───────────┴──────────┐   ┌────────┴───────┐
+       │ VS Code          │   │ IntelliJ Platform    │   │ Helix / Neovim │
+       │ ext (`vscode/`)  │   │ plugin (`intellij/`) │   │ + LSP config   │
+       │                  │   │                      │   │                │
+       │ TextMate grammar │   │ Native lexer         │   │ (LSP semantic  │
+       │ from grammars/   │   │ (no TextMate)        │   │  tokens for    │
+       │                  │   │                      │   │  highlighting) │
+       └──────────────────┘   └──────────────────────┘   └────────────────┘
 ```
 
-The TextMate grammar gives instant cosmetic highlighting (no language
-server needed). The LSP layer adds the *intelligent* features —
-diagnostics, hover, completion. They stack: install the extension
-alone for highlighting, add `ktav-lsp` to your PATH for everything else.
+The TextMate grammar (VS Code) and the native IntelliJ lexer both give
+instant cosmetic highlighting (no language server needed). The LSP
+layer adds the *intelligent* features — diagnostics, hover, completion.
+They stack: install the extension/plugin alone for highlighting, add
+`ktav-lsp` to your PATH for everything else.
 
 ## Installing as a user
 
@@ -122,7 +123,7 @@ Each subproject has its own toolchain. See its `README.md`:
 - `grammars/` — pure JSON; no build
 - `vscode/` — Node + `vsce`
 - `intellij/` — JDK 17 + Gradle
-- `lsp/` — Rust 1.70+
+- `lsp/` — Rust 1.71+
 
 A single tag triggers a release of all four (see [`.github/workflows/release.yml`](.github/workflows/release.yml)).
 

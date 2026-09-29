@@ -41,8 +41,8 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 
 ### LSP server (`ktav-lsp`)
 
-- `Cargo.toml`: `ktav = "0.8"` (was `"0.7"`); `rust-version` remains
-  `1.71` (raised for ktav 0.7, previously `1.70`).
+- `Cargo.toml`: `ktav = "0.8"` (was `"0.6"`, the version in the last
+  released v0.6.1); `rust-version` raised `1.70` → `1.71`.
 - **Quoted keys were already understood by the `ktav` parser in 0.7.0;**
   this release extends support to the LSP's own scanners.
   `ktav::parse`-based diagnostics/symbols already handled 0.7 syntax
@@ -68,7 +68,7 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   bump: the whole-document replace edit's end `Position.character`
   was computed with `str::chars().count()` (Unicode scalar count)
   instead of the same encoding-aware conversion every other handler
-  in `server.rs` already uses. This undercounts under both negotiated
+  in `lsp/src/server/mod.rs` already uses. This undercounts under both negotiated
   encodings whenever the last line has non-ASCII content (UTF-8:
   undercounts byte length for any multi-byte character; UTF-16:
   undercounts for any astral-plane / surrogate-pair character),
@@ -119,6 +119,28 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   and `strict-lossy` (through `ktav::parse_strict`), checks the
   `unrepresentable` oracles, and fails instead of silently passing
   when the spec submodule is missing.
+- Semantic tokens: a multi-line string block (`(` / `((`) had no
+  cross-line state, so `classify_line` re-ran on every content line in
+  isolation — a line that merely looked like a comment, a pair or a
+  lone closer was highlighted as one, and the verbatim terminator `))`
+  fell through to a String token instead of an Operator. Fixed with a
+  small `MultiForm` state carried across lines in `semantic_tokens`;
+  content lines now emit one trimmed String token each, and `(` / `((`
+  / `)` / `))` markers are always Operator. `hover` and `completion`
+  gained the same guard (`tokens::line_is_multiline_content`) so they
+  no longer misread a line inside an open block as a real `key:` pair.
+- Semantic tokens: an inline-object key escaping a structural byte
+  right after a comma (e.g. `{x: 0, \[a: 1}`) desynced the inline
+  scanner — the lone `\` became a PROPERTY token, the escaped `[`
+  opened a bogus nested array, and the real value collapsed into one
+  String. `emit_inline`'s key-run scanner now treats `\X` as one
+  escaped unit, matching the value-run scanner's existing behaviour.
+- `tests/spec_conformance.rs` gained a corpus-wide regression guard:
+  for every `valid/**.ktav` fixture, the number of Number/Bool/Null
+  *leaves* in the parsed `Value` tree must equal the number of
+  Number/Keyword/"null" *tokens* `semantic_tokens` emits (five
+  magnitude-overflow-to-String fixtures are pinned exceptions, since
+  highlighting is lexical and does not enforce i64/f64 range).
 - Known limitation: a document whose only line terminator is a lone
   CR (§ 3.2) is still split on LF by the position mapping shared by
   all handlers; a systemic fix is not part of this release.
@@ -174,6 +196,15 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 - `::` values are Strings inside inline compounds as well; an inline
   scalar with an escape is a String; a literal `:` inside an inline
   value is no longer taken for a separator.
+- Fixed stale Marketplace/Settings copy: the comment-toggle description
+  said `#` instead of `##` (`plugin.xml`, `build.gradle.kts`); the
+  Settings → Tools → Ktav help text and `KtavLanguage`/`KtavConfigurable`
+  KDoc claimed LSP features need the separate LSP4IJ plugin and that no
+  binary is bundled — both were true only before this plugin grew its
+  own built-in LSP client and per-platform bundled binaries. The
+  Marketplace description's example also had `# ...` inline comments,
+  which are not valid Ktav (`#` is ordinary content outside a leading
+  `##`) — rewritten with standalone `##` lines.
 
 ### Spec submodule
 

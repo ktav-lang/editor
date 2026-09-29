@@ -7,7 +7,7 @@
 | [`vscode/`](vscode/)    | Visual Studio Code extension                                     | VS Code Marketplace + Open VSX                          |
 | [`intellij/`](intellij/)| IntelliJ Platform plugin (IntelliJ IDEA, RustRover, GoLand, …)   | JetBrains Marketplace                                   |
 | [`lsp/`](lsp/)          | Language Server Protocol implementation (Rust, `tower-lsp`)      | crates.io as `ktav-lsp`                                 |
-| [`docs/`](docs/)        | Editor-specific setup snippets (Helix, Neovim, Emacs)            | —                                                       |
+| [`docs/`](docs/)        | Editor-specific setup snippets (Helix, Neovim, Emacs, Sublime, Zed) | —                                                     |
 
 >>>>> lang=ru
 ## Что внутри
@@ -18,7 +18,7 @@
 | [`vscode/`](../../vscode/)    | Расширение для Visual Studio Code                            | VS Code Marketplace + Open VSX                        |
 | [`intellij/`](../../intellij/)| Плагин для IntelliJ Platform (IntelliJ IDEA, RustRover, GoLand, …) | JetBrains Marketplace                                 |
 | [`lsp/`](../../lsp/)          | Реализация Language Server Protocol (Rust, `tower-lsp`)        | crates.io как `ktav-lsp`                              |
-| [`docs/`](../../docs/)        | Сниппеты настройки редакторов (Helix, Neovim, Emacs)           | —                                                     |
+| [`docs/`](../../docs/)        | Сниппеты настройки редакторов (Helix, Neovim, Emacs, Sublime, Zed) | —                                                  |
 
 >>>>> lang=zh
 ## 包含内容
@@ -29,5 +29,5 @@
 | [`vscode/`](../../vscode/)    | Visual Studio Code 扩展                          | VS Code Marketplace + Open VSX          |
 | [`intellij/`](../../intellij/)| IntelliJ Platform 插件(IDEA、RustRover、GoLand …) | JetBrains Marketplace                   |
 | [`lsp/`](../../lsp/)          | Language Server Protocol 实现(Rust、`tower-lsp`)  | crates.io 上的 `ktav-lsp`               |
-| [`docs/`](../../docs/)        | Helix / Neovim / Emacs 等编辑器的接入片段        | —                                       |
+| [`docs/`](../../docs/)        | Helix / Neovim / Emacs / Sublime / Zed 等编辑器的接入片段 | —                              |
 

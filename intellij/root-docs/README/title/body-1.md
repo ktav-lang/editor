@@ -8,8 +8,9 @@
 
 This is the `intellij/` subproject of the
 [`ktav-lang/editor`](https://github.com/ktav-lang/editor) monorepo. It
-ships the same TextMate grammar that the VS Code extension uses,
-wrapped as an IntelliJ Platform plugin.
+ships a native IntelliJ Platform lexer and highlighter (not the shared
+TextMate grammar the VS Code extension uses), wrapped as an IntelliJ
+Platform plugin.
 
 >>>>> lang=ru
 # Ktav — плагин для IntelliJ Platform
@@ -21,8 +22,9 @@ wrapped as an IntelliJ Platform plugin.
 
 Это подпроект `intellij/` монорепозитория
 [`ktav-lang/editor`](https://github.com/ktav-lang/editor). Он поставляет
-ту же TextMate-грамматику, что и расширение для VS Code, упакованную
-как плагин для IntelliJ Platform.
+нативный лексер и подсветку IntelliJ Platform (а не общую
+TextMate-грамматику, которую использует расширение для VS Code),
+упакованные как плагин для IntelliJ Platform.
 
 >>>>> lang=zh
 # Ktav —— IntelliJ Platform 插件
@@ -33,6 +35,7 @@ wrapped as an IntelliJ Platform plugin.
 > 朴素配置格式提供编辑器支持。
 
 这是 [`ktav-lang/editor`](https://github.com/ktav-lang/editor) 单一
-仓库下的 `intellij/` 子项目,随附与 VS Code 扩展相同的 TextMate
-语法,以 IntelliJ Platform 插件的形式封装。
+仓库下的 `intellij/` 子项目,提供原生的 IntelliJ Platform 词法分析
+与高亮(而非 VS Code 扩展所用的共享 TextMate 语法),以 IntelliJ
+Platform 插件的形式封装。
 

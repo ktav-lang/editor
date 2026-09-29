@@ -91,7 +91,8 @@ configuration and bridges to `ktav-lsp` for you. Install
 ## Features
 
 - **Diagnostics** — every `did_open` / `did_change` re-parses the document
-  and surfaces `ktav::Error::Syntax` messages on the offending line.
+  and reports ktav's structured `ErrorKind`, mapped to a tight byte-span
+  range on the offending line(s).
 - **Hover** — hover on a `key:` line shows the inferred type and value.
 - **Completion** — context-aware after a `:` separator: suggests `null`,
   `true`, `false`, openers (`{`, `[`, `(`, `((`), empty literals (`{}`,
@@ -102,7 +103,10 @@ configuration and bridges to `ktav-lsp` for you. Install
 - **Semantic tokens** — token types `comment`, `keyword`, `number`,
   `string`, `property`, `operator`. Editors can use these instead of (or
   layered over) TextMate grammars for more accurate colouring,
-  especially around dotted keys and typed-scalar markers.
+  especially around dotted keys and `::` raw values.
+- **Formatting** — `textDocument/formatting` canonically re-indents
+  object/array/parenthesised nesting (4 spaces per level), preserving
+  blank lines, comments and multi-line string block contents verbatim.
 
 ## Architecture
 

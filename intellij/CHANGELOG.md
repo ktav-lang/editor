@@ -24,6 +24,10 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   compounds.
 - The stale bundled `ktav-lsp.exe` copy (built from `ktav` 0.1.5) under
   `src/main/resources/bin/` is removed; the plugin never used it.
+- Marketplace/Settings descriptions no longer say `#` for comment
+  toggle (it's `##`) or claim LSP4IJ / a non-bundled binary are
+  needed — the plugin has its own built-in LSP client and bundles a
+  per-platform `ktav-lsp` binary.
 
 ## 0.5.1
 

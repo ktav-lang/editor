@@ -22,7 +22,7 @@
 | [`vscode/`](../../vscode/)    | Расширение для Visual Studio Code                            | VS Code Marketplace + Open VSX                        |
 | [`intellij/`](../../intellij/)| Плагин для IntelliJ Platform (IntelliJ IDEA, RustRover, GoLand, …) | JetBrains Marketplace                                 |
 | [`lsp/`](../../lsp/)          | Реализация Language Server Protocol (Rust, `tower-lsp`)        | crates.io как `ktav-lsp`                              |
-| [`docs/`](../../docs/)        | Сниппеты настройки редакторов (Helix, Neovim, Emacs)           | —                                                     |
+| [`docs/`](../../docs/)        | Сниппеты настройки редакторов (Helix, Neovim, Emacs, Sublime, Zed) | —                                                  |
 
 ## Что получает пользователь Ktav
 
@@ -44,31 +44,31 @@
 ## Архитектура
 
 ```
-                    ┌─────────────────────────────────────────┐
-                    │  ktav-lsp  (Rust binary, this repo)    │
-                    │  • parses via the `ktav` crate         │
-                    │  • diagnostics, hover, completion,     │
-                    │    semantic tokens, document symbols   │
-                    └─────────────────────────────────────────┘
-                                       ▲
-                                       │ LSP (JSON-RPC over stdio)
-                ┌──────────────────────┼──────────────────────┐
-                │                      │                      │
-       ┌────────┴────────┐   ┌─────────┴─────────┐   ┌────────┴────────┐
-       │ VS Code         │   │ IntelliJ Platform │   │ Helix / Neovim  │
-       │ ext (`vscode/`) │   │ plugin (`intellij/`)│  │ + LSP config    │
-       │                 │   │                     │  │                 │
-       │ TextMate grammar│   │ TextMate grammar    │  │ (LSP semantic   │
-       │ from grammars/  │   │ from grammars/      │  │  tokens for     │
-       │                 │   │                     │  │  highlighting)  │
-       └─────────────────┘   └─────────────────────┘  └─────────────────┘
+                       ┌─────────────────────────────────────┐
+                       │ ktav-lsp  (Rust binary, this repo)  │
+                       │ • parses via the `ktav` crate       │
+                       │ • diagnostics, hover, completion,   │
+                       │   semantic tokens, document symbols │
+                       └─────────────────────────────────────┘
+                                          ▲
+                                          │ LSP (JSON-RPC over stdio)
+                 ┌────────────────────────┼───────────────────────┐
+                 │                        │                       │
+       ┌─────────┴────────┐   ┌───────────┴──────────┐   ┌────────┴───────┐
+       │ VS Code          │   │ IntelliJ Platform    │   │ Helix / Neovim │
+       │ ext (`vscode/`)  │   │ plugin (`intellij/`) │   │ + LSP config   │
+       │                  │   │                      │   │                │
+       │ TextMate grammar │   │ Native lexer         │   │ (LSP semantic  │
+       │ from grammars/   │   │ (no TextMate)        │   │  tokens for    │
+       │                  │   │                      │   │  highlighting) │
+       └──────────────────┘   └──────────────────────┘   └────────────────┘
 ```
 
-TextMate-грамматика даёт мгновенную косметическую подсветку (языковой
-сервер не нужен). LSP-слой добавляет *интеллектуальные* функции —
-диагностику, hover, автокомплит. Слои складываются: поставьте только
-расширение — получите подсветку; добавьте `ktav-lsp` в PATH — и всё
-остальное.
+TextMate-грамматика (VS Code) и нативный лексер IntelliJ одинаково
+дают мгновенную косметическую подсветку (языковой сервер не нужен).
+LSP-слой добавляет *интеллектуальные* функции — диагностику, hover,
+автокомплит. Слои складываются: поставьте только расширение/плагин —
+получите подсветку; добавьте `ktav-lsp` в PATH — и всё остальное.
 
 ## Установка для пользователя
 
@@ -131,7 +131,7 @@ require("lspconfig").ktav.setup({})
 - `grammars/` — чистый JSON; без сборки
 - `vscode/` — Node + `vsce`
 - `intellij/` — JDK 17 + Gradle
-- `lsp/` — Rust 1.70+
+- `lsp/` — Rust 1.71+
 
 Один тег запускает релиз всех четырёх (см. [`.github/workflows/release.yml`](../../.github/workflows/release.yml)).
 

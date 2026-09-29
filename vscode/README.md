@@ -11,12 +11,12 @@ Syntax highlighting and language support for the [Ktav](https://github.com/ktav-
 
 - Syntax highlighting for `.ktav` files — keys, scalars, `::` literal strings, multi-line blocks, inline/block compounds, comments
 - Bracket matching and auto-closing for `{}`, `[]`, `()`
-- Comment toggle with `#`
+- Comment toggle with `##`
 - Auto-indent inside object / array / parenthesised compounds
 
 With the [`ktav-lsp`](https://github.com/ktav-lang/editor/tree/main/lsp) language server:
 
-- Diagnostics for parse errors and type mismatches
+- Diagnostics for parse errors
 - Semantic highlighting and a document outline (keys & nesting)
 - Hover info for scalar types
 

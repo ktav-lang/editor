@@ -38,8 +38,8 @@ MINOR 递进视为破坏性变更。
 
 ### LSP server (`ktav-lsp`)
 
-- `Cargo.toml`:`ktav = "0.8"`(原为 `"0.7"`);`rust-version` 仍为
-  `1.71`(随 ktav 0.7 提升,此前为 `1.70`)。
+- `Cargo.toml`:`ktav = "0.8"`(原为 `"0.6"`,即上一个已发布版本
+  v0.6.1 使用的版本);`rust-version` 从 `1.70` 提升至 `1.71`。
 - **带引号的键现在在 `ktav` 解析器之外也能被正确理解。** 基于
   `ktav::parse` 的诊断/符号无需任何代码改动即可正确处理 0.7 语法
   (见下文),但 LSP 自有的按行分类器(`tokens::classify_line`、
@@ -57,7 +57,7 @@ MINOR 递进视为破坏性变更。
 - 修复了 `textDocument/formatting` 中一个既有的跨度编码 bug,是在
   为本次升级审计字节偏移 `Span` 契约时发现的:整档替换编辑的结束
   `Position.character` 此前用 `str::chars().count()`(Unicode 标量
-  计数)计算,而不是 `server.rs` 其他处理函数都在用的、同样考虑编码
+  计数)计算,而不是 `lsp/src/server/mod.rs` 其他处理函数都在用的、同样考虑编码
   的转换。只要最后一行含非 ASCII 内容,两种协商编码下都会少算
   (UTF-8:任何多字节字符都会少算字节长度;UTF-16:任何星界平面/代理
   对字符都会少算),可能导致格式编辑后最后一行尾部字节未被替换。
@@ -97,6 +97,25 @@ MINOR 递进视为破坏性变更。
   另外运行 `parseable-unrepresentable` 和 `strict-lossy`(通过
   `ktav::parse_strict`),检查 `unrepresentable` 的 oracle,并且在缺少 spec
   子模块时失败而不是静默通过。
+- Semantic tokens:多行字符串块(`(` / `((`)此前没有跨行状态,导致
+  `classify_line` 对每一行内容都单独重新解析——某行内容只是碰巧像注释、
+  键值对或单独的闭合符,就会被当作对应类型高亮,而 verbatim 形式的
+  闭合符 `))` 也会误判为 String token 而非 Operator。现通过在
+  `semantic_tokens` 中跨行携带的小型 `MultiForm` 状态修复:块内容行
+  现在各自产生一个裁剪后的 String token,`(` / `((` / `)` / `))`
+  标记始终为 Operator。`hover` 与 `completion` 也获得了相同的防护
+  (`tokens::line_is_multiline_content`),不会再把开放块内的一行误判为
+  真正的 `key:` 键值对。
+- Semantic tokens:内联对象的键在逗号之后紧跟转义结构字节(例如
+  `{x: 0, \[a: 1}`)会使内联扫描器失步——单独的 `\` 变成 PROPERTY
+  token,被转义的 `[` 会打开一个虚假的嵌套数组,真正的值则被折叠进
+  一个字符串。`emit_inline` 的键扫描器现在将 `\X` 视为一个整体的转义
+  单元,与值扫描器现有的处理方式一致。
+- `tests/spec_conformance.rs` 新增了覆盖整个语料库的回归测试:对每个
+  `valid/**.ktav` 样例,已解析 `Value` 树中 Number/Bool/Null *叶子*
+  的数量必须与 `semantic_tokens` 输出的 Number/Keyword/"null" *token*
+  数量一致(五个数值溢出为 String 的样例为固定的例外——高亮是词法层面
+  的,不检查 i64/f64 的取值范围)。
 - 已知限制:仅以单独 CR(§ 3.2)作为行终止符的文档,仍会在所有处理器
   共用的位置映射中按 LF 拆分;系统性修复不在本次发布范围内。
 
@@ -141,6 +160,14 @@ MINOR 递进视为破坏性变更。
   普通值,并保持增量重新词法分析的状态有效。
 - 内联复合值中 `::` 之后的值同样是字符串;含转义的内联标量为字符串;
   内联值中的字面 `:` 不再被当作分隔符。
+- 修复了 Marketplace/Settings 中过时的文案:注释切换的描述写的是
+  `#` 而非 `##`(`plugin.xml`、`build.gradle.kts`);Settings → Tools
+  → Ktav 的帮助文本以及 `KtavLanguage`/`KtavConfigurable` 的 KDoc
+  声称 LSP 功能需要单独安装 LSP4IJ 插件、且未内置二进制文件 ——
+  这两点只在插件拥有自己内置的 LSP 客户端和按平台打包的二进制文件
+  之前才成立。Marketplace 描述中的示例也含有 `# ...` 这类行内注释,
+  这在 Ktav 中并不合法(`#` 若不在行首 `##` 之后即为普通内容)——
+  已改写为独立的 `##` 行。
 
 ### Spec submodule
 

@@ -14,6 +14,10 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   quoted and escaped keys.
 - The spec conformance test covers every corpus category and fails
   without the submodule.
+- Semantic tokens: multi-line string blocks (`(` / `((`) no longer leak
+  ordinary line-shape rules onto their content lines, and an inline key
+  escaping a structural byte after a comma no longer desyncs the
+  scanner. A new corpus-wide test guards both.
 
 >>>>> lang=ru
 ## [0.8.0] — 2026-09-28
@@ -30,6 +34,11 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   вложенные ключи, ключи в кавычках и с экранированием.
 - Тест соответствия спецификации покрывает все категории корпуса и
   падает без подмодуля.
+- Semantic tokens: многострочные строковые блоки (`(` / `((`) больше не
+  протекают обычными построчными правилами в свои строки содержимого, а
+  экранирование структурного байта после запятой в inline-ключе больше
+  не десинхронизирует сканер. Новый тест по всему корпусу защищает оба
+  случая.
 
 >>>>> lang=zh
 ## [0.8.0] — 2026-09-28
@@ -43,4 +52,7 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 - 内联复合值:`::` 之后的值保持为原始字符串;带引号的键片段不透明。
 - Hover 不再因长的非 ASCII 字符串而崩溃,并能解析嵌套键、带引号和带转义的键。
 - 规范一致性测试覆盖语料库的所有类别,缺少子模块时会失败。
+- Semantic tokens:多行字符串块(`(` / `((`)的内容行不再受普通逐行规则
+  影响;inline 键中逗号之后的结构字节转义也不再使扫描器失步。新增覆盖
+  整个语料库的测试防止两者回归。
 

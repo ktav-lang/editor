@@ -7,12 +7,14 @@
 
 This is the `intellij/` subproject of the
 [`ktav-lang/editor`](https://github.com/ktav-lang/editor) monorepo. It
-ships the same TextMate grammar that the VS Code extension uses,
-wrapped as an IntelliJ Platform plugin.
+ships a native IntelliJ Platform lexer and highlighter (not the shared
+TextMate grammar the VS Code extension uses), wrapped as an IntelliJ
+Platform plugin.
 
 ## Supported IDEs
 
-Anything built on the IntelliJ Platform **2024.3** (build `243`) or newer:
+Anything built on the IntelliJ Platform **2023.1** (build `231`) or
+newer — there is no upper bound (`untilBuild` is unset):
 
 - IntelliJ IDEA Community / Ultimate
 - RustRover
@@ -23,11 +25,8 @@ Anything built on the IntelliJ Platform **2024.3** (build `243`) or newer:
 - RubyMine
 - CLion
 - DataGrip
-- Android Studio (Iguana / Jellyfish or newer, once their platform base catches up)
+- Android Studio (once its platform base reaches 2023.1)
 - Aqua, Rider, Fleet (when on a compatible build)
-
-`untilBuild` is currently `251.*` (covers 2024.3 → 2025.1). New IDE
-releases are verified before each plugin release.
 
 ## Installation
 
@@ -45,27 +44,24 @@ the gear menu → **Install Plugin from Disk…** and pick
 
 ## Features
 
-- Syntax highlighting for `.ktav` files via the shared TextMate grammar.
-- Comment toggle (`Ctrl/Cmd+/`) prepends `# ` per the Ktav spec.
+- Native syntax highlighting for `.ktav` files (own lexer, no TextMate).
+- Comment toggle (`Ctrl/Cmd+/`) prepends `## ` per the Ktav spec.
 - Bracket matching and auto-closing for `{}` `[]` `()`.
 - File icon and File → New → Ktav file (icon TODO; uses the platform
   default text-file icon for now).
 
-### LSP features (optional)
+### LSP features
 
-When the [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij)
-plugin is installed alongside Ktav, you get live diagnostics, hover,
-completion, document symbols, and semantic tokens served by
-[`ktav-lsp`](../lsp). Without LSP4IJ the plugin still works in
-TextMate-only mode — install LSP4IJ from the Marketplace whenever you
-want the richer features.
+The plugin talks to [`ktav-lsp`](../lsp) through its own built-in LSP
+client — no separate LSP plugin (e.g. LSP4IJ) is required. It gives you
+live diagnostics, hover, completion, document symbols, semantic tokens
+and formatting out of the box.
 
 The server binary is discovered in this order:
 
 1. The explicit path configured under **Settings → Tools → Ktav**.
-2. A binary bundled inside the plugin distribution at
-   `bin/<platform>-<arch>/ktav-lsp` (not bundled in the current
-   release).
+2. The binary bundled inside the plugin distribution at
+   `lib/bin/<platform>-<arch>/ktav-lsp`, one per supported platform.
 3. `ktav-lsp` resolved via your shell `PATH` — install it with
    `cargo install ktav-lsp` (matches the VS Code extension's
    discovery order).

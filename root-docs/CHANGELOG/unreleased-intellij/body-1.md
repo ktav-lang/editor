@@ -11,6 +11,15 @@
 - `::` values are Strings inside inline compounds as well; an inline
   scalar with an escape is a String; a literal `:` inside an inline
   value is no longer taken for a separator.
+- Fixed stale Marketplace/Settings copy: the comment-toggle description
+  said `#` instead of `##` (`plugin.xml`, `build.gradle.kts`); the
+  Settings → Tools → Ktav help text and `KtavLanguage`/`KtavConfigurable`
+  KDoc claimed LSP features need the separate LSP4IJ plugin and that no
+  binary is bundled — both were true only before this plugin grew its
+  own built-in LSP client and per-platform bundled binaries. The
+  Marketplace description's example also had `# ...` inline comments,
+  which are not valid Ktav (`#` is ordinary content outside a leading
+  `##`) — rewritten with standalone `##` lines.
 
 >>>>> lang=ru
 ### Плагин IntelliJ
@@ -26,6 +35,17 @@
 - Значения `::` — строки и внутри inline-структур; inline-скаляр с
   экранированием — строка; литеральный `:` внутри inline-значения
   больше не принимается за разделитель.
+- Исправлены устаревшие тексты Marketplace/Settings: описание
+  переключения комментария называло `#` вместо `##` (`plugin.xml`,
+  `build.gradle.kts`); текст справки Settings → Tools → Ktav и
+  KDoc `KtavLanguage`/`KtavConfigurable` утверждали, что LSP-функции
+  требуют отдельный плагин LSP4IJ и что бинарник не вложен — оба
+  утверждения были верны только до того, как плагин обзавёлся
+  собственным встроенным LSP-клиентом и вложенными бинарниками под
+  каждую платформу. Пример в описании для Marketplace также содержал
+  inline-комментарии `# ...`, которые не являются валидным Ktav (`#` —
+  обычный символ вне ведущего `##`) — переписан на отдельные строки
+  `##`.
 
 >>>>> lang=zh
 ### IntelliJ 插件
@@ -37,4 +57,12 @@
   普通值,并保持增量重新词法分析的状态有效。
 - 内联复合值中 `::` 之后的值同样是字符串;含转义的内联标量为字符串;
   内联值中的字面 `:` 不再被当作分隔符。
+- 修复了 Marketplace/Settings 中过时的文案:注释切换的描述写的是
+  `#` 而非 `##`(`plugin.xml`、`build.gradle.kts`);Settings → Tools
+  → Ktav 的帮助文本以及 `KtavLanguage`/`KtavConfigurable` 的 KDoc
+  声称 LSP 功能需要单独安装 LSP4IJ 插件、且未内置二进制文件 ——
+  这两点只在插件拥有自己内置的 LSP 客户端和按平台打包的二进制文件
+  之前才成立。Marketplace 描述中的示例也含有 `# ...` 这类行内注释,
+  这在 Ktav 中并不合法(`#` 若不在行首 `##` 之后即为普通内容)——
+  已改写为独立的 `##` 行。
 

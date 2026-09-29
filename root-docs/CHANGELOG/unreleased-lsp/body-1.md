@@ -1,6 +1,6 @@
 >>>>> lang=en
-- `Cargo.toml`: `ktav = "0.8"` (was `"0.7"`); `rust-version` remains
-  `1.71` (raised for ktav 0.7, previously `1.70`).
+- `Cargo.toml`: `ktav = "0.8"` (was `"0.6"`, the version in the last
+  released v0.6.1); `rust-version` raised `1.70` → `1.71`.
 - **Quoted keys were already understood by the `ktav` parser in 0.7.0;**
   this release extends support to the LSP's own scanners.
   `ktav::parse`-based diagnostics/symbols already handled 0.7 syntax
@@ -26,7 +26,7 @@
   bump: the whole-document replace edit's end `Position.character`
   was computed with `str::chars().count()` (Unicode scalar count)
   instead of the same encoding-aware conversion every other handler
-  in `server.rs` already uses. This undercounts under both negotiated
+  in `lsp/src/server/mod.rs` already uses. This undercounts under both negotiated
   encodings whenever the last line has non-ASCII content (UTF-8:
   undercounts byte length for any multi-byte character; UTF-16:
   undercounts for any astral-plane / surrogate-pair character),
@@ -77,13 +77,35 @@
   and `strict-lossy` (through `ktav::parse_strict`), checks the
   `unrepresentable` oracles, and fails instead of silently passing
   when the spec submodule is missing.
+- Semantic tokens: a multi-line string block (`(` / `((`) had no
+  cross-line state, so `classify_line` re-ran on every content line in
+  isolation — a line that merely looked like a comment, a pair or a
+  lone closer was highlighted as one, and the verbatim terminator `))`
+  fell through to a String token instead of an Operator. Fixed with a
+  small `MultiForm` state carried across lines in `semantic_tokens`;
+  content lines now emit one trimmed String token each, and `(` / `((`
+  / `)` / `))` markers are always Operator. `hover` and `completion`
+  gained the same guard (`tokens::line_is_multiline_content`) so they
+  no longer misread a line inside an open block as a real `key:` pair.
+- Semantic tokens: an inline-object key escaping a structural byte
+  right after a comma (e.g. `{x: 0, \[a: 1}`) desynced the inline
+  scanner — the lone `\` became a PROPERTY token, the escaped `[`
+  opened a bogus nested array, and the real value collapsed into one
+  String. `emit_inline`'s key-run scanner now treats `\X` as one
+  escaped unit, matching the value-run scanner's existing behaviour.
+- `tests/spec_conformance.rs` gained a corpus-wide regression guard:
+  for every `valid/**.ktav` fixture, the number of Number/Bool/Null
+  *leaves* in the parsed `Value` tree must equal the number of
+  Number/Keyword/"null" *tokens* `semantic_tokens` emits (five
+  magnitude-overflow-to-String fixtures are pinned exceptions, since
+  highlighting is lexical and does not enforce i64/f64 range).
 - Known limitation: a document whose only line terminator is a lone
   CR (§ 3.2) is still split on LF by the position mapping shared by
   all handlers; a systemic fix is not part of this release.
 
 >>>>> lang=ru
-- `Cargo.toml`: `ktav = "0.8"` (было `"0.7"`); `rust-version` остаётся
-  `1.71` (повышен при переходе на ktav 0.7, ранее `1.70`).
+- `Cargo.toml`: `ktav = "0.8"` (было `"0.6"`, версия последнего
+  выпущенного релиза v0.6.1); `rust-version` повышен с `1.70` до `1.71`.
 - **Квотированные ключи теперь понимаются и вне парсера `ktav`.**
   Диагностика и символы на базе `ktav::parse` и без правок корректно
   обрабатывали синтаксис 0.7 (см. ниже), но собственный построчный
@@ -111,7 +133,7 @@
   `Position.character` правки замены всего документа вычислялась через
   `str::chars().count()` (число скаляров Unicode) вместо того же
   преобразования с учётом кодировки, которое уже используют все
-  остальные обработчики в `server.rs`. Это занижает счётчик при обеих
+  остальные обработчики в `lsp/src/server/mod.rs`. Это занижает счётчик при обеих
   согласованных кодировках, когда последняя строка содержит не-ASCII
   (UTF-8: занижает байтовую длину для любого многобайтового символа;
   UTF-16: занижает для любого астрального символа / суррогатной
@@ -164,14 +186,37 @@
   и `strict-lossy` (через `ktav::parse_strict`), проверяет оракулы
   `unrepresentable` и падает, а не проходит молча, если подмодуль spec
   отсутствует.
+- Semantic tokens: у многострочного строкового блока (`(` / `((`) не
+  было состояния между строками, поэтому `classify_line` заново
+  разбирал каждую строку содержимого в одиночку — строка, лишь похожая
+  на комментарий, пару или одиночную закрывающую скобку, подсвечивалась
+  как таковая, а закрывающая `))` verbatim-формы вместо Operator
+  становилась токеном String. Исправлено небольшим состоянием
+  `MultiForm`, переносимым между строками в `semantic_tokens`: строки
+  содержимого теперь дают ровно один обрезанный токен String, а маркеры
+  `(` / `((` / `)` / `))` всегда Operator. `hover` и `completion`
+  получили ту же защиту (`tokens::line_is_multiline_content`) и больше
+  не принимают строку внутри открытого блока за настоящую пару `key:`.
+- Semantic tokens: экранирование структурного байта сразу после запятой
+  в ключе inline-объекта (например, `{x: 0, \[a: 1}`) десинхронизировало
+  inline-сканер — одиночный `\` становился токеном PROPERTY, экранированный
+  `[` открывал фиктивный вложенный массив, а реальное значение схлопывалось
+  в одну строку. Сканер ключа в `emit_inline` теперь трактует `\X` как одну
+  экранированную единицу — так же, как уже делает сканер значений.
+- `tests/spec_conformance.rs` получил сквозной регрессионный тест по
+  корпусу: для каждой фикстуры `valid/**.ktav` число Number/Bool/Null
+  *листьев* в распарсенном дереве `Value` должно совпадать с числом
+  токенов Number/Keyword/"null", которые выдаёт `semantic_tokens` (пять
+  фикстур с переполнением величины в String — зафиксированные
+  исключения: подсветка лексическая и не проверяет диапазон i64/f64).
 - Известное ограничение: документ, где единственный разделитель строк —
   одиночный CR (§ 3.2), по-прежнему делится по LF в общем для всех
   обработчиков отображении позиций; системное исправление не входит в
   этот релиз.
 
 >>>>> lang=zh
-- `Cargo.toml`:`ktav = "0.8"`(原为 `"0.7"`);`rust-version` 仍为
-  `1.71`(随 ktav 0.7 提升,此前为 `1.70`)。
+- `Cargo.toml`:`ktav = "0.8"`(原为 `"0.6"`,即上一个已发布版本
+  v0.6.1 使用的版本);`rust-version` 从 `1.70` 提升至 `1.71`。
 - **带引号的键现在在 `ktav` 解析器之外也能被正确理解。** 基于
   `ktav::parse` 的诊断/符号无需任何代码改动即可正确处理 0.7 语法
   (见下文),但 LSP 自有的按行分类器(`tokens::classify_line`、
@@ -189,7 +234,7 @@
 - 修复了 `textDocument/formatting` 中一个既有的跨度编码 bug,是在
   为本次升级审计字节偏移 `Span` 契约时发现的:整档替换编辑的结束
   `Position.character` 此前用 `str::chars().count()`(Unicode 标量
-  计数)计算,而不是 `server.rs` 其他处理函数都在用的、同样考虑编码
+  计数)计算,而不是 `lsp/src/server/mod.rs` 其他处理函数都在用的、同样考虑编码
   的转换。只要最后一行含非 ASCII 内容,两种协商编码下都会少算
   (UTF-8:任何多字节字符都会少算字节长度;UTF-16:任何星界平面/代理
   对字符都会少算),可能导致格式编辑后最后一行尾部字节未被替换。
@@ -229,6 +274,25 @@
   另外运行 `parseable-unrepresentable` 和 `strict-lossy`(通过
   `ktav::parse_strict`),检查 `unrepresentable` 的 oracle,并且在缺少 spec
   子模块时失败而不是静默通过。
+- Semantic tokens:多行字符串块(`(` / `((`)此前没有跨行状态,导致
+  `classify_line` 对每一行内容都单独重新解析——某行内容只是碰巧像注释、
+  键值对或单独的闭合符,就会被当作对应类型高亮,而 verbatim 形式的
+  闭合符 `))` 也会误判为 String token 而非 Operator。现通过在
+  `semantic_tokens` 中跨行携带的小型 `MultiForm` 状态修复:块内容行
+  现在各自产生一个裁剪后的 String token,`(` / `((` / `)` / `))`
+  标记始终为 Operator。`hover` 与 `completion` 也获得了相同的防护
+  (`tokens::line_is_multiline_content`),不会再把开放块内的一行误判为
+  真正的 `key:` 键值对。
+- Semantic tokens:内联对象的键在逗号之后紧跟转义结构字节(例如
+  `{x: 0, \[a: 1}`)会使内联扫描器失步——单独的 `\` 变成 PROPERTY
+  token,被转义的 `[` 会打开一个虚假的嵌套数组,真正的值则被折叠进
+  一个字符串。`emit_inline` 的键扫描器现在将 `\X` 视为一个整体的转义
+  单元,与值扫描器现有的处理方式一致。
+- `tests/spec_conformance.rs` 新增了覆盖整个语料库的回归测试:对每个
+  `valid/**.ktav` 样例,已解析 `Value` 树中 Number/Bool/Null *叶子*
+  的数量必须与 `semantic_tokens` 输出的 Number/Keyword/"null" *token*
+  数量一致(五个数值溢出为 String 的样例为固定的例外——高亮是词法层面
+  的,不检查 i64/f64 的取值范围)。
 - 已知限制:仅以单独 CR(§ 3.2)作为行终止符的文档,仍会在所有处理器
   共用的位置映射中按 LF 拆分;系统性修复不在本次发布范围内。
 

@@ -1,7 +1,8 @@
 >>>>> lang=en
 ## Supported IDEs
 
-Anything built on the IntelliJ Platform **2024.3** (build `243`) or newer:
+Anything built on the IntelliJ Platform **2023.1** (build `231`) or
+newer — there is no upper bound (`untilBuild` is unset):
 
 - IntelliJ IDEA Community / Ultimate
 - RustRover
@@ -12,16 +13,14 @@ Anything built on the IntelliJ Platform **2024.3** (build `243`) or newer:
 - RubyMine
 - CLion
 - DataGrip
-- Android Studio (Iguana / Jellyfish or newer, once their platform base catches up)
+- Android Studio (once its platform base reaches 2023.1)
 - Aqua, Rider, Fleet (when on a compatible build)
-
-`untilBuild` is currently `251.*` (covers 2024.3 → 2025.1). New IDE
-releases are verified before each plugin release.
 
 >>>>> lang=ru
 ## Поддерживаемые IDE
 
-Любая IDE на IntelliJ Platform **2024.3** (build `243`) или новее:
+Любая IDE на IntelliJ Platform **2023.1** (build `231`) или новее —
+верхней границы нет (`untilBuild` не задан):
 
 - IntelliJ IDEA Community / Ultimate
 - RustRover
@@ -32,17 +31,14 @@ releases are verified before each plugin release.
 - RubyMine
 - CLion
 - DataGrip
-- Android Studio (Iguana / Jellyfish или новее, когда их платформа
-  догонит)
+- Android Studio (когда её платформа достигнет 2023.1)
 - Aqua, Rider, Fleet (на совместимых билдах)
-
-`untilBuild` сейчас `251.*` (покрывает 2024.3 → 2025.1). Каждый
-релиз плагина проходит проверку на новых версиях IDE.
 
 >>>>> lang=zh
 ## 支持的 IDE
 
-任何基于 IntelliJ Platform **2024.3**(build `243`)及以上的 IDE:
+任何基于 IntelliJ Platform **2023.1**(build `231`)及以上的 IDE ——
+没有上限(未设置 `untilBuild`):
 
 - IntelliJ IDEA Community / Ultimate
 - RustRover
@@ -53,9 +49,6 @@ releases are verified before each plugin release.
 - RubyMine
 - CLion
 - DataGrip
-- Android Studio(Iguana / Jellyfish 或更新版,待其平台基线跟进)
+- Android Studio(待其平台基线达到 2023.1)
 - Aqua、Rider、Fleet(在兼容版本上)
-
-`untilBuild` 当前为 `251.*`(覆盖 2024.3 → 2025.1)。每次插件发布
-前都会针对新 IDE 版本进行验证。
 

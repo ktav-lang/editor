@@ -86,8 +86,8 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 
 ## 功能
 
-- **诊断**:每次 `did_open` / `did_change` 都会重新解析文档,并在出错
-  行上显示 `ktav::Error::Syntax` 消息。
+- **诊断**:每次 `did_open` / `did_change` 都会重新解析文档,并报告
+  `ktav` 的结构化 `ErrorKind`,精确映射到出错行(们)的字节区间。
 - **Hover**:在 `key:` 行悬停可显示推断的类型和值。
 - **补全**:在 `:` 分隔符之后上下文感知补全:`null`、`true`、`false`、
   开括号(`{`、`[`、`(`、`((`)、空字面量(`{}`、`[]`、`()`)以及
@@ -96,7 +96,10 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
   Property/Number/String,对象为 Module,数组为 Array。
 - **Semantic tokens**:token 类型 `comment`、`keyword`、`number`、
   `string`、`property`、`operator`。编辑器可使用它们替代(或叠加于)
-  TextMate 语法,尤其在点状键和类型标记附近获得更准确的着色。
+  TextMate 语法,尤其在点状键和 `::` 原始值附近获得更准确的着色。
+- **格式化**:`textDocument/formatting` 规范化对象/数组/括号分组的
+  嵌套缩进(每级 4 个空格),完整保留空行、注释以及多行字符串块的
+  内容。
 
 ## 架构
 

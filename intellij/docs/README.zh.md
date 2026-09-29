@@ -6,12 +6,14 @@
 > 朴素配置格式提供编辑器支持。
 
 这是 [`ktav-lang/editor`](https://github.com/ktav-lang/editor) 单一
-仓库下的 `intellij/` 子项目,随附与 VS Code 扩展相同的 TextMate
-语法,以 IntelliJ Platform 插件的形式封装。
+仓库下的 `intellij/` 子项目,提供原生的 IntelliJ Platform 词法分析
+与高亮(而非 VS Code 扩展所用的共享 TextMate 语法),以 IntelliJ
+Platform 插件的形式封装。
 
 ## 支持的 IDE
 
-任何基于 IntelliJ Platform **2024.3**(build `243`)及以上的 IDE:
+任何基于 IntelliJ Platform **2023.1**(build `231`)及以上的 IDE ——
+没有上限(未设置 `untilBuild`):
 
 - IntelliJ IDEA Community / Ultimate
 - RustRover
@@ -22,11 +24,8 @@
 - RubyMine
 - CLion
 - DataGrip
-- Android Studio(Iguana / Jellyfish 或更新版,待其平台基线跟进)
+- Android Studio(待其平台基线达到 2023.1)
 - Aqua、Rider、Fleet(在兼容版本上)
-
-`untilBuild` 当前为 `251.*`(覆盖 2024.3 → 2025.1)。每次插件发布
-前都会针对新 IDE 版本进行验证。
 
 ## 安装
 
@@ -44,26 +43,23 @@
 
 ## 功能
 
-- 通过共享 TextMate 语法为 `.ktav` 文件提供语法高亮。
-- 注释切换(`Ctrl/Cmd+/`)按 Ktav 规范在行首添加 `# `。
+- 原生语法高亮支持 `.ktav` 文件(自有词法分析器,不依赖 TextMate)。
+- 注释切换(`Ctrl/Cmd+/`)按 Ktav 规范在行首添加 `## `。
 - `{}` `[]` `()` 的括号匹配与自动闭合。
 - 文件图标与 File → New → Ktav file(图标 TODO;暂时使用平台
   默认的文本文件图标)。
 
-### LSP 功能(可选)
+### LSP 功能
 
-当与 Ktav 一同安装了
-[LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) 插件时,
-即可获得由 [`ktav-lsp`](../../lsp) 提供的实时诊断、悬停、补全、
-document symbols 和 semantic tokens。未安装 LSP4IJ 时,本插件仍以
-TextMate-only 模式正常工作 —— 需要更丰富的功能时再从 Marketplace
-安装 LSP4IJ 即可。
+插件通过自带的内置 LSP 客户端与 [`ktav-lsp`](../../lsp) 通信 ——
+无需安装单独的 LSP 插件(例如 LSP4IJ)。开箱即用地提供实时诊断、
+悬停、补全、document symbols、semantic tokens 和格式化。
 
 服务器二进制按以下顺序查找:
 
 1. **Settings → Tools → Ktav** 中显式配置的路径。
 2. 打包在插件分发包中的二进制
-   `bin/<platform>-<arch>/ktav-lsp`(当前版本未打包)。
+   `lib/bin/<platform>-<arch>/ktav-lsp`,每个受支持平台各一份。
 3. 通过 shell `PATH` 解析的 `ktav-lsp` —— 用
    `cargo install ktav-lsp` 安装(与 VS Code 扩展的查找顺序一致)。
 

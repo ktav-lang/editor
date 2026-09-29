@@ -1,57 +1,50 @@
 >>>>> lang=en
-### LSP features (optional)
+### LSP features
 
-When the [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij)
-plugin is installed alongside Ktav, you get live diagnostics, hover,
-completion, document symbols, and semantic tokens served by
-[`ktav-lsp`](../lsp). Without LSP4IJ the plugin still works in
-TextMate-only mode — install LSP4IJ from the Marketplace whenever you
-want the richer features.
+The plugin talks to [`ktav-lsp`](../lsp) through its own built-in LSP
+client — no separate LSP plugin (e.g. LSP4IJ) is required. It gives you
+live diagnostics, hover, completion, document symbols, semantic tokens
+and formatting out of the box.
 
 The server binary is discovered in this order:
 
 1. The explicit path configured under **Settings → Tools → Ktav**.
-2. A binary bundled inside the plugin distribution at
-   `bin/<platform>-<arch>/ktav-lsp` (not bundled in the current
-   release).
+2. The binary bundled inside the plugin distribution at
+   `lib/bin/<platform>-<arch>/ktav-lsp`, one per supported platform.
 3. `ktav-lsp` resolved via your shell `PATH` — install it with
    `cargo install ktav-lsp` (matches the VS Code extension's
    discovery order).
 
 >>>>> lang=ru
-### LSP-фичи (опционально)
+### LSP-фичи
 
-Если вместе с Ktav установлен плагин
-[LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij), вы
-получаете live-диагностику, hover, автокомплит, document symbols и
-semantic tokens от [`ktav-lsp`](../../lsp). Без LSP4IJ плагин всё
-равно работает в режиме TextMate-only — ставьте LSP4IJ из Marketplace,
-когда захотите richer features.
+Плагин общается с [`ktav-lsp`](../../lsp) через собственный встроенный
+LSP-клиент — отдельный LSP-плагин (например, LSP4IJ) не требуется. Из
+коробки доступны live-диагностика, hover, автокомплит, document
+symbols, semantic tokens и форматирование.
 
 Бинарник сервера ищется в таком порядке:
 
 1. Явный путь, заданный в **Settings → Tools → Ktav**.
 2. Бинарник, вложенный в дистрибутив плагина по пути
-   `bin/<platform>-<arch>/ktav-lsp` (в текущем релизе не вложен).
+   `lib/bin/<platform>-<arch>/ktav-lsp` — по одному на каждую
+   поддерживаемую платформу.
 3. `ktav-lsp`, найденный через `PATH` вашей оболочки — установите
    его командой `cargo install ktav-lsp` (совпадает с порядком
    поиска в расширении VS Code).
 
 >>>>> lang=zh
-### LSP 功能(可选)
+### LSP 功能
 
-当与 Ktav 一同安装了
-[LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) 插件时,
-即可获得由 [`ktav-lsp`](../../lsp) 提供的实时诊断、悬停、补全、
-document symbols 和 semantic tokens。未安装 LSP4IJ 时,本插件仍以
-TextMate-only 模式正常工作 —— 需要更丰富的功能时再从 Marketplace
-安装 LSP4IJ 即可。
+插件通过自带的内置 LSP 客户端与 [`ktav-lsp`](../../lsp) 通信 ——
+无需安装单独的 LSP 插件(例如 LSP4IJ)。开箱即用地提供实时诊断、
+悬停、补全、document symbols、semantic tokens 和格式化。
 
 服务器二进制按以下顺序查找:
 
 1. **Settings → Tools → Ktav** 中显式配置的路径。
 2. 打包在插件分发包中的二进制
-   `bin/<platform>-<arch>/ktav-lsp`(当前版本未打包)。
+   `lib/bin/<platform>-<arch>/ktav-lsp`,每个受支持平台各一份。
 3. 通过 shell `PATH` 解析的 `ktav-lsp` —— 用
    `cargo install ktav-lsp` 安装(与 VS Code 扩展的查找顺序一致)。
 

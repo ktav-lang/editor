@@ -22,6 +22,10 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   quoted and escaped keys.
 - The spec conformance test covers every corpus category and fails
   without the submodule.
+- Semantic tokens: multi-line string blocks (`(` / `((`) no longer leak
+  ordinary line-shape rules onto their content lines, and an inline key
+  escaping a structural byte after a comma no longer desyncs the
+  scanner. A new corpus-wide test guards both.
 
 ## [0.5.0] — 2026-05-27
 
