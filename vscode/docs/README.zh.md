@@ -118,4 +118,4 @@ Ktav 是同一个 Rust 核心,以各语言的薄绑定封装 —— 行为一致
 
 ## 许可证
 
-MIT OR Apache-2.0 —— 见 [LICENSE-MIT](./LICENSE-MIT) 与 [LICENSE-APACHE](./LICENSE-APACHE)。
+MIT OR Apache-2.0 —— 见 [LICENSE-MIT](../LICENSE-MIT) 与 [LICENSE-APACHE](../LICENSE-APACHE)。

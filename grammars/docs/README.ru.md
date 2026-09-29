@@ -1,7 +1,7 @@
 # Грамматики Ktav для редакторов
 
 Каноническая TextMate-грамматика и языковая конфигурация VS Code для
-текстового конфигурационного формата [Ktav](../../../spec/) (`.ktav`).
+текстового конфигурационного формата [Ktav](../../spec/) (`.ktav`).
 
 **Languages:** [English](../README.md) · **Русский** · [简体中文](README.zh.md)
 
@@ -9,7 +9,7 @@
 
 - `ktav.tmLanguage.json` — TextMate-грамматика. Имя scope `source.ktav`,
   расширение файлов `.ktav`. Подходит для любого хоста с поддержкой
-  TextMate (VS Code, Sublime Text, Atom, TextMate-бандлы IntelliJ, GitHub
+  TextMate (VS Code, Sublime Text, Atom, GitHub
   Linguist, инструменты рядом с `tree-sitter`, читающие TextMate, и т. д.).
 - `language-configuration.json` — языковая конфигурация VS Code:
   комментарии, скобки, автозакрывающиеся пары, правила отступов, шаблон
@@ -17,17 +17,17 @@
 
 ## Где используется
 
-Эти два JSON-файла — канонические артефакты. Downstream-пакеты
-подключают их по ссылке (копия или symlink) — логика не дублируется:
+Эти два JSON-файла — канонические артефакты TextMate и конфигурации VS Code:
 
 - `vscode/` — включает их через `contributes.languages` и
   `contributes.grammars` в `package.json`.
-- `intellij/` — загружает `ktav.tmLanguage.json` через API TextMate-бандлов
-  IntelliJ.
+- `intellij/` — использует собственные `KtavLexer` и
+  `KtavSyntaxHighlighterFactory` для нативной подсветки; TextMate-грамматика
+  здесь не загружается.
 
-Когда вы меняете грамматику здесь, оба downstream-пакета получают новое
-поведение при следующей сборке / упаковке. Не заводите копии в
-downstream-подпроектах; исправляйте ошибку здесь.
+Изменения грамматики попадают в расширение VS Code при следующей сборке /
+упаковке. При необходимости такое же поведение в лексере IntelliJ нужно
+обновить отдельно.
 
 ## Локальное тестирование
 

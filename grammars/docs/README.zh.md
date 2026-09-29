@@ -1,6 +1,6 @@
 # Ktav 编辑器语法
 
-[Ktav](../../../spec/) 纯文本配置格式(`.ktav`)的规范 TextMate 语法与
+[Ktav](../../spec/) 纯文本配置格式(`.ktav`)的规范 TextMate 语法与
 VS Code 语言配置。
 
 **Languages:** [English](../README.md) · [Русский](README.ru.md) · **简体中文**
@@ -9,22 +9,22 @@ VS Code 语言配置。
 
 - `ktav.tmLanguage.json` — TextMate 语法。scope 名为 `source.ktav`,
   文件扩展名为 `.ktav`。适用于任何兼容 TextMate 的宿主(VS Code、
-  Sublime Text、Atom、IntelliJ TextMate 包、GitHub Linguist、消费
+  Sublime Text、Atom、GitHub Linguist、消费
   TextMate 的 `tree-sitter` 周边工具等)。
 - `language-configuration.json` — VS Code 语言配置:注释、括号、自动
   闭合对、缩进规则、单词模式。
 
 ## 使用位置
 
-这两个 JSON 文件是规范产物。下游包通过引用(复制或符号链接)使用它们
-——不重复任何逻辑:
+这两个 JSON 文件是 TextMate 语法和 VS Code 语言配置的规范产物:
 
 - `vscode/` — 通过 `package.json` 的 `contributes.languages` 与
   `contributes.grammars` 打包它们。
-- `intellij/` — 通过 IntelliJ TextMate 包 API 加载 `ktav.tmLanguage.json`。
+- `intellij/` — 使用自己的 `KtavLexer` 和 `KtavSyntaxHighlighterFactory`
+  进行原生语法高亮,不加载此 TextMate 语法。
 
-在此修改语法后,两个下游包会在下一次构建 / 打包时获得新行为。不要在
-下游子项目中分叉副本;请在这里修复问题。
+此处的语法修改会在下次构建 / 打包时进入 VS Code 扩展。若 IntelliJ
+词法分析器也需要相同行为,必须单独更新。
 
 ## 本地测试
 

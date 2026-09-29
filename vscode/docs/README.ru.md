@@ -120,4 +120,4 @@ Ktav — это одно Rust-ядро, обёрнутое тонкими бин
 
 ## Лицензия
 
-MIT OR Apache-2.0 — см. [LICENSE-MIT](./LICENSE-MIT) и [LICENSE-APACHE](./LICENSE-APACHE).
+MIT OR Apache-2.0 — см. [LICENSE-MIT](../LICENSE-MIT) и [LICENSE-APACHE](../LICENSE-APACHE).

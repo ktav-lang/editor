@@ -1,7 +1,7 @@
 # Ktav editor grammars
 
 Canonical TextMate grammar and VS Code language configuration for the
-[Ktav](../../spec/) plain-text configuration format (`.ktav`).
+[Ktav](../spec/) plain-text configuration format (`.ktav`).
 
 **Languages:** **English** · [Русский](docs/README.ru.md) · [简体中文](docs/README.zh.md)
 
@@ -9,7 +9,7 @@ Canonical TextMate grammar and VS Code language configuration for the
 
 - `ktav.tmLanguage.json` — TextMate grammar. Scope name `source.ktav`,
   file extension `.ktav`. Suitable for any TextMate-compatible host
-  (VS Code, Sublime Text, Atom, IntelliJ TextMate bundles, GitHub
+  (VS Code, Sublime Text, Atom, GitHub
   Linguist, `tree-sitter`-adjacent tools that consume TextMate, etc.).
 - `language-configuration.json` — VS Code language configuration:
   comments, brackets, auto-closing pairs, indentation rules, word
@@ -17,17 +17,17 @@ Canonical TextMate grammar and VS Code language configuration for the
 
 ## Where it is used
 
-These two JSON files are the canonical artifacts. Downstream packages
-consume them by reference (copy or symlink) — no logic is duplicated:
+These two JSON files are the canonical TextMate and VS Code configuration
+artifacts:
 
 - `vscode/` — bundles them via `package.json` `contributes.languages`
   and `contributes.grammars`.
-- `intellij/` — loads `ktav.tmLanguage.json` through the IntelliJ
-  TextMate bundle API.
+- `intellij/` — uses its own `KtavLexer` and
+  `KtavSyntaxHighlighterFactory` for native highlighting; it does not load
+  this TextMate grammar.
 
-When you change the grammar here, both downstream packages pick up
-the new behavior on their next build / packaging step. Do not fork
-copies in the downstream subprojects; fix the bug here.
+Grammar changes reach the VS Code extension on its next build / packaging
+step. Update the IntelliJ lexer separately when the same behavior is needed.
 
 ## Local testing
 
