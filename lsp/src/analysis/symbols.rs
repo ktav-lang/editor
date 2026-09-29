@@ -116,10 +116,15 @@ fn build_array_items(
 /// Array items may be bare scalars without keys (e.g. `foo` on a line
 /// of its own), which `collect_key_hits` skips.
 fn collect_top_array_item_lines(text: &str) -> Vec<(u32, u32)> {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Compound {
+        Object,
+        Other,
+    }
+
     let mut out: Vec<(u32, u32)> = Vec::new();
     let mut multi = Multi::None;
-    let mut depth: u32 = 0;
-    let mut compound_pushes: Vec<u32> = Vec::new();
+    let mut compounds: Vec<Compound> = Vec::new();
     let mut first_content_line = true;
 
     for (i, line) in crate::lines::content_lines(text).into_iter().enumerate() {
@@ -132,9 +137,7 @@ fn collect_top_array_item_lines(text: &str) -> Vec<(u32, u32)> {
             };
             if is_term {
                 multi = Multi::None;
-                if let Some(n) = compound_pushes.pop() {
-                    depth = depth.saturating_sub(n);
-                }
+                compounds.pop();
             }
             continue;
         }
@@ -154,14 +157,12 @@ fn collect_top_array_item_lines(text: &str) -> Vec<(u32, u32)> {
         first_content_line = false;
 
         if tail == "}" || tail == "]" {
-            if let Some(n) = compound_pushes.pop() {
-                depth = depth.saturating_sub(n);
-            }
+            compounds.pop();
             continue;
         }
 
         // Record this line as a top-level item if we're at depth 0.
-        if depth == 0 {
+        if compounds.is_empty() {
             let bom = if i == 0 {
                 crate::lines::leading_bom_len(text) as u32
             } else {
@@ -177,12 +178,26 @@ fn collect_top_array_item_lines(text: &str) -> Vec<(u32, u32)> {
                 "((" => multi = Multi::Verbatim,
                 _ => {}
             }
-            compound_pushes.push(1);
-            depth += 1;
+            compounds.push(if tail == "{" {
+                Compound::Object
+            } else {
+                Compound::Other
+            });
             continue;
         }
 
-        // Pair with trailing opener? Push compound depth for it.
+        // Only pairs inside an Object can have a trailing opener. In an
+        // Array, `foo: {` is a scalar item, not an Object opener.
+        if compounds.last() != Some(&Compound::Object) {
+            continue;
+        }
+        let Some(colon) = find_key_separator(tail) else {
+            continue;
+        };
+        if colon == 0 || tail.as_bytes().get(colon + 1) == Some(&b':') {
+            continue;
+        }
+
         let pushed_multi = if tail.ends_with(" ((") {
             Some(Multi::Verbatim)
         } else if tail.ends_with(" (") {
@@ -192,10 +207,11 @@ fn collect_top_array_item_lines(text: &str) -> Vec<(u32, u32)> {
         };
         let opens_compound = pushed_multi.is_some() || tail.ends_with(" {") || tail.ends_with(" [");
         if opens_compound {
-            // For top-level item tracking we only care about physical
-            // depth, so push 1 regardless of dotted-key segment count.
-            compound_pushes.push(1);
-            depth += 1;
+            compounds.push(if tail.ends_with(" {") {
+                Compound::Object
+            } else {
+                Compound::Other
+            });
             if let Some(m) = pushed_multi {
                 multi = m;
             }
@@ -640,7 +656,16 @@ fn collect_key_hits(
             continue;
         }
 
-        // Pair / array-item lines: anything else. Spec 0.6.0: the
+        // Pair-shaped text in an Array is still a scalar item.
+        let in_object = match compound_pushes.last() {
+            Some((_, array_id)) => array_id.is_none(),
+            None => !root_is_array,
+        };
+        if !in_object {
+            continue;
+        }
+
+        // Pair lines: anything else. Spec 0.6.0: the
         // separator is the first UNESCAPED `:`; `\:` inside the key is
         // literal content. Spec 0.7.0: a `:` inside a quoted key segment
         // (§ 5.3.3) is opaque too.
@@ -726,7 +751,7 @@ fn collect_key_hits(
         };
         let opens_compound = pushed_multi.is_some() || tail.ends_with(" {") || tail.ends_with(" [");
 
-        if opens_compound {
+        if opens_compound && !is_raw_marker {
             if tail.ends_with(" {") {
                 hits.last_mut().expect("pair has a key hit").resets_prefix = true;
             }
@@ -1283,6 +1308,71 @@ mod tests {
         for (sym, line) in syms.iter().zip(1..=3) {
             assert_range(sym, line, 0, 7);
         }
+    }
+
+    #[test]
+    fn pair_shaped_array_scalars_do_not_open_compounds() {
+        for scalar in ["foo: {", "foo: [", "foo: (", "foo: ((", "foo:: {", "foo {"] {
+            let text = format!(":: start\n{scalar}\nbar\n");
+            let syms = build_symbols(&parse(&text), &text);
+            assert_eq!(syms.len(), 3, "{scalar}");
+            assert_range(&syms[0], 0, 0, 8);
+            assert_range(&syms[1], 1, 0, scalar.len() as u32);
+            assert_range(&syms[2], 2, 0, 3);
+        }
+    }
+
+    #[test]
+    fn spec_pair_shaped_top_level_array_items_keep_ranges() {
+        let text = include_str!(
+            "../../../spec/versions/0.8/tests/valid/top_level_array/pair_shaped_first_item.ktav"
+        );
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 4);
+        for (sym, (line, end)) in syms.iter().zip([(0, 18), (1, 2), (2, 10), (3, 10)]) {
+            assert_range(sym, line, 0, end);
+        }
+    }
+
+    #[test]
+    fn nested_array_scalar_opener_does_not_hide_following_top_level_item() {
+        let text = "[\n[\nfoo: {\nbar\n]\nafter\n]\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 2);
+        assert_range(&syms[0], 1, 0, 1);
+        let nested = syms[0].children.as_ref().unwrap();
+        assert_range(&nested[0], 2, 0, 6);
+        assert_range(&nested[1], 3, 0, 3);
+        assert_range(&syms[1], 5, 0, 5);
+    }
+
+    #[test]
+    fn scalar_opener_in_root_array_does_not_hide_later_object_key() {
+        let text = ":: start\nfoo: {\nbar\n{\nchild: 1\n}\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 4);
+        assert_range(&syms[3], 3, 0, 1);
+        assert_range(find(syms[3].children.as_ref().unwrap(), "child"), 4, 0, 8);
+    }
+
+    #[test]
+    fn raw_pair_opener_inside_object_remains_scalar() {
+        let text = "[\n{\nraw:: {\nchild: 1\n}\nafter\n]\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 2);
+        let object = syms[0].children.as_ref().unwrap();
+        assert_range(find(object, "raw"), 2, 0, 7);
+        assert_range(find(object, "child"), 3, 0, 8);
+        assert_range(&syms[1], 5, 0, 5);
+    }
+
+    #[test]
+    fn object_pair_opener_in_top_level_array_keeps_following_item() {
+        let text = "[\n{\nchild: {\nleaf: one\n}\n}\nafter\n]\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 2);
+        assert_range(&syms[0], 1, 0, 1);
+        assert_range(&syms[1], 6, 0, 5);
     }
 
     #[test]
