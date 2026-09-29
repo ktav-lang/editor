@@ -43,6 +43,8 @@ const CORPUS_ROOT = path.join(
   "0.8",
   "tests",
 );
+const MANIFEST_PATH = path.join(CORPUS_ROOT, "manifest.json");
+const EXPECTED_VALID_FIXTURE_COUNT = 223;
 const VALID_ROOT = path.join(CORPUS_ROOT, "valid");
 const INVALID_ROOT = path.join(CORPUS_ROOT, "invalid");
 
@@ -182,16 +184,27 @@ const DOMAIN_OVERFLOW_ALLOWLIST = new Set(
 
 suite("corpus coverage: grammar over spec/versions/0.8/tests/valid", () => {
   let grammar: IGrammar;
-  const fixtures = listValidFixtures();
+  const fixtures = fs.existsSync(VALID_ROOT) ? listValidFixtures() : [];
+  const manifest = fs.existsSync(MANIFEST_PATH)
+    ? JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"))
+    : undefined;
 
   suiteSetup(async () => {
     grammar = await getGrammar();
   });
 
   test("corpus fixtures were actually found (guard against a silently empty run)", () => {
-    assert.ok(
-      fixtures.length > 100,
-      `expected the full valid/ corpus to be present under ${VALID_ROOT}, found ${fixtures.length} fixture(s)`,
+    assert.ok(manifest, `missing spec corpus manifest at ${MANIFEST_PATH}`);
+    assert.strictEqual(manifest.schema_version, 1, "unsupported spec corpus manifest");
+    assert.strictEqual(
+      manifest.categories?.valid?.count,
+      EXPECTED_VALID_FIXTURE_COUNT,
+      `spec manifest valid fixture count changed at ${MANIFEST_PATH}`,
+    );
+    assert.strictEqual(
+      fixtures.length,
+      manifest.categories.valid.count,
+      `expected the exact valid/ fixture count from ${MANIFEST_PATH}, found ${fixtures.length}`,
     );
   });
 

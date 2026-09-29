@@ -1,19 +1,34 @@
 import * as assert from "assert";
-import * as os from "os";
 import * as path from "path";
-import * as fs from "fs";
-import * as cp from "child_process";
 import * as vscode from "vscode";
-import { State } from "vscode-languageclient/node";
 
-function ktavLspOnPath(): boolean {
-  const which = process.platform === "win32" ? "where" : "which";
-  try {
-    cp.execFileSync(which, ["ktav-lsp"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
+const FIXTURE_PATH = path.resolve(
+  __dirname,
+  "../../../../spec/versions/0.8/tests/invalid/bad_escape/escape_t_not_recognised.ktav",
+);
+
+function waitForDiagnostics(
+  uri: vscode.Uri,
+  predicate: (diagnostics: readonly vscode.Diagnostic[]) => boolean,
+  timeoutMs: number,
+): Promise<readonly vscode.Diagnostic[]> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      subscription.dispose();
+      reject(new Error(`timed out waiting for diagnostics for ${uri.fsPath}`));
+    }, timeoutMs);
+    const subscription = vscode.languages.onDidChangeDiagnostics((event) => {
+      if (!event.uris.some((changed) => changed.toString() === uri.toString())) {
+        return;
+      }
+      const diagnostics = vscode.languages.getDiagnostics(uri);
+      if (predicate(diagnostics)) {
+        clearTimeout(timeout);
+        subscription.dispose();
+        resolve(diagnostics);
+      }
+    });
+  });
 }
 
 suite("Ktav extension", () => {
@@ -22,89 +37,37 @@ suite("Ktav extension", () => {
     assert.ok(langs.includes("ktav"), "expected `ktav` in registered languages");
   });
 
-  test("opening a .ktav file activates the extension and the LSP reaches Running", async function () {
-    if (!process.env.KTAV_LSP_PATH && !ktavLspOnPath()) {
-      // No way to reach a server — skip rather than green-light a no-op.
-      this.skip();
-      return;
-    }
+  test("opens the 0.8 invalid fixture, activates, and reports its parse error", async function () {
     this.timeout(30_000);
-
-    if (process.env.KTAV_LSP_PATH) {
-      await vscode.workspace
-        .getConfiguration("ktav")
-        .update(
-          "server.path",
-          process.env.KTAV_LSP_PATH,
-          vscode.ConfigurationTarget.Global,
-        );
-    }
-
-    const tmp = path.join(os.tmpdir(), `ktav-activation-${Date.now()}.ktav`);
-    fs.writeFileSync(tmp, "name: hello\nport: $i 8080\n", "utf8");
-
-    const doc = await vscode.workspace.openTextDocument(tmp);
-    await vscode.window.showTextDocument(doc);
-
-    assert.strictEqual(doc.languageId, "ktav");
-
-    const ext = vscode.extensions.getExtension("ktav-lang.ktav");
-    assert.ok(ext, "extension `ktav-lang.ktav` should be installed");
-    await ext!.activate();
-    assert.ok(ext!.isActive, "extension should be active after activate() resolved");
-
-    // Probe the language client state via the running extension's exports
-    // is brittle; instead, watch publishDiagnostics — that proves the LSP
-    // actually connected and processed the file.
-    const deadline = Date.now() + 20_000;
-    let sawDiagsEvent = false;
-    const sub = vscode.languages.onDidChangeDiagnostics((e) => {
-      if (e.uris.some((u) => u.toString() === doc.uri.toString())) {
-        sawDiagsEvent = true;
-      }
-    });
-    try {
-      while (Date.now() < deadline && !sawDiagsEvent) {
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    } finally {
-      sub.dispose();
-    }
-    assert.ok(sawDiagsEvent, "expected at least one publishDiagnostics event for the open .ktav file");
-  });
-
-  test("diagnostics arrive when KTAV_LSP_PATH points at a real server", async function () {
-    if (!process.env.KTAV_LSP_PATH) {
-      this.skip();
-      return;
-    }
-    this.timeout(60_000);
+    const serverPath = process.env.KTAV_LSP_PATH;
+    assert.ok(serverPath, "KTAV_LSP_PATH must point to the ktav-lsp binary");
 
     await vscode.workspace
       .getConfiguration("ktav")
       .update(
         "server.path",
-        process.env.KTAV_LSP_PATH,
+        serverPath,
         vscode.ConfigurationTarget.Global,
       );
 
-    const tmp = path.join(os.tmpdir(), `ktav-bad-${Date.now()}.ktav`);
-    fs.writeFileSync(tmp, "key: { unclosed\n", "utf8");
-    const doc = await vscode.workspace.openTextDocument(tmp);
+    const uri = vscode.Uri.file(FIXTURE_PATH);
+    const diagnosticsPromise = waitForDiagnostics(
+      uri,
+      (diagnostics) => diagnostics.length > 0,
+      20_000,
+    );
+    const doc = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(doc);
 
-    const deadline = Date.now() + 10_000;
-    let diags: readonly vscode.Diagnostic[] = [];
-    while (Date.now() < deadline) {
-      diags = vscode.languages.getDiagnostics(doc.uri);
-      if (diags.length > 0) break;
-      await new Promise((r) => setTimeout(r, 250));
-    }
-    assert.ok(diags.length > 0, "expected at least one diagnostic from ktav-lsp");
+    assert.strictEqual(doc.languageId, "ktav");
+    const extension = vscode.extensions.getExtension("ktav-lang.ktav");
+    assert.ok(extension, "extension `ktav-lang.ktav` should be installed");
+
+    const diagnostics = await diagnosticsPromise;
+    assert.ok(extension.isActive, "opening a Ktav document should activate the extension");
+    assert.strictEqual(diagnostics.length, 1);
+    assert.strictEqual(diagnostics[0].source, "ktav");
+    assert.strictEqual(diagnostics[0].severity, vscode.DiagnosticSeverity.Error);
+    assert.match(diagnostics[0].message, /BadEscapeSequence/);
   });
 });
-
-// Keep `State` referenced so the import isn't pruned by tsc's unused-import
-// check — it's part of the public diagnostic vocabulary even though we
-// observe state via diagnostics events above.
-void State;

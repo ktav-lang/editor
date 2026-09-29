@@ -94,12 +94,12 @@ jobs:
         with:
           workspaces: lsp
       - run: cargo fmt --all -- --check
-      - run: cargo clippy --release --all-targets -- -D warnings
-      - run: cargo test --release
-      - run: cargo build --release
+      - run: cargo clippy --locked --release --all-targets -- -D warnings
+      - run: cargo test --locked --release
+      - run: cargo build --locked --release
 
   # ------------------------------------------------------------------
-  # vscode/ — TypeScript extension. tsc + npm test (vitest).
+  # vscode/ — compile/unit tests plus a headless VS Code + ktav-lsp E2E gate.
   # ------------------------------------------------------------------
   vscode:
     name: vscode (TypeScript)
@@ -121,12 +121,17 @@ jobs:
           cache-dependency-path: vscode/package-lock.json
       - run: npm ci
       - run: npx tsc -p tsconfig.json --noEmit
-      # Pure-mocha unit suite (discovery.test.ts) — does not need
-      # @vscode/test-electron, so it runs on a headless ubuntu runner
-      # without xvfb. The full e2e suite under src/test/suite/ requires
-      # an X server and is run separately (gated on KTAV_LSP_PATH or
-      # spawned under xvfb-run when an LSP binary is available).
       - run: npm run test:unit --if-present
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lsp
+      - name: Build current ktav-lsp
+        run: cargo build --locked --release --manifest-path "$GITHUB_WORKSPACE/lsp/Cargo.toml"
+      - name: VS Code extension E2E
+        run: xvfb-run -a npm test
+        env:
+          KTAV_LSP_PATH: ${{ github.workspace }}/lsp/target/release/ktav-lsp
 
   # ------------------------------------------------------------------
   # intellij/ — Kotlin plugin. gradle test + verifyPlugin.
