@@ -1,6 +1,11 @@
 >>>>> lang=en
 ## What you get as a Ktav user
 
+LSP features depend on the editor's client. The IntelliJ plugin
+integrates live diagnostics and whole-file formatting only; it does
+not integrate hover, completion, document symbols or semantic tokens.
+Its syntax highlighting is provided by a native lexer.
+
 - **Syntax highlighting** — keys, scalars, the literal-string marker (`::`), multi-line strings, comments
 - **Bracket matching & auto-close** — `{}` `[]` `()`
 - **Comment toggle** — `Ctrl/Cmd+/` → `## comment`
@@ -11,6 +16,11 @@
 
 >>>>> lang=ru
 ## Что получает пользователь Ktav
+
+LSP-функции зависят от клиента редактора. Плагин IntelliJ интегрирует
+только live-диагностику и форматирование всего файла; hover,
+автокомплит, document symbols и semantic tokens не интегрированы.
+Подсветку синтаксиса обеспечивает нативный лексер.
 
 - **Подсветка синтаксиса** — ключи, скаляры, raw-string-маркер (`::`),
   многострочные строки, комментарии
@@ -29,6 +39,10 @@
 
 >>>>> lang=zh
 ## Ktav 用户能得到什么
+
+LSP 功能取决于编辑器的客户端。IntelliJ 插件仅集成实时诊断和
+整文件格式化,未集成悬停、补全、文档符号或语义令牌。
+其语法高亮由原生词法分析器提供。
 
 - **语法高亮** —— 键、标量、原始字符串标记(`::`)、多行字符串、注释
 - **括号匹配 + 自动闭合** —— `{}` `[]` `()`

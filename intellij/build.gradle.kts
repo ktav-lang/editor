@@ -103,7 +103,7 @@ intellijPlatform {
               <li>Native syntax highlighting for <code>.ktav</code> files</li>
               <li>Comment toggle (<code>##</code>)</li>
               <li>Bracket matching for <code>{}</code> <code>[]</code> <code>()</code></li>
-              <li>Live diagnostics, semantic highlighting and a document outline via the
+              <li>Live diagnostics and whole-file formatting (Reformat Code) via the
                 bundled <a href="https://github.com/ktav-lang/editor/tree/main/lsp">ktav-lsp</a>
                 language server</li>
             </ul>

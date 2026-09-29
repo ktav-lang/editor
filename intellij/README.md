@@ -53,9 +53,14 @@ the gear menu → **Install Plugin from Disk…** and pick
 ### LSP features
 
 The plugin talks to [`ktav-lsp`](../lsp) through its own built-in LSP
-client — no separate LSP plugin (e.g. LSP4IJ) is required. It gives you
-live diagnostics, hover, completion, document symbols, semantic tokens
-and formatting out of the box.
+client — no separate LSP plugin (e.g. LSP4IJ) is required for live
+diagnostics and whole-file formatting (**Reformat Code**). These are
+the LSP features currently integrated into the IntelliJ plugin.
+
+The server also supports hover, completion, document symbols and
+semantic tokens, but the built-in IntelliJ client does not integrate
+them. Syntax highlighting comes from the plugin's native lexer, not
+LSP semantic tokens.
 
 The server binary is discovered in this order:
 

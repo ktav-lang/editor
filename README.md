@@ -25,6 +25,11 @@
 
 ## What you get as a Ktav user
 
+LSP features depend on the editor's client. The IntelliJ plugin
+integrates live diagnostics and whole-file formatting only; it does
+not integrate hover, completion, document symbols or semantic tokens.
+Its syntax highlighting is provided by a native lexer.
+
 - **Syntax highlighting** — keys, scalars, the literal-string marker (`::`), multi-line strings, comments
 - **Bracket matching & auto-close** — `{}` `[]` `()`
 - **Comment toggle** — `Ctrl/Cmd+/` → `## comment`
@@ -58,9 +63,11 @@
 
 The TextMate grammar (VS Code) and the native IntelliJ lexer both give
 instant cosmetic highlighting (no language server needed). The LSP
-layer adds the *intelligent* features — diagnostics, hover, completion.
-They stack: install the extension/plugin alone for highlighting, add
-`ktav-lsp` to your PATH for everything else.
+server offers *intelligent* features, but each editor's client decides
+which are integrated. IntelliJ's built-in client provides live
+diagnostics and whole-file formatting only; it does not integrate
+hover, completion, document symbols or semantic tokens. Installing
+`ktav-lsp` on PATH does not enable those missing client integrations.
 
 ## Installing as a user
 

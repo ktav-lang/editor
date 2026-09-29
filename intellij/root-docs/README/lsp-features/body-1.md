@@ -2,9 +2,14 @@
 ### LSP features
 
 The plugin talks to [`ktav-lsp`](../lsp) through its own built-in LSP
-client — no separate LSP plugin (e.g. LSP4IJ) is required. It gives you
-live diagnostics, hover, completion, document symbols, semantic tokens
-and formatting out of the box.
+client — no separate LSP plugin (e.g. LSP4IJ) is required for live
+diagnostics and whole-file formatting (**Reformat Code**). These are
+the LSP features currently integrated into the IntelliJ plugin.
+
+The server also supports hover, completion, document symbols and
+semantic tokens, but the built-in IntelliJ client does not integrate
+them. Syntax highlighting comes from the plugin's native lexer, not
+LSP semantic tokens.
 
 The server binary is discovered in this order:
 
@@ -19,9 +24,14 @@ The server binary is discovered in this order:
 ### LSP-фичи
 
 Плагин общается с [`ktav-lsp`](../../lsp) через собственный встроенный
-LSP-клиент — отдельный LSP-плагин (например, LSP4IJ) не требуется. Из
-коробки доступны live-диагностика, hover, автокомплит, document
-symbols, semantic tokens и форматирование.
+LSP-клиент — для live-диагностики и форматирования всего файла
+(**Reformat Code**) отдельный LSP-плагин (например, LSP4IJ) не требуется.
+Это LSP-функции, сейчас интегрированные в плагин IntelliJ.
+
+Сервер также поддерживает hover, автокомплит, document symbols и
+semantic tokens, но встроенный клиент IntelliJ их не интегрирует.
+Подсветку синтаксиса обеспечивает нативный лексер плагина, а не
+семантические токены LSP.
 
 Бинарник сервера ищется в таком порядке:
 
@@ -37,8 +47,12 @@ symbols, semantic tokens и форматирование.
 ### LSP 功能
 
 插件通过自带的内置 LSP 客户端与 [`ktav-lsp`](../../lsp) 通信 ——
-无需安装单独的 LSP 插件(例如 LSP4IJ)。开箱即用地提供实时诊断、
-悬停、补全、document symbols、semantic tokens 和格式化。
+实时诊断和整文件格式化(**Reformat Code**)无需安装单独的 LSP
+插件(例如 LSP4IJ)。这是 IntelliJ 插件目前集成的 LSP 功能。
+
+服务器还支持悬停、补全、文档符号和语义令牌,但内置 IntelliJ
+客户端未集成这些功能。语法高亮由插件的原生词法分析器提供,
+而非 LSP 语义令牌。
 
 服务器二进制按以下顺序查找:
 

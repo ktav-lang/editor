@@ -57,8 +57,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 ## 0.3.1
 
 - Bundles `ktav-lsp 0.3.1` (sync to ktav 0.3.1 + spec 0.1.1).
-- Document-symbols outline now lists top-level Array items as
-  `[0]`, `[1]`, … entries.
+- The bundled server's document-symbols response now lists top-level
+  Array items as `[0]`, `[1]`, … entries. The built-in IntelliJ client
+  does not display a document-symbols outline.
 
 ## 0.1.0
 

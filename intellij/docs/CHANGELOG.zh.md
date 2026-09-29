@@ -53,7 +53,8 @@ MINOR 递进视为破坏性变更。
 ## 0.3.1
 
 - 捆绑 `ktav-lsp 0.3.1`(同步至 ktav 0.3.1 与 spec 0.1.1)。
-- document-symbols 大纲现在将顶层 Array 项列为 `[0]`、`[1]`、… 等条目。
+- 捆绑服务器的 document-symbols 响应现在将顶层 Array 项列为
+  `[0]`、`[1]`、… 等条目。内置 IntelliJ 客户端不显示文档符号大纲。
 
 ## 0.1.0
 

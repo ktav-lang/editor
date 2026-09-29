@@ -53,10 +53,10 @@ class KtavConfigurable : Configurable {
                 "<li>Bundled binary inside the plugin distribution.</li>" +
                 "<li><code>ktav-lsp</code> on your <code>PATH</code> " +
                 "(install with <code>cargo install ktav-lsp</code>).</li>" +
-                "</ol>LSP features (diagnostics, hover, completion, " +
-                "document symbols, semantic tokens, formatting) work out of " +
-                "the box via the plugin's built-in LSP client — no separate " +
-                "LSP plugin needed." +
+                "</ol>The built-in LSP client provides live diagnostics and " +
+                "whole-file formatting (Reformat Code); no separate LSP plugin is needed. " +
+                "Hover, completion, document symbols and semantic tokens are not integrated. " +
+                "Syntax highlighting is provided by the plugin's native lexer." +
                 "</html>",
         )
 
