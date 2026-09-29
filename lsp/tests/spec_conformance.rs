@@ -41,7 +41,7 @@
 //! by `tests/error_format_pinning.rs`. This file is the "did the parser
 //! accept/reject the right files, in every corpus category" floor.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -96,7 +96,165 @@ fn spec_tests_dir() -> PathBuf {
         root.display()
     );
     validate_manifest(&root);
+    validate_category_counts(&root);
     root
+}
+
+/// Strip a fixture filename down to its bare `<stem>` (with its directory),
+/// recognizing every suffix `manifest.json`'s own `$comment` defines for a
+/// "fixture": `.canonical.ktav`, `.ktav`, `.json`. `None` for anything else
+/// (e.g. `manifest.json` itself, or `README.md`).
+fn fixture_stem(path: &Path) -> Option<PathBuf> {
+    let file_name = path.file_name()?.to_str()?;
+    let dir = path.parent()?;
+    let stem = file_name
+        .strip_suffix(".canonical.ktav")
+        .or_else(|| file_name.strip_suffix(".ktav"))
+        .or_else(|| file_name.strip_suffix(".json"))?;
+    Some(dir.join(stem))
+}
+
+/// Recursively visit every file under `dir`, calling `f` on each path.
+fn walk_files(dir: &Path, f: &mut impl FnMut(&Path)) {
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(d) = stack.pop() {
+        for entry in fs::read_dir(&d)
+            .unwrap_or_else(|e| panic!("read {}: {e}", d.display()))
+            .flatten()
+        {
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                f(&path);
+            }
+        }
+    }
+}
+
+/// A missing sibling is worse than a missing fixture: every test in this
+/// file trusts that a `.ktav` it found has a matching `.json` oracle (and,
+/// under `valid/`, a `.canonical.ktav`) sitting right next to it — see
+/// `expected_error_category`, `read_json_oracle`. Both this completeness
+/// check and the per-category fixture COUNT (matching `EXPECTED_CATEGORIES`
+/// / `manifest.json`) run once here, before any per-fixture test, so a
+/// partial checkout (e.g. a shallow clone that dropped one oracle, or lost a
+/// `.canonical.ktav` re-render) fails loudly and specifically instead of
+/// silently degrading `conformance_reference_parser_valid` /
+/// `conformance_lsp_diagnostics_valid` — which previously asserted only
+/// "non-empty" — into false-green.
+fn validate_category_counts(root: &Path) {
+    validate_valid_triplets(&root.join("valid"));
+    validate_ktav_json_pairs(&root.join("invalid"), "invalid");
+    validate_ktav_json_pairs(
+        &root.join("parseable-unrepresentable"),
+        "parseable-unrepresentable",
+    );
+    validate_ktav_json_pairs(&root.join("strict-lossy"), "strict-lossy");
+    validate_json_only(&root.join("unrepresentable"), "unrepresentable");
+}
+
+#[derive(Default)]
+struct ValidHave {
+    ktav: bool,
+    canonical: bool,
+    json: bool,
+}
+
+fn validate_valid_triplets(dir: &Path) {
+    let mut stems: BTreeMap<PathBuf, ValidHave> = BTreeMap::new();
+    walk_files(dir, &mut |path| {
+        let Some(stem) = fixture_stem(path) else {
+            return;
+        };
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let entry = stems.entry(stem).or_default();
+        if file_name.ends_with(".canonical.ktav") {
+            entry.canonical = true;
+        } else if file_name.ends_with(".ktav") {
+            entry.ktav = true;
+        } else if file_name.ends_with(".json") {
+            entry.json = true;
+        }
+    });
+    let incomplete: Vec<String> = stems
+        .iter()
+        .filter(|(_, h)| !(h.ktav && h.canonical && h.json))
+        .map(|(stem, h)| {
+            format!(
+                "{}: ktav={} canonical={} json={}",
+                stem.display(),
+                h.ktav,
+                h.canonical,
+                h.json
+            )
+        })
+        .collect();
+    assert!(
+        incomplete.is_empty(),
+        "valid/** fixture(s) missing a required sibling \
+         (.ktav / .canonical.ktav / .json):\n{}",
+        incomplete.join("\n")
+    );
+    assert_eq!(
+        stems.len() as u64,
+        expected_count("valid"),
+        "valid/** has {} complete fixture(s), expected {} — a fixture is \
+         missing entirely, or an extra one was added without updating \
+         EXPECTED_CATEGORIES",
+        stems.len(),
+        expected_count("valid")
+    );
+}
+
+fn validate_ktav_json_pairs(dir: &Path, category: &str) {
+    let mut stems: BTreeMap<PathBuf, (bool, bool)> = BTreeMap::new();
+    walk_files(dir, &mut |path| {
+        let Some(stem) = fixture_stem(path) else {
+            return;
+        };
+        let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        let entry = stems.entry(stem).or_insert((false, false));
+        if file_name.ends_with(".ktav") {
+            entry.0 = true;
+        } else if file_name.ends_with(".json") {
+            entry.1 = true;
+        }
+    });
+    let incomplete: Vec<String> = stems
+        .iter()
+        .filter(|(_, (ktav, json))| !(*ktav && *json))
+        .map(|(stem, (ktav, json))| format!("{}: ktav={ktav} json={json}", stem.display()))
+        .collect();
+    assert!(
+        incomplete.is_empty(),
+        "{category}/** fixture(s) missing a required sibling (.ktav/.json):\n{}",
+        incomplete.join("\n")
+    );
+    assert_eq!(
+        stems.len() as u64,
+        expected_count(category),
+        "{category}/** has {} complete fixture(s), expected {} — a fixture \
+         is missing entirely, or an extra one was added without updating \
+         EXPECTED_CATEGORIES",
+        stems.len(),
+        expected_count(category)
+    );
+}
+
+fn validate_json_only(dir: &Path, category: &str) {
+    let mut count = 0u64;
+    walk_files(dir, &mut |path| {
+        if path.extension().and_then(|s| s.to_str()) == Some("json") {
+            count += 1;
+        }
+    });
+    assert_eq!(
+        count,
+        expected_count(category),
+        "{category}/** has {count} .json fixture(s), expected {}",
+        expected_count(category)
+    );
 }
 
 /// Validate `manifest.json`'s schema version, category-name set, and
@@ -300,40 +458,57 @@ fn conformance_reference_parser_invalid() {
 
     let mut accepted = Vec::new();
     let mut missing_category_in_msg = Vec::new();
+    // A missing/unreadable `.json` oracle, or one missing `expected_error`,
+    // used to make `expected_error_category` return `None` — and the `Err`
+    // arm below then silently skipped the category comparison entirely
+    // (`if let Some(cat) = expected.as_deref()`), so a fixture that lost its
+    // oracle in checkout stayed green as long as the PARSE still failed for
+    // any reason. Collected here instead, so it fails loudly and names the
+    // fixture.
+    let mut missing_oracle = Vec::new();
 
     for path in &files {
         let Some(text) = read_invalid_fixture(path) else {
             continue;
         };
-        let expected = expected_error_category(path);
+        let Some(expected) = expected_error_category(path) else {
+            missing_oracle.push(path.display().to_string());
+            continue;
+        };
         match ktav::parse(&text) {
             Ok(_) => {
                 accepted.push(format!(
                     "{} (expected error '{}')",
                     path.display(),
-                    expected.as_deref().unwrap_or("<unknown>")
+                    expected
                 ));
             }
             Err(e) => {
                 // The structured envelope names the category exactly
                 // (`ErrorEnvelope::error`); no message-substring guessing.
                 let envelope = ktav::ErrorEnvelope::from_error(&e, &text);
-                if let Some(cat) = expected.as_deref() {
-                    if envelope.error != cat {
-                        missing_category_in_msg.push(format!(
-                            "{}: expected '{}', envelope reports '{}' ({:?})",
-                            path.display(),
-                            cat,
-                            envelope.error,
-                            e.to_string()
-                        ));
-                    }
+                if envelope.error != expected {
+                    missing_category_in_msg.push(format!(
+                        "{}: expected '{}', envelope reports '{}' ({:?})",
+                        path.display(),
+                        expected,
+                        envelope.error,
+                        e.to_string()
+                    ));
                 }
             }
         }
     }
 
     let mut report = Vec::new();
+    if !missing_oracle.is_empty() {
+        report.push(format!(
+            "{} invalid fixture(s) have a missing/unreadable .json oracle, \
+             or an oracle missing 'expected_error':\n{}",
+            missing_oracle.len(),
+            missing_oracle.join("\n")
+        ));
+    }
     if !accepted.is_empty() {
         report.push(format!(
             "{} invalid fixtures were accepted by the parser:\n{}",
