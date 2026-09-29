@@ -142,6 +142,56 @@ fn line_starting_with_bracket_is_array_item_not_pair() {
 }
 
 #[test]
+fn bare_multiline_opener_array_item_is_compound_open() {
+    // § 4's `<item-value> ::= <value-start> <line-end>` dispatches a bare
+    // array item through the same production as a pair's value — a lone
+    // `(` / `((` opens a multi-line string body, it is not a one-char
+    // String item.
+    match pair("(") {
+        LineKind::ArrayItem { kind, .. } => assert_eq!(kind, ValueKind::CompoundOpen),
+        other => panic!("got {:?}", other),
+    }
+    match pair("((") {
+        LineKind::ArrayItem { kind, .. } => assert_eq!(kind, ValueKind::CompoundOpen),
+        other => panic!("got {:?}", other),
+    }
+}
+
+#[test]
+fn line_is_multiline_content_stripped_block() {
+    // motd: (
+    //     port: 8080     <- content, must not be re-classified as a pair
+    //     ## note        <- content, must not be re-classified as a comment
+    // )                  <- terminator: still "inside" entering this line
+    // done: 1            <- back to ordinary lines
+    let text = "motd: (\n    port: 8080\n    ## note\n)\ndone: 1\n";
+    assert!(!line_is_multiline_content(text, 0)); // opener line itself
+    assert!(line_is_multiline_content(text, 1));
+    assert!(line_is_multiline_content(text, 2));
+    assert!(line_is_multiline_content(text, 3)); // terminator line
+    assert!(!line_is_multiline_content(text, 4));
+}
+
+#[test]
+fn line_is_multiline_content_verbatim_block_needs_double_paren() {
+    let text = "body: ((\n}\n))\n";
+    assert!(!line_is_multiline_content(text, 0));
+    // A lone `}` inside a verbatim block is content, not a closer — and
+    // a lone `)` would not terminate it either (needs `))`).
+    assert!(line_is_multiline_content(text, 1));
+    assert!(line_is_multiline_content(text, 2)); // `))` terminator
+}
+
+#[test]
+fn line_is_multiline_content_bare_array_item_opener() {
+    let text = "items: [\n(\nhello\n)\n]\n";
+    assert!(!line_is_multiline_content(text, 1)); // the `(` opener itself
+    assert!(line_is_multiline_content(text, 2));
+    assert!(line_is_multiline_content(text, 3)); // the `)` terminator
+    assert!(!line_is_multiline_content(text, 4));
+}
+
+#[test]
 fn dotted_split() {
     let segs: Vec<_> = split_dotted(2, "a.bb.ccc").collect();
     assert_eq!(segs, vec![(2, "a"), (4, "bb"), (7, "ccc")]);

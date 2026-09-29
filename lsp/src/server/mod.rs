@@ -268,6 +268,14 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
+        // § 5.6: a content line inside an open multi-line string must
+        // never be run through `classify_line` — it can look like a
+        // comment, a pair, or a lone closer, but hover has nothing to
+        // say about it.
+        if crate::tokens::line_is_multiline_content(&text, pos.line as usize) {
+            return Ok(None);
+        }
+
         let line = text.split('\n').nth(pos.line as usize).unwrap_or("");
         // Route through the shared classifier so dotted keys, `:: literal`
         // array-items, comments and brace-only lines behave consistently
@@ -321,6 +329,12 @@ impl LanguageServer for Backend {
         let Some(text) = self.docs.get(uri).map(|e| e.text.clone()) else {
             return Ok(None);
         };
+
+        // § 5.6: inside an open multi-line string, `key: `-shaped text is
+        // literal content, not a real separator — no value completions.
+        if crate::tokens::line_is_multiline_content(&text, pos.line as usize) {
+            return Ok(None);
+        }
 
         let line = text.split('\n').nth(pos.line as usize).unwrap_or("");
         // `pos.character` is in the negotiated encoding (UTF-8 bytes or

@@ -611,3 +611,166 @@ fn conformance_unrepresentable_oracle_schema() {
         files.len()
     );
 }
+
+/// A `valid/**.ktav` fixture (excluding `*.canonical.ktav` re-renders,
+/// which duplicate the same `Value` tree) whose lexical form overflows
+/// i64/f64 range: `ktav::parse` demotes these to `Value::String` (no
+/// `::` marker involved — see § 5.2), but `semantic_tokens` colours the
+/// surface spelling as a Number regardless of magnitude (highlighting is
+/// lexical, not semantic — the doc comment on
+/// `ktav_lsp::tokens::looks_numeric` spells this out explicitly). That
+/// is a deliberate, pinned divergence between "how many Number/Bool/Null
+/// leaves the parsed tree has" and "how many Number/Keyword/Null tokens
+/// the highlighter emits" — the only one — so these five fixtures are
+/// excluded from `conformance_semantic_tokens_leaf_counts_match_parse`
+/// rather than silently tolerated by a fuzzy count.
+const SEMANTIC_TOKEN_LEAF_COUNT_EXCEPTIONS: [&str; 5] = [
+    "numbers/float/just_above_max_finite_to_string.ktav",
+    "numbers/float/negative_overflow_to_string.ktav",
+    "numbers/float/positive_overflow_to_string.ktav",
+    "numbers/integer/big_overflow_to_string.ktav",
+    "numbers/integer/i64_overflow_to_string.ktav",
+];
+
+/// Count of Number-shaped (`Integer`/`Float`), Bool, and Null leaves in a
+/// parsed `Value` tree — the semantic-tokens counterpart to
+/// `count_semantic_leaf_tokens`.
+fn count_value_leaves(v: &ktav::Value, counts: &mut (usize, usize, usize)) {
+    match v {
+        ktav::Value::Integer(_) | ktav::Value::Float(_) => counts.0 += 1,
+        ktav::Value::Bool(_) => counts.1 += 1,
+        ktav::Value::Null => counts.2 += 1,
+        ktav::Value::String(_) => {}
+        ktav::Value::Array(items) => {
+            for item in items {
+                count_value_leaves(item, counts);
+            }
+        }
+        ktav::Value::Object(map) => {
+            for (_, v) in map {
+                count_value_leaves(v, counts);
+            }
+        }
+    }
+}
+
+/// Count Number / Keyword (bool) / "null" tokens `semantic_tokens`
+/// emits for `text`. Token-type indices are resolved from
+/// `token_types()` itself (not hard-coded) so this test cannot silently
+/// drift from `analysis::semantic`'s own index assignment.
+fn count_semantic_leaf_tokens(text: &str) -> (usize, usize, usize) {
+    use tower_lsp::lsp_types::SemanticTokenType;
+
+    let types = ktav_lsp::semantic::token_types();
+    let index_of = |want: &SemanticTokenType| {
+        types
+            .iter()
+            .position(|t| t == want)
+            .expect("token_types() must contain this type") as u32
+    };
+    let number_idx = index_of(&SemanticTokenType::NUMBER);
+    let keyword_idx = index_of(&SemanticTokenType::KEYWORD);
+    let null_idx = index_of(&SemanticTokenType::new("null"));
+
+    let mut counts = (0usize, 0usize, 0usize);
+    for tok in ktav_lsp::semantic::semantic_tokens(text) {
+        if tok.token_type == number_idx {
+            counts.0 += 1;
+        } else if tok.token_type == keyword_idx {
+            counts.1 += 1;
+        } else if tok.token_type == null_idx {
+            counts.2 += 1;
+        }
+    }
+    counts
+}
+
+/// Regression guard for the multi-line-block and escaped-inline-key
+/// semantic-token defects: on every `valid/**.ktav` fixture (skipping
+/// `*.canonical.ktav` re-renders and the pinned overflow exceptions
+/// above), the number of Number/Bool/Null LEAVES in the parsed `Value`
+/// tree must equal the number of Number/Keyword/"null" TOKENS
+/// `semantic_tokens` emits. Before the fix this failed on, at least,
+/// `multiline/stripped_basic.ktav` (a `"qwe": 1` content line inside a
+/// `(` block was mis-tokenized as a real pair, adding a spurious Number
+/// token) and `key_escaping/escaped_open_bracket_in_inline_pair_key_after_comma.ktav`
+/// (an escaped `\[` in an inline key desynced the inline scanner enough
+/// to swallow a real Number token into a String run).
+#[test]
+fn conformance_semantic_tokens_leaf_counts_match_parse() {
+    let tests_dir = spec_tests_dir();
+    let valid_dir = tests_dir.join("valid");
+    let files: Vec<PathBuf> = collect_ktav_files(&valid_dir)
+        .into_iter()
+        .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("ktav"))
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| !n.ends_with(".canonical.ktav"))
+                .unwrap_or(false)
+        })
+        .collect();
+    assert!(!files.is_empty(), "no valid fixtures found");
+
+    let exceptions: HashSet<PathBuf> = SEMANTIC_TOKEN_LEAF_COUNT_EXCEPTIONS
+        .iter()
+        .map(|rel| valid_dir.join(rel))
+        .collect();
+    for rel in &exceptions {
+        assert!(
+            rel.is_file(),
+            "pinned exception {} no longer exists in the corpus — update \
+             SEMANTIC_TOKEN_LEAF_COUNT_EXCEPTIONS",
+            rel.display()
+        );
+    }
+
+    let mut checked = 0usize;
+    let mut mismatches = Vec::new();
+    for path in &files {
+        if exceptions.contains(path) {
+            continue;
+        }
+        let bytes = fs::read(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        let Ok(text) = String::from_utf8(bytes) else {
+            continue;
+        };
+        let Ok(value) = ktav::parse(&text) else {
+            continue;
+        };
+
+        let mut leaf_counts = (0usize, 0usize, 0usize);
+        count_value_leaves(&value, &mut leaf_counts);
+        let token_counts = count_semantic_leaf_tokens(&text);
+
+        if leaf_counts != token_counts {
+            mismatches.push(format!(
+                "{}: parsed leaves (number={}, keyword={}, null={}) != \
+                 semantic tokens (number={}, keyword={}, null={})",
+                path.display(),
+                leaf_counts.0,
+                leaf_counts.1,
+                leaf_counts.2,
+                token_counts.0,
+                token_counts.1,
+                token_counts.2
+            ));
+        }
+        checked += 1;
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "{} of {} valid fixtures disagree on Number/Bool/Null leaf vs. \
+         token counts:\n{}",
+        mismatches.len(),
+        checked,
+        mismatches.join("\n")
+    );
+    eprintln!(
+        "conformance/semantic_tokens: {} valid fixtures agree on \
+         Number/Bool/Null leaf vs. token counts ({} exceptions skipped)",
+        checked,
+        exceptions.len()
+    );
+}

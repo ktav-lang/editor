@@ -44,6 +44,11 @@ struct AbsToken {
 /// LSP-mandated delta format.
 pub fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
     let mut abs: Vec<AbsToken> = Vec::new();
+    // § 5.6: while a multi-line string is open, ordinary line-shape rules
+    // (comments, pairs, closers) are suspended — a content line is never
+    // run through `classify_line`. `multi` is the single piece of
+    // cross-line state this module needs.
+    let mut multi: Option<MultiForm> = None;
 
     // § 3.2 also terminates lines on a lone CR, but every other position
     // helper in this crate (utf16.rs, diagnostics.rs, symbols.rs, hover)
@@ -52,15 +57,68 @@ pub fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
     // a lone-CR document. Left unhandled — a workspace-wide `\n`/`\r`/
     // `\r\n` line-splitter would need to land in every module at once.
     for (line_idx, line) in text.split('\n').enumerate() {
-        emit_line(line_idx as u32, line, &mut abs);
+        let line_idx = line_idx as u32;
+        multi = match multi {
+            Some(form) => emit_multiline_line(line_idx, line, form, &mut abs),
+            None => emit_line(line_idx, line, &mut abs),
+        };
     }
 
     encode_deltas(&abs)
 }
 
-fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) {
+/// Stripped (`(…)`) vs. verbatim (`((…))`) multi-line string form —
+/// decides only the terminator shape and nothing else, since both forms
+/// highlight their content lines identically (§ 5.6's whitespace-stripping
+/// and byte-for-byte rules only affect the parsed *value*, not which span
+/// gets a token).
+#[derive(Clone, Copy)]
+enum MultiForm {
+    Stripped,
+    Verbatim,
+}
+
+/// Tokenize one line while a multi-line string is open. Returns the
+/// still-open form (`Some`) to keep scanning, or `None` once the
+/// terminator line has closed it.
+fn emit_multiline_line(
+    line: u32,
+    raw: &str,
+    form: MultiForm,
+    out: &mut Vec<AbsToken>,
+) -> Option<MultiForm> {
+    let trimmed = raw.trim_matches(is_ktav_ws);
+    let is_terminator = match form {
+        MultiForm::Stripped => trimmed == ")",
+        MultiForm::Verbatim => trimmed == "))",
+    };
+    let start = (raw.len() - raw.trim_start_matches(is_ktav_ws).len()) as u32;
+    if is_terminator {
+        out.push(AbsToken {
+            line,
+            start,
+            length: trimmed.len() as u32,
+            token_type: TOK_OPERATOR,
+        });
+        return None;
+    }
+    // A blank (or whitespace-only) content line contributes no token —
+    // mirrors the spec's "contributes an empty string" with nothing to
+    // highlight.
+    if !trimmed.is_empty() {
+        out.push(AbsToken {
+            line,
+            start,
+            length: trimmed.len() as u32,
+            token_type: TOK_STRING,
+        });
+    }
+    Some(form)
+}
+
+fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) -> Option<MultiForm> {
     match classify_line(raw) {
-        LineKind::Blank => {}
+        LineKind::Blank => None,
         LineKind::Comment { start, length } => {
             out.push(AbsToken {
                 line,
@@ -68,6 +126,7 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) {
                 length,
                 token_type: TOK_COMMENT,
             });
+            None
         }
         LineKind::CloseBrace { start } => {
             out.push(AbsToken {
@@ -76,6 +135,7 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) {
                 length: 1,
                 token_type: TOK_OPERATOR,
             });
+            None
         }
         LineKind::RawArrayItem {
             marker_start,
@@ -96,6 +156,7 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) {
                     token_type: TOK_STRING,
                 });
             }
+            None
         }
         LineKind::Pair {
             key_start,
@@ -131,33 +192,38 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) {
                 length: marker.len() as u32,
                 token_type: TOK_OPERATOR,
             });
-            if value_length > 0 {
-                // An inline compound value (`{…}` / `[…]` on a `:` line) is
-                // tokenized structurally so its brackets read as operators
-                // (and thus bracket-match) rather than disappearing into one
-                // opaque string. `::` (Raw) bodies stay literal per spec.
-                if marker == Marker::Plain
-                    && value_kind == ValueKind::String
-                    && starts_inline_compound(value_text)
-                {
-                    emit_inline(line, value_start, value_text, out);
-                } else {
-                    let tt = match value_kind {
-                        ValueKind::Bool => TOK_KEYWORD,
-                        ValueKind::Null => TOK_NULL,
-                        ValueKind::Number => TOK_NUMBER,
-                        ValueKind::String => TOK_STRING,
-                        ValueKind::CompoundOpen => TOK_OPERATOR,
-                        ValueKind::CompoundClose => TOK_OPERATOR,
-                    };
-                    out.push(AbsToken {
-                        line,
-                        start: value_start,
-                        length: value_length,
-                        token_type: tt,
-                    });
-                }
+            if value_length == 0 {
+                return None;
             }
+            // An inline compound value (`{…}` / `[…]` on a `:` line) is
+            // tokenized structurally so its brackets read as operators
+            // (and thus bracket-match) rather than disappearing into one
+            // opaque string. `::` (Raw) bodies stay literal per spec.
+            if marker == Marker::Plain
+                && value_kind == ValueKind::String
+                && starts_inline_compound(value_text)
+            {
+                emit_inline(line, value_start, value_text, out);
+                return None;
+            }
+            let tt = match value_kind {
+                ValueKind::Bool => TOK_KEYWORD,
+                ValueKind::Null => TOK_NULL,
+                ValueKind::Number => TOK_NUMBER,
+                ValueKind::String => TOK_STRING,
+                ValueKind::CompoundOpen => TOK_OPERATOR,
+                ValueKind::CompoundClose => TOK_OPERATOR,
+            };
+            out.push(AbsToken {
+                line,
+                start: value_start,
+                length: value_length,
+                token_type: tt,
+            });
+            // § 5.6: a value of exactly `(` / `((` opens a multi-line
+            // string body — everything up to the terminator line belongs
+            // to this module's `multi` state, not `classify_line`.
+            multiline_form_opened(value_kind, value_text)
         }
         LineKind::ArrayItem {
             start,
@@ -167,22 +233,40 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) {
             let item_text = &raw[start as usize..start as usize + length as usize];
             if matches!(kind, ValueKind::String) && starts_inline_compound(item_text) {
                 emit_inline(line, start, item_text, out);
-            } else {
-                let tt = match kind {
-                    ValueKind::Bool => TOK_KEYWORD,
-                    ValueKind::Null => TOK_NULL,
-                    ValueKind::Number => TOK_NUMBER,
-                    ValueKind::CompoundOpen | ValueKind::CompoundClose => TOK_OPERATOR,
-                    _ => TOK_STRING,
-                };
-                out.push(AbsToken {
-                    line,
-                    start,
-                    length,
-                    token_type: tt,
-                });
+                return None;
             }
+            let tt = match kind {
+                ValueKind::Bool => TOK_KEYWORD,
+                ValueKind::Null => TOK_NULL,
+                ValueKind::Number => TOK_NUMBER,
+                ValueKind::CompoundOpen | ValueKind::CompoundClose => TOK_OPERATOR,
+                _ => TOK_STRING,
+            };
+            out.push(AbsToken {
+                line,
+                start,
+                length,
+                token_type: tt,
+            });
+            // A bare array item of exactly `(` / `((` is the same
+            // multi-line opener as a pair's value (§ 4's `<item-value>`
+            // dispatches through the same `<value-start>` production).
+            multiline_form_opened(kind, item_text)
         }
+    }
+}
+
+/// If `value_kind`/`text` is exactly the multi-line opener `(` or `((`
+/// (as opposed to any other `CompoundOpen` — `{`, `[`, `{}`, `[]`, `()`),
+/// return the form to switch the scanner into.
+fn multiline_form_opened(value_kind: ValueKind, text: &str) -> Option<MultiForm> {
+    if value_kind != ValueKind::CompoundOpen {
+        return None;
+    }
+    match text {
+        "(" => Some(MultiForm::Stripped),
+        "((" => Some(MultiForm::Verbatim),
+        _ => None,
     }
 }
 
@@ -314,6 +398,10 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
                                     i += 1;
                                 }
                             }
+                            // § 3.7: `\X` escapes a structural byte —
+                            // `\[`, `\]`, `\{`, `\}`, `\,`, `\:` stay
+                            // ordinary key content, not a delimiter.
+                            b'\\' if i + 1 < b.len() => i += 2,
                             b':' | b',' | b'{' | b'}' | b'[' | b']' => break,
                             _ => i += 1,
                         }
@@ -470,6 +558,129 @@ mod tests {
         assert!(
             t.contains(&(0, 10, 4, TOK_STRING)),
             "escaped value must classify as String: {t:?}"
+        );
+    }
+
+    #[test]
+    fn escaped_open_bracket_in_inline_key_is_one_property_token() {
+        // spec/versions/0.8/tests/valid/key_escaping/
+        // escaped_open_bracket_in_inline_pair_key_after_comma.ktav — the
+        // key is `\[a`, decoding to `[a`; before the fix the `\` alone
+        // became a PROPERTY token, `[` opened a bogus nested array, and
+        // `a: 1` collapsed into one String.
+        let text = "obj: {x: 0, \\[a: 1}";
+        let t = toks(text);
+        assert!(
+            t.contains(&(0, 12, 3, TOK_PROPERTY)),
+            "\\[a must be one PROPERTY token: {t:?}"
+        );
+        assert!(
+            t.contains(&(0, 17, 1, TOK_NUMBER)),
+            "1 must be a NUMBER token: {t:?}"
+        );
+        // No spurious extra OPERATOR from treating the escaped `[` as a
+        // nested-array opener: the outer `:` plus `{`, `:`, `,`, `:`, `}`
+        // inline = 6 operators, not 7.
+        let operator_count = t
+            .iter()
+            .filter(|&&(l, _, _, tt)| l == 0 && tt == TOK_OPERATOR)
+            .count();
+        assert_eq!(operator_count, 6, "unexpected OPERATOR token: {t:?}");
+    }
+
+    #[test]
+    fn multiline_stripped_block_content_is_plain_strings() {
+        // § 5.6: inside an open `(` block, ordinary line-shape rules are
+        // suspended — a content line that looks like a pair, a comment or
+        // a lone closer must still become one trimmed STRING token.
+        let text = "motd: (\n    port: 8080\n    ## note\n    true\n)\n";
+        let t = toks(text);
+        assert_eq!(
+            t,
+            vec![
+                (0, 0, 4, TOK_PROPERTY), // motd
+                (0, 4, 1, TOK_OPERATOR), // :
+                (0, 6, 1, TOK_OPERATOR), // (
+                (1, 4, 10, TOK_STRING),  // port: 8080
+                (2, 4, 7, TOK_STRING),   // ## note
+                (3, 4, 4, TOK_STRING),   // true
+                (4, 0, 1, TOK_OPERATOR), // )
+            ]
+        );
+    }
+
+    #[test]
+    fn multiline_content_line_that_looks_like_a_closer_stays_string() {
+        // A content line trimming to `}` must not be treated as a
+        // CloseBrace — only the block's own terminator (`)`) ends it.
+        let text = "key: (\n}\n)\n";
+        let t = toks(text);
+        assert_eq!(
+            t,
+            vec![
+                (0, 0, 3, TOK_PROPERTY),
+                (0, 3, 1, TOK_OPERATOR),
+                (0, 5, 1, TOK_OPERATOR),
+                (1, 0, 1, TOK_STRING),
+                (2, 0, 1, TOK_OPERATOR),
+            ]
+        );
+    }
+
+    #[test]
+    fn multiline_verbatim_block_requires_double_paren_to_close() {
+        // Inside a verbatim `((` block a lone `)` is ordinary content;
+        // only `))` closes it. Content lines nest brace-looking text.
+        let text = "body: ((\n {\n \"qwe\": 1\n }\n))\n";
+        let t = toks(text);
+        assert_eq!(
+            t,
+            vec![
+                (0, 0, 4, TOK_PROPERTY), // body
+                (0, 4, 1, TOK_OPERATOR), // :
+                (0, 6, 2, TOK_OPERATOR), // ((
+                (1, 1, 1, TOK_STRING),   // {
+                (2, 1, 8, TOK_STRING),   // "qwe": 1
+                (3, 1, 1, TOK_STRING),   // }
+                (4, 0, 2, TOK_OPERATOR), // ))
+            ]
+        );
+    }
+
+    #[test]
+    fn multiline_blank_content_line_has_no_token() {
+        let text = "key: (\n\n)\n";
+        let t = toks(text);
+        assert_eq!(
+            t,
+            vec![
+                (0, 0, 3, TOK_PROPERTY),
+                (0, 3, 1, TOK_OPERATOR),
+                (0, 5, 1, TOK_OPERATOR),
+                (2, 0, 1, TOK_OPERATOR),
+            ]
+        );
+    }
+
+    #[test]
+    fn multiline_array_item_opener_is_operator_not_string() {
+        // A bare `(` / `((` array item opens the same multi-line block a
+        // pair's value would — before the fix `classify_line` had no
+        // CompoundOpen case for it here, so the opener rendered as a
+        // one-char STRING instead of an OPERATOR.
+        let text = "items: [\n(\nhello\n)\n]\n";
+        let t = toks(text);
+        assert!(
+            t.contains(&(1, 0, 1, TOK_OPERATOR)),
+            "lone `(` array item must be OPERATOR: {t:?}"
+        );
+        assert!(
+            t.contains(&(2, 0, 5, TOK_STRING)),
+            "block content must be STRING: {t:?}"
+        );
+        assert!(
+            t.contains(&(3, 0, 1, TOK_OPERATOR)),
+            "terminator `)` must be OPERATOR: {t:?}"
         );
     }
 }

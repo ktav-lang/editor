@@ -89,11 +89,20 @@ pub fn classify_line(raw: &str) -> LineKind<'_> {
     // 0.7.0: a colon inside a quoted key segment is opaque, not a
     // separator (§ 5.3.3).
     let Some(colon_rel) = find_key_separator(trimmed) else {
-        // Bare scalar item line (inside an array).
+        // Bare scalar item line (inside an array). Per § 4's
+        // `<item-value> ::= <value-start> <line-end>`, a lone `(` / `((`
+        // here dispatches through the same `<value-start>` production as
+        // a pair's value — it opens a multi-line string body, not a
+        // String scalar spelled "(".
+        let kind = if matches!(trimmed, "(" | "((") {
+            ValueKind::CompoundOpen
+        } else {
+            classify_value(trimmed)
+        };
         return LineKind::ArrayItem {
             start: leading_ws as u32,
             length: trimmed.len() as u32,
-            kind: classify_value(trimmed),
+            kind,
         };
     };
 
@@ -317,4 +326,66 @@ fn scan_exponent(bytes: &[u8], mut i: usize) -> (usize, bool) {
 
 fn trim_trailing_ws(s: &str) -> &str {
     s.trim_end_matches(is_ktav_ws)
+}
+
+/// Was a multi-line string body (§ 5.6) still open on entry to `text`'s
+/// line `line_idx` (0-based)? True for every content line AND the
+/// terminator line itself (both need special handling — a bare `key: `
+/// content line or a `))` terminator line have no ordinary meaning);
+/// false for the opener line (safe to classify normally, it is what sets
+/// the state) and for any line outside a block.
+///
+/// Every consumer that classifies ONE line in isolation — hover,
+/// completion — must check this before trusting [`classify_line`] on
+/// that line. This shares the opener detection `classify_line` already
+/// does for [`LineKind::Pair`] / [`LineKind::ArrayItem`] rather than
+/// re-deriving it, so the two never disagree.
+pub fn line_is_multiline_content(text: &str, line_idx: usize) -> bool {
+    #[derive(Clone, Copy)]
+    enum Form {
+        Stripped,
+        Verbatim,
+    }
+
+    let mut multi: Option<Form> = None;
+    for (i, raw) in text.split('\n').enumerate() {
+        if i == line_idx {
+            return multi.is_some();
+        }
+        if let Some(form) = multi {
+            let trimmed = raw.trim_matches(is_ktav_ws);
+            let closed = match form {
+                Form::Stripped => trimmed == ")",
+                Form::Verbatim => trimmed == "))",
+            };
+            if closed {
+                multi = None;
+            }
+            continue;
+        }
+        let (kind, opener_text) = match classify_line(raw) {
+            LineKind::Pair {
+                value_kind,
+                value_text,
+                ..
+            } => (value_kind, value_text),
+            LineKind::ArrayItem {
+                kind,
+                start,
+                length,
+            } => {
+                let lo = start as usize;
+                (kind, &raw[lo..lo + length as usize])
+            }
+            _ => continue,
+        };
+        if kind == ValueKind::CompoundOpen {
+            multi = match opener_text {
+                "(" => Some(Form::Stripped),
+                "((" => Some(Form::Verbatim),
+                _ => None,
+            };
+        }
+    }
+    multi.is_some()
 }

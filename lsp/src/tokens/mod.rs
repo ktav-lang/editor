@@ -51,7 +51,7 @@ mod kinds;
 pub(crate) use classify::is_ktav_ws;
 #[cfg(test)]
 pub(crate) use classify::looks_numeric;
-pub use classify::{classify_line, classify_value};
+pub use classify::{classify_line, classify_value, line_is_multiline_content};
 pub use encoding::{byte_to_utf16, prefix_by_encoding};
 pub(crate) use key_paths::find_key_separator;
 pub use key_paths::{cursor_is_after_separator, split_dotted};
