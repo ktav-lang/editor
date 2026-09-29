@@ -1,5 +1,7 @@
 # Helix
 
+**Languages:** **English** · [Русский](i18n/editors/ru/helix.md) · [简体中文](i18n/editors/zh/helix.md)
+
 Add the following to `~/.config/helix/languages.toml`:
 
 ```toml
@@ -8,7 +10,7 @@ name = "ktav"
 scope = "source.ktav"
 file-types = ["ktav"]
 roots = [".git"]
-comment-token = "#"
+comment-token = "##"
 indent = { tab-width = 2, unit = "  " }
 language-servers = ["ktav-lsp"]
 

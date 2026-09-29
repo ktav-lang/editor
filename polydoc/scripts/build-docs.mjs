@@ -102,6 +102,40 @@ const SETS = [
       },
     },
   },
+  {
+    // Per-editor setup notes under docs/. English keeps its historical
+    // path; translations live under docs/i18n/editors/<lang>/ rather than
+    // flat in docs/i18n/ to keep that directory's entry count small.
+    name: 'docs',
+    root: '.',
+    docs: {
+      emacs: {
+        en: 'docs/emacs.md',
+        ru: 'docs/i18n/editors/ru/emacs.md',
+        zh: 'docs/i18n/editors/zh/emacs.md',
+      },
+      helix: {
+        en: 'docs/helix.md',
+        ru: 'docs/i18n/editors/ru/helix.md',
+        zh: 'docs/i18n/editors/zh/helix.md',
+      },
+      neovim: {
+        en: 'docs/neovim.md',
+        ru: 'docs/i18n/editors/ru/neovim.md',
+        zh: 'docs/i18n/editors/zh/neovim.md',
+      },
+      sublime: {
+        en: 'docs/sublime.md',
+        ru: 'docs/i18n/editors/ru/sublime.md',
+        zh: 'docs/i18n/editors/zh/sublime.md',
+      },
+      zed: {
+        en: 'docs/zed.md',
+        ru: 'docs/i18n/editors/ru/zed.md',
+        zh: 'docs/i18n/editors/zh/zed.md',
+      },
+    },
+  },
 ];
 
 // Per-unit validation proves every meaning has every language. It does

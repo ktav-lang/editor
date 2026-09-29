@@ -1,5 +1,7 @@
 # Neovim
 
+**Languages:** **English** · [Русский](i18n/editors/ru/neovim.md) · [简体中文](i18n/editors/zh/neovim.md)
+
 With [`nvim-lspconfig`](https://github.com/neovim/nvim-lspconfig)
 (Neovim 0.9+):
 

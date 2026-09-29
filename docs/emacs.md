@@ -1,5 +1,7 @@
 # Emacs
 
+**Languages:** **English** · [Русский](i18n/editors/ru/emacs.md) · [简体中文](i18n/editors/zh/emacs.md)
+
 With [`eglot`](https://joaotavora.github.io/eglot/) (built-in since
 Emacs 29).
 
@@ -10,9 +12,9 @@ Drop this into your `init.el` (or a file on `load-path`):
 ```elisp
 (define-derived-mode ktav-mode prog-mode "Ktav"
   "Major mode for editing Ktav configuration files."
-  (setq-local comment-start "# ")
+  (setq-local comment-start "## ")
   (setq-local comment-end "")
-  (setq-local comment-start-skip "#+\\s-*"))
+  (setq-local comment-start-skip "##+\\s-*"))
 
 (add-to-list 'auto-mode-alist '("\\.ktav\\'" . ktav-mode))
 ```

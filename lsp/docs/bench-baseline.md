@@ -9,8 +9,8 @@ and compare against your own freshly captured baseline.
 ## Methodology
 
 - Generator: `benches/fixtures.rs` — deterministic synthesizer mixing
-  plain pairs, dotted keys, typed scalars (`:i`, `:f`), raw markers
-  (`::`), nested objects, arrays, multi-line raw blocks, and comments.
+  plain pairs, dotted keys, raw markers (`::`), nested objects, arrays,
+  multi-line raw blocks, and comments.
 - Sizes: `small_1k` ≈ 1 KiB, `medium_50k` ≈ 50 KiB, `large_500k` ≈ 500 KiB.
 - Criterion `--quick` profile: shorter measurement windows. Treat the
   numbers below as order-of-magnitude only.

@@ -1,5 +1,7 @@
 # Zed
 
+**Languages:** **English** · [Русский](i18n/editors/ru/zed.md) · [简体中文](i18n/editors/zh/zed.md)
+
 > **Status:** TBD. A first-party Zed extension is on the roadmap but
 > not yet published. The notes below outline what an extension stub
 > would look like — contributions welcome.

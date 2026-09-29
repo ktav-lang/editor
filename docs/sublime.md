@@ -1,5 +1,7 @@
 # Sublime Text
 
+**Languages:** **English** · [Русский](i18n/editors/ru/sublime.md) · [简体中文](i18n/editors/zh/sublime.md)
+
 Sublime Text 4 with the [`LSP`](https://packagecontrol.io/packages/LSP)
 package.
 
