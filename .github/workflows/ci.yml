@@ -46,7 +46,8 @@ jobs:
         run: node scripts/build-docs.mjs --check
 
   # ------------------------------------------------------------------
-  # grammars/ — JSON validation only. Runs on every change anywhere
+  # grammars/ + scripts/ — JSON validation and shell regressions.
+  # Runs on every change anywhere
   # since vscode/ and intellij/ both depend on it.
   # ------------------------------------------------------------------
   grammars:
@@ -66,6 +67,14 @@ jobs:
             node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))"
             echo "  ok: $f"
           done
+      - name: Binary build shell regressions
+        shell: bash
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: |
+          bash -n scripts/build-binaries.sh
+          bash -n scripts/tests/build-binaries.sh
+          bash scripts/tests/build-binaries.sh
 
   # ------------------------------------------------------------------
   # lsp/ — Rust LSP server. fmt + clippy + test.
