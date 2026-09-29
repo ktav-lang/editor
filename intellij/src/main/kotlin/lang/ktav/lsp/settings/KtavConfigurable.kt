@@ -12,14 +12,11 @@ import javax.swing.JPanel
 /**
  * Application-level Settings page under Tools -> Ktav.
  *
- * Single field: the absolute path to a `ktav-lsp` binary. The Ktav
- * plugin's LSP integration consults this value first, then falls back
- * to a bundled binary (none in the current pass), then to the bare
- * command name resolved via PATH.
- *
- * The page is registered unconditionally — even when LSP4IJ is not
- * installed — so users can configure the path ahead of installing
- * LSP4IJ.
+ * Single field: the absolute path to a `ktav-lsp` binary. The plugin's
+ * built-in LSP client ([KtavServerDiscovery][lang.ktav.lsp.client.KtavServerDiscovery])
+ * consults this value first, then falls back to the per-platform binary
+ * bundled in the plugin distribution, then to the bare command name
+ * resolved via `PATH`.
  */
 class KtavConfigurable : Configurable {
 
@@ -57,9 +54,9 @@ class KtavConfigurable : Configurable {
                 "<li><code>ktav-lsp</code> on your <code>PATH</code> " +
                 "(install with <code>cargo install ktav-lsp</code>).</li>" +
                 "</ol>LSP features (diagnostics, hover, completion, " +
-                "document symbols, semantic tokens) require the " +
-                "<a href=\"https://plugins.jetbrains.com/plugin/23257-lsp4ij\">" +
-                "LSP4IJ</a> plugin to be installed." +
+                "document symbols, semantic tokens, formatting) work out of " +
+                "the box via the plugin's built-in LSP client — no separate " +
+                "LSP plugin needed." +
                 "</html>",
         )
 

@@ -100,8 +100,8 @@ intellijPlatform {
 
             <p><b>Features:</b></p>
             <ul>
-              <li>Syntax highlighting for <code>.ktav</code> files via TextMate grammar</li>
-              <li>Comment toggle (<code>#</code>)</li>
+              <li>Native syntax highlighting for <code>.ktav</code> files</li>
+              <li>Comment toggle (<code>##</code>)</li>
               <li>Bracket matching for <code>{}</code> <code>[]</code> <code>()</code></li>
               <li>Live diagnostics, semantic highlighting and a document outline via the
                 bundled <a href="https://github.com/ktav-lang/editor/tree/main/lsp">ktav-lsp</a>
@@ -111,10 +111,14 @@ intellijPlatform {
             <p><b>Example:</b></p>
             <pre>
             service: socks5-rotator
-            port: 20082          # auto-typed: int / float / bool / null
-            node.host: a.example  # dotted keys = flat nesting
-            node.token:: 8080     # '::' forces a literal string
-            metric.http\.requests: 42   # escape a literal dot (0.6.0)
+            ## auto-typed: int / float / bool / null
+            port: 20082
+            ## dotted keys = flat nesting
+            node.host: a.example
+            ## '::' forces a literal string
+            node.token:: 8080
+            ## escape a literal dot (0.6.0)
+            metric.http\.requests: 42
             upstreams: [
                 { host: a.example, port: 1080 }
             ]

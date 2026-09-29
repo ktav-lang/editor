@@ -13,23 +13,17 @@ import com.intellij.lang.Language
  *
  * LSP integration status
  * ----------------------
- * The reference [`ktav-lsp`](../lsp) server already exists and exposes
- * diagnostics, hover, completion, document symbols and semantic tokens.
- * In-plugin LSP wiring (via the
- * [LSP4IJ](https://github.com/redhat-developer/lsp4ij) marketplace
- * plugin) is **deliberately deferred** to a follow-up release because:
+ * The reference [`ktav-lsp`](../lsp) server exposes diagnostics, hover,
+ * completion, document symbols, semantic tokens and formatting. The
+ * plugin talks to it through its own built-in LSP client
+ * ([`KtavLspProjectService`][lang.ktav.lsp.lifecycle.KtavLspProjectService] /
+ * [`KtavStartupActivity`][lang.ktav.lsp.lifecycle.KtavStartupActivity]) —
+ * no third-party LSP plugin (e.g. LSP4IJ) is required.
  *
- *  - The new `org.jetbrains.intellij.platform` 2.x Gradle plugin
- *    requires a specific LSP4IJ version compatible with our IDE
- *    `sinceBuild = 243` / `untilBuild = 251.*` window. Pinning the
- *    wrong version turns into a class-load failure rather than a build
- *    error, so the version pair must be verified on a real IDE first.
- *  - Bundling or auto-discovering the `ktav-lsp` binary is explicitly
- *    out of scope for the current pass (per AGENTS guidance).
- *
- * Until then, users who want diagnostics can install LSP4IJ from the
- * marketplace and point it at a `ktav-lsp` binary on their PATH — see
- * the README for the exact steps.
+ * [`KtavServerDiscovery`][lang.ktav.lsp.client.KtavServerDiscovery] finds
+ * the `ktav-lsp` binary in order: the path configured in Settings ->
+ * Tools -> Ktav, then the per-platform binary bundled in the plugin
+ * distribution (`lib/bin/<os>-<arch>/ktav-lsp`), then `PATH`.
  */
 object KtavLanguage : Language("ktav") {
     init {
