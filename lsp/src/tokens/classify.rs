@@ -28,6 +28,14 @@ pub(crate) fn is_ktav_ws(c: char) -> bool {
 
 /// Tokenize a single line. `line` is the raw text without trailing `\n`.
 pub fn classify_line(raw: &str) -> LineKind<'_> {
+    classify_line_in_scope(raw, true)
+}
+
+pub(super) fn classify_array_line(raw: &str) -> LineKind<'_> {
+    classify_line_in_scope(raw, false)
+}
+
+fn classify_line_in_scope(raw: &str, pairs: bool) -> LineKind<'_> {
     let trimmed_start = raw.trim_start_matches(is_ktav_ws);
     let leading_ws = raw.len() - trimmed_start.len();
     let trimmed = trim_trailing_ws(trimmed_start);
@@ -44,8 +52,10 @@ pub fn classify_line(raw: &str) -> LineKind<'_> {
         };
     }
 
-    // Lone closer line.
-    if trimmed.len() == 1 && matches!(trimmed.as_bytes()[0], b'}' | b']' | b')') {
+    // Outside a multiline body, `)` is an ordinary Array String.
+    if trimmed.len() == 1
+        && (matches!(trimmed.as_bytes()[0], b'}' | b']') || pairs && trimmed == ")")
+    {
         return LineKind::CloseBrace {
             start: leading_ws as u32,
         };
@@ -88,13 +98,13 @@ pub fn classify_line(raw: &str) -> LineKind<'_> {
     // counts only when UNESCAPED (a preceding lone `\` escapes it). Spec
     // 0.7.0: a colon inside a quoted key segment is opaque, not a
     // separator (§ 5.3.3).
-    let Some(colon_rel) = find_key_separator(trimmed) else {
+    let Some(colon_rel) = pairs.then(|| find_key_separator(trimmed)).flatten() else {
         // Bare scalar item line (inside an array). Per § 4's
         // `<item-value> ::= <value-start> <line-end>`, a lone `(` / `((`
         // here dispatches through the same `<value-start>` production as
         // a pair's value — it opens a multi-line string body, not a
         // String scalar spelled "(".
-        let kind = if matches!(trimmed, "(" | "((") {
+        let kind = if matches!(trimmed, "(" | "((" | "()" | "(())") {
             ValueKind::CompoundOpen
         } else {
             classify_value(trimmed)
@@ -343,55 +353,15 @@ fn trim_trailing_ws(s: &str) -> &str {
 ///
 /// Every consumer that classifies ONE line in isolation — hover,
 /// completion — must check this before trusting [`classify_line`] on
-/// that line. This shares the opener detection `classify_line` already
-/// does for [`LineKind::Pair`] / [`LineKind::ArrayItem`] rather than
-/// re-deriving it, so the two never disagree.
+/// that line. The document context shares scope-aware opener detection
+/// with formatting and semantic tokens.
 pub fn line_is_multiline_content(text: &str, line_idx: usize) -> bool {
-    #[derive(Clone, Copy)]
-    enum Form {
-        Stripped,
-        Verbatim,
-    }
-
-    let mut multi: Option<Form> = None;
+    let mut context = super::DocumentContext::default();
     for (i, raw) in crate::lines::content_lines(text).into_iter().enumerate() {
         if i == line_idx {
-            return multi.is_some();
+            return context.in_multiline();
         }
-        if let Some(form) = multi {
-            let trimmed = raw.trim_matches(is_ktav_ws);
-            let closed = match form {
-                Form::Stripped => trimmed == ")",
-                Form::Verbatim => trimmed == "))",
-            };
-            if closed {
-                multi = None;
-            }
-            continue;
-        }
-        let (kind, opener_text) = match classify_line(raw) {
-            LineKind::Pair {
-                value_kind,
-                value_text,
-                ..
-            } => (value_kind, value_text),
-            LineKind::ArrayItem {
-                kind,
-                start,
-                length,
-            } => {
-                let lo = start as usize;
-                (kind, &raw[lo..lo + length as usize])
-            }
-            _ => continue,
-        };
-        if kind == ValueKind::CompoundOpen {
-            multi = match opener_text {
-                "(" => Some(Form::Stripped),
-                "((" => Some(Form::Verbatim),
-                _ => None,
-            };
-        }
+        context.next_line(raw);
     }
-    multi.is_some()
+    context.in_multiline()
 }

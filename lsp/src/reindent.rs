@@ -27,19 +27,9 @@
 //! handling — so re-emitting with `\n` never changes what the document
 //! means, only its on-disk bytes).
 
-use crate::tokens::{classify_line, find_key_separator, LineKind, ValueKind};
+use crate::tokens::{find_key_separator, is_ktav_ws, DocumentContext, LineKind};
 
 const INDENT: &str = "    ";
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Multi {
-    None,
-    /// Inside `(` ... `)` — stripped form. Parser dedents on read; we
-    /// keep the original indent of the contents.
-    Stripped,
-    /// Inside `((` ... `))` — verbatim. Bytes preserved exactly.
-    Verbatim,
-}
 
 /// Re-emit `src` with canonical indentation. Blank lines, comments,
 /// and multi-line string contents are preserved.
@@ -50,8 +40,7 @@ pub fn reindent(src: &str) -> String {
     let bom = &src[..crate::lines::leading_bom_len(src)];
     let mut out = String::with_capacity(src.len() + 32);
     out.push_str(bom);
-    let mut depth: usize = 0;
-    let mut multi = Multi::None;
+    let mut context = DocumentContext::default();
 
     // `split_lines("a\n")` yields `["a", ""]` — the trailing empty entry
     // represents "no characters after the final terminator", not a
@@ -70,24 +59,12 @@ pub fn reindent(src: &str) -> String {
     let trailing_newline = crate::lines::ends_with_terminator(src);
 
     for line in lines {
-        let trimmed = line.trim();
+        let trimmed = line.trim_matches(is_ktav_ws);
+        let classified = context.next_line(line);
 
-        // ---- Inside multi-line string: copy verbatim ----
-        if multi != Multi::None {
-            if (multi == Multi::Stripped && trimmed == ")")
-                || (multi == Multi::Verbatim && trimmed == "))")
-            {
-                // Closing line — emit at current depth, exit multi mode.
-                push_indent(&mut out, depth);
-                out.push_str(trimmed);
-                out.push('\n');
-                multi = Multi::None;
-            } else {
-                // Content line — copy as-is (preserves user's leading
-                // whitespace, which is part of the value).
-                out.push_str(line);
-                out.push('\n');
-            }
+        if classified.multiline_content {
+            out.push_str(line);
+            out.push('\n');
             continue;
         }
 
@@ -97,57 +74,20 @@ pub fn reindent(src: &str) -> String {
             continue;
         }
 
-        // ---- Closing structural line: dedent BEFORE emit ----
-        // A line that is just `}` / `]` (or with leading whitespace
-        // only) reduces nesting before its own indent is computed.
-        if matches!(trimmed, "}" | "]") {
-            depth = depth.saturating_sub(1);
-            push_indent(&mut out, depth);
-            out.push_str(trimmed);
-            out.push('\n');
-            continue;
+        // A colon-bearing Array String is not a pair (§ 5.1 rule 7).
+        let line_to_emit = if matches!(classified.kind, LineKind::Pair { .. }) {
+            canonicalise_paren_scalar(trimmed)
+        } else {
+            std::borrow::Cow::Borrowed(trimmed)
+        };
+        // Do not expose a content BOM as document metadata (§ 3.1).
+        if out.is_empty() && trimmed.starts_with('\u{FEFF}') {
+            out.push_str(&line[..line.len() - line.trim_start_matches(is_ktav_ws).len()]);
+        } else {
+            push_indent(&mut out, classified.depth);
         }
-
-        // ---- Comment: keep at current depth ----
-        // Spec 0.5.0: a comment is a LEADING `##` — one `#` is an
-        // ordinary character (e.g. a valid, unquoted key: `#child: {`).
-        // Delegate to the shared classifier so this never disagrees with
-        // semantic tokens on what counts as a comment.
-        if matches!(classify_line(trimmed), LineKind::Comment { .. }) {
-            push_indent(&mut out, depth);
-            out.push_str(trimmed);
-            out.push('\n');
-            continue;
-        }
-
-        // ---- Regular line: emit at current depth ----
-        // Auto-disambiguate values that visually look like multi-line
-        // openers but aren't: `name: (value)` and `name: ((value))`
-        // are inline scalars starting with `(` / `((`. The parser
-        // accepts them, but the reader is left to wonder whether `(`
-        // is the start of a multi-line block. Canonical form is the
-        // raw marker `::`, which carries the same semantics
-        // (`name:: (value)` parses identically). Rewrite on format.
-        let line_to_emit = canonicalise_paren_scalar(trimmed);
-        push_indent(&mut out, depth);
         out.push_str(&line_to_emit);
         out.push('\n');
-
-        // ---- Update depth / detect multi-line opener for the NEXT line ----
-        // Structural, not textual: only a line whose *value* IS a
-        // compound opener (`{`, `[`, `(`, `((`, exactly) changes nesting.
-        // Delegating to `classify_line` (the same classifier semantic
-        // tokens use) instead of a trailing-token heuristic avoids the
-        // false positives a suffix match invites — a Raw pair (`key::
-        // ((`) is a literal string, not an opener; a value that merely
-        // ends in `: {` (an escaped-colon key like `a\: {`, or a long
-        // scalar that happens to end in `{`) isn't one either; an empty
-        // inline form (`{}`, `[]`, `()`) doesn't nest at all.
-        match opener_of(trimmed) {
-            Opener::Multi(m) => multi = m,
-            Opener::Brace => depth += 1,
-            Opener::None => {}
-        }
     }
 
     // Strip the trailing `\n` if the input didn't have one — otherwise
@@ -202,16 +142,12 @@ fn canonicalise_paren_scalar(trimmed: &str) -> std::borrow::Cow<'_, str> {
 
     // The `:` must be followed by at least one whitespace character to
     // be a valid pair separator (Ktav § 6.10).
-    if colon + 1 >= bytes.len() || bytes[colon + 1] != b' ' && bytes[colon + 1] != b'\t' {
+    if !trimmed[colon + 1..].starts_with(is_ktav_ws) {
         return std::borrow::Cow::Borrowed(trimmed);
     }
 
     // The value starts after the leading whitespace.
-    let mut value_start = colon + 1;
-    while value_start < bytes.len() && (bytes[value_start] == b' ' || bytes[value_start] == b'\t') {
-        value_start += 1;
-    }
-    let value = &trimmed[value_start..];
+    let value = trimmed[colon + 1..].trim_start_matches(is_ktav_ws);
 
     // Empty value — leave alone (Ktav represents this as `name:` /
     // `name: ` and the parser keeps the empty-string semantics).
@@ -248,57 +184,6 @@ fn canonicalise_paren_scalar(trimmed: &str) -> std::borrow::Cow<'_, str> {
     let key_part = &trimmed[..colon];
     let after_colon = &trimmed[colon + 1..];
     std::borrow::Cow::Owned(format!("{}::{}", key_part, after_colon))
-}
-
-/// How a line changes nesting for the line that follows it.
-enum Opener {
-    /// No effect — scalar pair/item, closer, comment, blank, or one of
-    /// the empty inline forms (`{}`, `[]`, `()`).
-    None,
-    /// Opens a `{` / `[` compound — `depth` goes up by one.
-    Brace,
-    /// Opens a `(` / `((` multi-line string body.
-    Multi(Multi),
-}
-
-/// Classify `trimmed` (a non-blank, non-comment, non-closer line)
-/// structurally via [`classify_line`]: does its *value* — a pair's value
-/// (`key: {`) or a bare array item (`{` on its own line) — spell exactly
-/// one of the six compound-opener forms? Only an EXACT match opens
-/// anything; `{}` / `[]` / `()` are complete inline values, and a Raw
-/// (`::`) pair's body is always a literal string (§ 4), never an
-/// opener, regardless of what it looks like.
-fn opener_of(trimmed: &str) -> Opener {
-    let (value_kind, value_text) = match classify_line(trimmed) {
-        LineKind::Pair {
-            value_kind,
-            value_text,
-            ..
-        } => (value_kind, value_text),
-        LineKind::ArrayItem {
-            kind,
-            start,
-            length,
-        } => {
-            let lo = start as usize;
-            let hi = lo + length as usize;
-            (kind, trimmed.get(lo..hi).unwrap_or(""))
-        }
-        LineKind::Blank
-        | LineKind::Comment { .. }
-        | LineKind::CloseBrace { .. }
-        | LineKind::RawArrayItem { .. } => return Opener::None,
-    };
-    if value_kind != ValueKind::CompoundOpen {
-        return Opener::None;
-    }
-    match value_text {
-        "{" | "[" => Opener::Brace,
-        "(" => Opener::Multi(Multi::Stripped),
-        "((" => Opener::Multi(Multi::Verbatim),
-        // `{}` / `[]` / `()` — empty inline value, nothing to nest into.
-        _ => Opener::None,
-    }
 }
 
 fn push_indent(out: &mut String, depth: usize) {

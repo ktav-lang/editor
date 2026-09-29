@@ -38,12 +38,12 @@
 //! segment's first position (`don't: 1`) is unaffected — same as before
 //! 0.7.0.
 //!
-//! It does NOT track the brace stack: a tokenizer that needs to know
-//! "am I inside an array?" already lost — for our purposes (highlighting
-//! and column ranges) per-line classification is sufficient and matches
-//! what `ktav::parse` accepts.
+//! Document consumers use [`DocumentContext`] for root dispatch, active
+//! Object/Array scopes and multiline bodies (§ 5.0.1 / § 5.1).
+//! [`classify_line`] remains a lexical helper for isolated line shapes.
 
 mod classify;
+mod context;
 mod encoding;
 mod key_paths;
 mod kinds;
@@ -53,6 +53,7 @@ pub(crate) use classify::is_ktav_ws;
 #[cfg(test)]
 pub(crate) use classify::looks_numeric;
 pub use classify::{classify_line, classify_value, line_is_multiline_content};
+pub(crate) use context::DocumentContext;
 pub use encoding::{byte_to_utf16, prefix_by_encoding};
 pub(crate) use key_paths::find_key_separator;
 pub use key_paths::{cursor_is_after_separator, split_dotted};

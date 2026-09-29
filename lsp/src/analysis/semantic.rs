@@ -7,7 +7,7 @@
 use tower_lsp::lsp_types::{SemanticToken, SemanticTokenType};
 
 use crate::tokens::{
-    classify_line, classify_value, is_ktav_ws, split_dotted, LineKind, Marker, ValueKind,
+    classify_value, is_ktav_ws, split_dotted, DocumentContext, LineKind, Marker, ValueKind,
 };
 
 /// Token types we expose, in the order their indices are referenced
@@ -44,11 +44,7 @@ struct AbsToken {
 /// LSP-mandated delta format.
 pub fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
     let mut abs: Vec<AbsToken> = Vec::new();
-    // § 5.6: while a multi-line string is open, ordinary line-shape rules
-    // (comments, pairs, closers) are suspended — a content line is never
-    // run through `classify_line`. `multi` is the single piece of
-    // cross-line state this module needs.
-    let mut multi: Option<MultiForm> = None;
+    let mut context = DocumentContext::default();
 
     // § 3.2: LF, CR and CRLF are all valid line terminators — go through
     // the shared splitter so semantic-token line numbers never desync
@@ -57,10 +53,19 @@ pub fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
     for (line_idx, line) in crate::lines::content_lines(text).into_iter().enumerate() {
         let line_idx = line_idx as u32;
         let first_token = abs.len();
-        multi = match multi {
-            Some(form) => emit_multiline_line(line_idx, line, form, &mut abs),
-            None => emit_line(line_idx, line, &mut abs),
-        };
+        let classified = context.next_line(line);
+        if classified.multiline_content {
+            if let LineKind::ArrayItem { start, length, .. } = classified.kind {
+                abs.push(AbsToken {
+                    line: line_idx,
+                    start,
+                    length,
+                    token_type: TOK_STRING,
+                });
+            }
+        } else {
+            emit_line(line_idx, line, classified.kind, &mut abs);
+        }
         if line_idx == 0 {
             for token in &mut abs[first_token..] {
                 token.start += bom;
@@ -71,58 +76,9 @@ pub fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
     encode_deltas(&abs)
 }
 
-/// Stripped (`(…)`) vs. verbatim (`((…))`) multi-line string form —
-/// decides only the terminator shape and nothing else, since both forms
-/// highlight their content lines identically (§ 5.6's whitespace-stripping
-/// and byte-for-byte rules only affect the parsed *value*, not which span
-/// gets a token).
-#[derive(Clone, Copy)]
-enum MultiForm {
-    Stripped,
-    Verbatim,
-}
-
-/// Tokenize one line while a multi-line string is open. Returns the
-/// still-open form (`Some`) to keep scanning, or `None` once the
-/// terminator line has closed it.
-fn emit_multiline_line(
-    line: u32,
-    raw: &str,
-    form: MultiForm,
-    out: &mut Vec<AbsToken>,
-) -> Option<MultiForm> {
-    let trimmed = raw.trim_matches(is_ktav_ws);
-    let is_terminator = match form {
-        MultiForm::Stripped => trimmed == ")",
-        MultiForm::Verbatim => trimmed == "))",
-    };
-    let start = (raw.len() - raw.trim_start_matches(is_ktav_ws).len()) as u32;
-    if is_terminator {
-        out.push(AbsToken {
-            line,
-            start,
-            length: trimmed.len() as u32,
-            token_type: TOK_OPERATOR,
-        });
-        return None;
-    }
-    // A blank (or whitespace-only) content line contributes no token —
-    // mirrors the spec's "contributes an empty string" with nothing to
-    // highlight.
-    if !trimmed.is_empty() {
-        out.push(AbsToken {
-            line,
-            start,
-            length: trimmed.len() as u32,
-            token_type: TOK_STRING,
-        });
-    }
-    Some(form)
-}
-
-fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) -> Option<MultiForm> {
-    match classify_line(raw) {
-        LineKind::Blank => None,
+fn emit_line(line: u32, raw: &str, kind: LineKind<'_>, out: &mut Vec<AbsToken>) {
+    match kind {
+        LineKind::Blank => {}
         LineKind::Comment { start, length } => {
             out.push(AbsToken {
                 line,
@@ -130,7 +86,6 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) -> Option<MultiForm>
                 length,
                 token_type: TOK_COMMENT,
             });
-            None
         }
         LineKind::CloseBrace { start } => {
             out.push(AbsToken {
@@ -139,7 +94,6 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) -> Option<MultiForm>
                 length: 1,
                 token_type: TOK_OPERATOR,
             });
-            None
         }
         LineKind::RawArrayItem {
             marker_start,
@@ -160,7 +114,6 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) -> Option<MultiForm>
                     token_type: TOK_STRING,
                 });
             }
-            None
         }
         LineKind::Pair {
             key_start,
@@ -197,7 +150,7 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) -> Option<MultiForm>
                 token_type: TOK_OPERATOR,
             });
             if value_length == 0 {
-                return None;
+                return;
             }
             // An inline compound value (`{…}` / `[…]` on a `:` line) is
             // tokenized structurally so its brackets read as operators
@@ -208,7 +161,7 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) -> Option<MultiForm>
                 && starts_inline_compound(value_text)
             {
                 emit_inline(line, value_start, value_text, out);
-                return None;
+                return;
             }
             let tt = match value_kind {
                 ValueKind::Bool => TOK_KEYWORD,
@@ -224,10 +177,6 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) -> Option<MultiForm>
                 length: value_length,
                 token_type: tt,
             });
-            // § 5.6: a value of exactly `(` / `((` opens a multi-line
-            // string body — everything up to the terminator line belongs
-            // to this module's `multi` state, not `classify_line`.
-            multiline_form_opened(value_kind, value_text)
         }
         LineKind::ArrayItem {
             start,
@@ -237,7 +186,7 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) -> Option<MultiForm>
             let item_text = &raw[start as usize..start as usize + length as usize];
             if matches!(kind, ValueKind::String) && starts_inline_compound(item_text) {
                 emit_inline(line, start, item_text, out);
-                return None;
+                return;
             }
             let tt = match kind {
                 ValueKind::Bool => TOK_KEYWORD,
@@ -252,25 +201,7 @@ fn emit_line(line: u32, raw: &str, out: &mut Vec<AbsToken>) -> Option<MultiForm>
                 length,
                 token_type: tt,
             });
-            // A bare array item of exactly `(` / `((` is the same
-            // multi-line opener as a pair's value (§ 4's `<item-value>`
-            // dispatches through the same `<value-start>` production).
-            multiline_form_opened(kind, item_text)
         }
-    }
-}
-
-/// If `value_kind`/`text` is exactly the multi-line opener `(` or `((`
-/// (as opposed to any other `CompoundOpen` — `{`, `[`, `{}`, `[]`, `()`),
-/// return the form to switch the scanner into.
-fn multiline_form_opened(value_kind: ValueKind, text: &str) -> Option<MultiForm> {
-    if value_kind != ValueKind::CompoundOpen {
-        return None;
-    }
-    match text {
-        "(" => Some(MultiForm::Stripped),
-        "((" => Some(MultiForm::Verbatim),
-        _ => None,
     }
 }
 
