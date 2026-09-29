@@ -94,6 +94,7 @@ class KtavLexer : LexerBase() {
 
         /** Whitespace usable as an in-line separator — excludes the line terminators. */
         private fun isHorizontalWs(c: Char) = c != '\n' && c != '\r' && isKtavWhitespace(c)
+        private fun isLineTerminator(c: Char) = c == '\n' || c == '\r'
 
         private fun CharSequence.trimKtav(): String {
             var start = 0
@@ -267,23 +268,13 @@ class KtavLexer : LexerBase() {
     }
 
     private fun advanceImpl(c: Char) {
-        // A lone `\r` (CRLF input) is always its own whitespace token and
-        // never touches state — the `\n` right after it does the actual
-        // line-boundary work below. Handled before any state dispatch so a
-        // CR can never be swallowed into a value/key/body-line token span
-        // (which would otherwise break exact-text classification, e.g.
-        // `true\r` no longer matching the `true` keyword).
-        if (c == '\r') {
+        // CR, LF, and CRLF are equivalent line terminators; keep CRLF in one
+        // whitespace token and perform the state transition only once.
+        if (isLineTerminator(c)) {
             myTokenEnd = myTokenStart + 1
-            myTokenType = TokenType.WHITE_SPACE
-            return
-        }
-        // Newlines reset state to LINE_START, EXCEPT inside a multiline
-        // block body: that construct is the one deliberately multi-line
-        // state (everything else here — inline compounds included — is
-        // single-line, and an unterminated one resets on `\n`).
-        if (c == '\n') {
-            myTokenEnd = myTokenStart + 1
+            if (c == '\r' && myTokenEnd < myBufferEnd && myBuffer[myTokenEnd] == '\n') {
+                myTokenEnd++
+            }
             myTokenType = TokenType.WHITE_SPACE
             if (myState != MULTILINE_BODY_STRIPPED && myState != MULTILINE_BODY_VERBATIM) {
                 myState = LINE_START
@@ -432,14 +423,17 @@ class KtavLexer : LexerBase() {
         var atSegmentStart = true
         while (i < myBufferEnd) {
             val ch = myBuffer[i]
-            if (ch == '\n') return false
+            if (isLineTerminator(ch)) return false
             if (atSegmentStart && (ch == '"' || ch == '\'' || ch == '`')) {
                 var j = i + 1
                 var closed = false
                 while (j < myBufferEnd) {
                     val qc = myBuffer[j]
-                    if (qc == '\n') break
-                    if (qc == '\\') { j = (j + 2).coerceAtMost(myBufferEnd); continue }
+                    if (isLineTerminator(qc)) break
+                    if (qc == '\\') {
+                        j += if (j + 1 < myBufferEnd && !isLineTerminator(myBuffer[j + 1])) 2 else 1
+                        continue
+                    }
                     if (qc == ch) { closed = true; j++; break }
                     j++
                 }
@@ -448,10 +442,14 @@ class KtavLexer : LexerBase() {
                 atSegmentStart = false
                 continue
             }
-            if (ch == '\\') { i = (i + 2).coerceAtMost(myBufferEnd); atSegmentStart = false; continue }
+            if (ch == '\\') {
+                i += if (i + 1 < myBufferEnd && !isLineTerminator(myBuffer[i + 1])) 2 else 1
+                atSegmentStart = false
+                continue
+            }
             if (ch == '.') { i++; atSegmentStart = true; continue }
             if (ch == ':') return true
-            atSegmentStart = false
+            if (!isHorizontalWs(ch)) atSegmentStart = false
             i++
         }
         return false
@@ -555,8 +553,11 @@ class KtavLexer : LexerBase() {
             var e = myTokenStart
             while (e < myBufferEnd) {
                 val ch = myBuffer[e]
-                if (ch == '\n') break
-                if (ch == '\\') { e = (e + 2).coerceAtMost(myBufferEnd); continue }
+                if (isLineTerminator(ch)) break
+                if (ch == '\\') {
+                    e += if (e + 1 < myBufferEnd && !isLineTerminator(myBuffer[e + 1])) 2 else 1
+                    continue
+                }
                 if (ch == ',' || ch == '}' || ch == ']') break
                 e++
             }
@@ -572,32 +573,42 @@ class KtavLexer : LexerBase() {
     }
 
     /**
-     * Inline key run, quote-aware (§ 5.3.3): a `"`/`'`/`` ` ``-quoted span
+     * Inline key run, quote-aware (§ 5.3.3): a quote at segment start
      * is opaque to `: . , { } [ ]` inside it. An unterminated quote
      * degrades gracefully — it swallows the rest of the line into this KEY
      * token instead of corrupting the (still-valid) inline state.
      */
     private fun scanInlineKey() {
         var e = myTokenStart
+        var atSegmentStart = true
         while (e < myBufferEnd) {
             val ch = myBuffer[e]
-            if (ch == '\\') { e = (e + 2).coerceAtMost(myBufferEnd); continue }
-            if (ch == '"' || ch == '\'' || ch == '`') {
+            if (ch == '\\') {
+                e += if (e + 1 < myBufferEnd && !isLineTerminator(myBuffer[e + 1])) 2 else 1
+                atSegmentStart = false
+                continue
+            }
+            if (atSegmentStart && (ch == '"' || ch == '\'' || ch == '`')) {
                 var j = e + 1
                 var closed = false
                 while (j < myBufferEnd) {
                     val qc = myBuffer[j]
-                    if (qc == '\n') break
-                    if (qc == '\\') { j = (j + 2).coerceAtMost(myBufferEnd); continue }
+                    if (isLineTerminator(qc)) break
+                    if (qc == '\\') {
+                        j += if (j + 1 < myBufferEnd && !isLineTerminator(myBuffer[j + 1])) 2 else 1
+                        continue
+                    }
                     if (qc == ch) { closed = true; j++; break }
                     j++
                 }
-                if (closed) { e = j; continue }
-                while (j < myBufferEnd && myBuffer[j] != '\n') j++
+                if (closed) { e = j; atSegmentStart = false; continue }
+                while (j < myBufferEnd && !isLineTerminator(myBuffer[j])) j++
                 e = j
                 break
             }
-            if (ch == '\n' || ch == ':' || ch == ',' || ch == '{' || ch == '}' || ch == '[' || ch == ']') break
+            if (isLineTerminator(ch) || ch == ':' || ch == ',' || ch == '{' || ch == '}' || ch == '[' || ch == ']') break
+            if (ch == '.') atSegmentStart = true
+            else if (!isHorizontalWs(ch)) atSegmentStart = false
             e++
         }
         myTokenEnd = e
@@ -638,12 +649,15 @@ class KtavLexer : LexerBase() {
             var closed = false
             while (j < myBufferEnd) {
                 val ch = myBuffer[j]
-                if (ch == '\n') break
-                if (ch == '\\') { j = (j + 2).coerceAtMost(myBufferEnd); continue }
+                if (isLineTerminator(ch)) break
+                if (ch == '\\') {
+                    j += if (j + 1 < myBufferEnd && !isLineTerminator(myBuffer[j + 1])) 2 else 1
+                    continue
+                }
                 if (ch == quote) { closed = true; j++; break }
                 j++
             }
-            if (!closed) { while (j < myBufferEnd && myBuffer[j] != '\n') j++ }
+            if (!closed) { while (j < myBufferEnd && !isLineTerminator(myBuffer[j])) j++ }
             myTokenEnd = j
             myTokenType = Tokens.KEY
             return
@@ -660,7 +674,7 @@ class KtavLexer : LexerBase() {
             // so `a\.b`, `a\:b`, `path\\to` stay one KEY token. A dangling
             // `\` at end-of-buffer is consumed as a lone byte.
             if (asKey && ch == '\\') {
-                myTokenEnd = (myTokenEnd + 2).coerceAtMost(myBufferEnd)
+                myTokenEnd += if (myTokenEnd + 1 < myBufferEnd && !isLineTerminator(myBuffer[myTokenEnd + 1])) 2 else 1
                 continue
             }
             if (isKeyChar(ch)) myTokenEnd++ else break
@@ -672,7 +686,7 @@ class KtavLexer : LexerBase() {
 
     private fun scanCommentRest() {
         myTokenEnd = myTokenStart
-        while (myTokenEnd < myBufferEnd && myBuffer[myTokenEnd] != '\n') myTokenEnd++
+        while (myTokenEnd < myBufferEnd && !isLineTerminator(myBuffer[myTokenEnd])) myTokenEnd++
         myTokenType = Tokens.COMMENT
     }
 

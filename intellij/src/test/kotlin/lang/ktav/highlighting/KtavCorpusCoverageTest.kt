@@ -3,6 +3,7 @@ package lang.ktav.highlighting
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import com.intellij.psi.tree.IElementType
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -18,17 +19,26 @@ import java.io.File
  *     equal the number of number/boolean/null leaves in the fixture's
  *     oracle (`<name>.json`).
  *
- * Guard, not skip: a missing spec submodule fails loudly, mirroring
- * `lsp/tests/spec_conformance.rs`'s `spec_tests_dir()` — CI can never go
- * green on an uninitialised submodule.
+ * Guard, not skip: a missing corpus fails loudly. Isolated worktrees may
+ * explicitly point to another 0.8 tests directory with ktav.spec.testsDir.
  */
 class KtavCorpusCoverageTest {
 
     private val corpusRoot: File by lazy {
-        File(System.getProperty("user.dir"), "../spec/versions/0.8/tests").canonicalFile
+        val override = System.getProperty("ktav.spec.testsDir")
+        (override?.let(::File) ?: File(System.getProperty("user.dir"), "../spec/versions/0.8/tests")).canonicalFile
     }
 
     private val validRoot: File by lazy { File(corpusRoot, "valid") }
+    private val manifestFile: File by lazy { File(corpusRoot, "manifest.json") }
+
+    private val expectedCategories = setOf(
+        "valid",
+        "invalid",
+        "unrepresentable",
+        "parseable-unrepresentable",
+        "strict-lossy",
+    )
 
     // Numbers outside the i64/f64 domain, written WITHOUT a `::` raw
     // marker. The lexer classifies purely on lexical form (§ 3.6/§ 5.2) —
@@ -58,6 +68,13 @@ class KtavCorpusCoverageTest {
         }
         walk(validRoot)
         return out
+    }
+
+    private fun assertValidFixtureCount(fixtures: List<File>) {
+        val manifest = JsonParser.parseString(manifestFile.readText(Charsets.UTF_8)).asJsonObject
+        val expected = manifest.getAsJsonObject("categories").getAsJsonObject("valid").get("count").asInt
+        assertEquals("manifest must lock the valid corpus at 223 fixtures", 223, expected)
+        assertEquals("valid corpus fixture count under $validRoot", expected, fixtures.size)
     }
 
     private data class LeafCounts(val numbers: Int, val booleans: Int, val nulls: Int) {
@@ -95,28 +112,36 @@ class KtavCorpusCoverageTest {
     }
 
     @Test
-    fun spec_submodule_is_initialised() {
+    fun spec_corpus_is_available() {
         assertTrue(
-            "spec submodule not initialised at $corpusRoot — run " +
-                "`git submodule update --init --recursive`. This test fails " +
-                "rather than skips so a missing corpus can never pass as green.",
+            "spec corpus missing at $corpusRoot; initialise the submodule or " +
+                "set -Dktav.spec.testsDir to an existing 0.8 tests directory.",
             validRoot.isDirectory && File(corpusRoot, "invalid").isDirectory,
         )
     }
 
     @Test
+    fun corpus_manifest_is_for_spec_08_and_declares_the_closed_category_set() {
+        assertTrue("expected spec version 0.8 tests directory at $corpusRoot", corpusRoot.name == "tests" && corpusRoot.parentFile.name == "0.8")
+        assertTrue("corpus manifest missing at $manifestFile", manifestFile.isFile)
+
+        val manifest = JsonParser.parseString(manifestFile.readText(Charsets.UTF_8)).asJsonObject
+        assertEquals(1, manifest.get("schema_version").asInt)
+        val categories = manifest.getAsJsonObject("categories")
+        assertEquals(expectedCategories, categories.keySet())
+        val categoryDirectories = corpusRoot.listFiles()!!.filter { it.isDirectory }.map { it.name }.toSet()
+        assertEquals(expectedCategories, categoryDirectories)
+    }
+
+    @Test
     fun corpus_fixtures_were_found() {
-        val fixtures = listValidFixtures()
-        assertTrue(
-            "expected the full valid/ corpus under $validRoot, found ${fixtures.size} fixture(s)",
-            fixtures.size > 100,
-        )
+        assertValidFixtureCount(listValidFixtures())
     }
 
     @Test
     fun lexer_covers_every_valid_fixture_without_gaps_and_matches_oracle_leaf_counts() {
         val fixtures = listValidFixtures()
-        assertTrue("no valid fixtures found under $validRoot", fixtures.isNotEmpty())
+        assertValidFixtureCount(fixtures)
 
         val failures = mutableListOf<String>()
         for (file in fixtures) {

@@ -43,6 +43,176 @@ class KtavLexerTest {
     }
 
     @Test
+    fun lone_cr_separates_records_and_crlf_is_one_terminator() {
+        val text = "a: 1\rb: true\r\nc: false"
+        val lex = KtavLexer()
+        lex.start(text, 0, text.length, 0)
+        val all = mutableListOf<Pair<String, IElementType>>()
+        while (lex.tokenType != null) {
+            all += text.substring(lex.tokenStart, lex.tokenEnd) to lex.tokenType!!
+            lex.advance()
+        }
+
+        assertEquals(
+            listOf(
+                "a" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                " " to TokenType.WHITE_SPACE,
+                "1" to KtavTokenTypes.INT_VALUE,
+                "\r" to TokenType.WHITE_SPACE,
+                "b" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                " " to TokenType.WHITE_SPACE,
+                "true" to KtavTokenTypes.BOOLEAN,
+                "\r\n" to TokenType.WHITE_SPACE,
+                "c" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                " " to TokenType.WHITE_SPACE,
+                "false" to KtavTokenTypes.BOOLEAN,
+            ),
+            all,
+        )
+    }
+
+    @Test
+    fun quoted_keys_stop_at_cr_and_next_line_is_scanned_independently() {
+        val toks = tokens("\"unterminated\r\"b\": true\r'c.d': false")
+        assertEquals(KtavTokenTypes.STRING_VALUE, toks[0].second)
+        assertEquals("\"unterminated", toks[0].first)
+        assertEquals(KtavTokenTypes.KEY, toks[1].second)
+        assertEquals("\"b\"", toks[1].first)
+        assertEquals(KtavTokenTypes.BOOLEAN, toks[3].second)
+        assertEquals(KtavTokenTypes.KEY, toks[4].second)
+        assertEquals("'c.d'", toks[4].first)
+        assertEquals(KtavTokenTypes.BOOLEAN, toks[6].second)
+    }
+
+    @Test
+    fun line_endings_stop_quoted_keys_inline_values_and_comments() {
+        for (ending in listOf("\n", "\r", "\r\n")) {
+            assertEquals(
+                "quoted key followed by $ending",
+                listOf(
+                    "\"a:b\"" to KtavTokenTypes.KEY,
+                    ":" to KtavTokenTypes.COLON,
+                    "true" to KtavTokenTypes.BOOLEAN,
+                    "next" to KtavTokenTypes.KEY,
+                    ":" to KtavTokenTypes.COLON,
+                    "null" to KtavTokenTypes.NULL,
+                ),
+                tokens("\"a:b\": true${ending}next: null"),
+            )
+            assertEquals(
+                "inline value followed by $ending",
+                listOf(
+                    "{" to KtavTokenTypes.LBRACE,
+                    "v" to KtavTokenTypes.KEY,
+                    ":" to KtavTokenTypes.COLON,
+                    "foo\\" to KtavTokenTypes.STRING_VALUE,
+                    "next" to KtavTokenTypes.KEY,
+                    ":" to KtavTokenTypes.COLON,
+                    "true" to KtavTokenTypes.BOOLEAN,
+                ),
+                tokens("{v: foo\\${ending}next: true"),
+            )
+            assertEquals(
+                "comment followed by $ending",
+                listOf(
+                    "## note" to KtavTokenTypes.COMMENT,
+                    "next" to KtavTokenTypes.KEY,
+                    ":" to KtavTokenTypes.COLON,
+                    "true" to KtavTokenTypes.BOOLEAN,
+                ),
+                tokens("## note${ending}next: true"),
+            )
+        }
+    }
+
+    @Test
+    fun backslash_cannot_escape_a_line_ending_in_a_key_or_quote() {
+        for (ending in listOf("\n", "\r", "\r\n")) {
+            assertEquals(
+                listOf(
+                    "name\\" to KtavTokenTypes.STRING_VALUE,
+                    "next" to KtavTokenTypes.KEY,
+                    ":" to KtavTokenTypes.COLON,
+                    "true" to KtavTokenTypes.BOOLEAN,
+                ),
+                tokens("name\\${ending}next: true"),
+            )
+            assertEquals(
+                listOf(
+                    "\"open\\" to KtavTokenTypes.STRING_VALUE,
+                    "next" to KtavTokenTypes.KEY,
+                    ":" to KtavTokenTypes.COLON,
+                    "true" to KtavTokenTypes.BOOLEAN,
+                ),
+                tokens("\"open\\${ending}next: true"),
+            )
+        }
+    }
+
+    @Test
+    fun multiline_bodies_preserve_state_across_cr_and_match_their_closer() {
+        val stripped = tokens("a: 1\rb: (\rbody\r)\rkey: true")
+        assertEquals(
+            listOf(
+                "a" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "1" to KtavTokenTypes.INT_VALUE,
+                "b" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "(" to KtavTokenTypes.MULTILINE_OPEN,
+                "body" to KtavTokenTypes.MULTILINE_TEXT,
+                ")" to KtavTokenTypes.MULTILINE_CLOSE,
+                "key" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "true" to KtavTokenTypes.BOOLEAN,
+            ),
+            stripped,
+        )
+
+        val verbatim = tokens("a: 1\rb: ((\rbody\r))\rkey: true")
+        assertEquals(
+            listOf(
+                "a" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "1" to KtavTokenTypes.INT_VALUE,
+                "b" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "((" to KtavTokenTypes.MULTILINE_OPEN,
+                "body" to KtavTokenTypes.MULTILINE_TEXT,
+                "))" to KtavTokenTypes.MULTILINE_CLOSE,
+                "key" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "true" to KtavTokenTypes.BOOLEAN,
+            ),
+            verbatim,
+        )
+    }
+
+    @Test
+    fun multiline_bodies_close_with_each_line_ending() {
+        for (ending in listOf("\n", "\r", "\r\n")) {
+            for ((opener, closer) in listOf("(" to ")", "((" to "))")) {
+                assertEquals(
+                    listOf(
+                        "block" to KtavTokenTypes.KEY,
+                        ":" to KtavTokenTypes.COLON,
+                        opener to KtavTokenTypes.MULTILINE_OPEN,
+                        "body" to KtavTokenTypes.MULTILINE_TEXT,
+                        closer to KtavTokenTypes.MULTILINE_CLOSE,
+                        "next" to KtavTokenTypes.KEY,
+                        ":" to KtavTokenTypes.COLON,
+                        "false" to KtavTokenTypes.BOOLEAN,
+                    ),
+                    tokens("block: $opener${ending}body${ending}$closer${ending}next: false"),
+                )
+            }
+        }
+    }
+
+    @Test
     fun typed_marker_removed_spec050() {
         // Spec 0.5.0: `:i` is no longer a marker. `port:i 8080` → key `port`,
         // plain `:`, value `i 8080` (a string).
@@ -437,6 +607,81 @@ class KtavLexerTest {
     }
 
     @Test
+    fun dotted_bare_scalar_keeps_quoted_colon_opaque_after_spec_whitespace() {
+        for (whitespace in listOf(" ", "\u00A0", "\u2028")) {
+            for (ending in listOf("\n", "\r", "\r\n")) {
+                val scalar = "a.${whitespace}\"b:c\""
+                assertEquals(
+                    listOf(scalar to KtavTokenTypes.STRING_VALUE),
+                    tokens(scalar + ending),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun dotted_quoted_key_requires_an_external_separator() {
+        assertEquals(
+            listOf(
+                "a. \"b:c\"" to KtavTokenTypes.STRING_VALUE,
+                "a" to KtavTokenTypes.KEY,
+                "." to KtavTokenTypes.KEY_DOT,
+                "\"b:c\"" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "true" to KtavTokenTypes.BOOLEAN,
+                "a\\.b" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "1" to KtavTokenTypes.INT_VALUE,
+                "bare\"quote" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "2" to KtavTokenTypes.INT_VALUE,
+            ),
+            tokens("a. \"b:c\"\r\na. \u00A0\"b:c\": true\ra\\.b: 1\nbare\"quote: 2"),
+        )
+    }
+
+    @Test
+    fun quote_inside_bare_inline_key_does_not_swallow_sibling_or_cr() {
+        assertEquals(
+            listOf(
+                "cfg" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "{" to KtavTokenTypes.LBRACE,
+                "a\"b" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "1" to KtavTokenTypes.INT_VALUE,
+                "," to KtavTokenTypes.COMMA,
+                "tail" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "2" to KtavTokenTypes.INT_VALUE,
+                "}" to KtavTokenTypes.RBRACE,
+                "next" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "true" to KtavTokenTypes.BOOLEAN,
+            ),
+            tokens("cfg: {a\"b: 1, tail: 2}\rnext: true"),
+        )
+    }
+
+    @Test
+    fun escaped_quote_in_bare_inline_key_and_quoted_segment_after_dot() {
+        assertEquals(
+            listOf(
+                "{" to KtavTokenTypes.LBRACE,
+                "a\\\"b" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "1" to KtavTokenTypes.INT_VALUE,
+                "," to KtavTokenTypes.COMMA,
+                "a.  \"b:c\"" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON,
+                "2" to KtavTokenTypes.INT_VALUE,
+                "}" to KtavTokenTypes.RBRACE,
+            ),
+            tokens("{a\\\"b: 1, a.  \"b:c\": 2}"),
+        )
+    }
+
+    @Test
     fun unterminated_quoted_key_degrades_to_bare_value_no_crash() {
         // No closing `"` before EOL: no separator found ⇒ the whole line
         // is a bare (string) value, not a crash and not a bad-state key.
@@ -536,5 +781,10 @@ class KtavLexerTest {
     @Test
     fun incremental_relex_stable_with_unterminated_quoted_key() {
         assertIncrementalRelexStable("\"abc: 1\nnext: 2\n")
+    }
+
+    @Test
+    fun incremental_relex_stable_across_mixed_line_endings() {
+        assertIncrementalRelexStable("a: true\rb: {x: 1}\r\n## note\nc: (\rbody\r)\rnext: false")
     }
 }
