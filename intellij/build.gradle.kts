@@ -212,7 +212,9 @@ tasks.register("_extractAndAddBinaries") {
     dependsOn("buildPlugin")
 
     inputs.file(layout.buildDirectory.file("distributions/ktav-intellij-${project.version}.zip"))
-    inputs.dir(layout.projectDirectory.dir("bin"))
+    // bin/ is git-ignored and filled by the release workflow (or
+    // scripts/build-binaries.sh); CI verify builds run without it.
+    inputs.files(fileTree(layout.projectDirectory.dir("bin")))
     outputs.dir(tempDistDir)
 
     doLast {
@@ -236,11 +238,15 @@ tasks.register("_extractAndAddBinaries") {
         println(">>> Extracted original ZIP")
 
         // Copy binaries into extracted structure
-        copy {
-            from(binDir)
-            into(File(tempDir, "ktav-intellij/lib/bin"))
+        if (binDir.isDirectory) {
+            copy {
+                from(binDir)
+                into(File(tempDir, "ktav-intellij/lib/bin"))
+            }
+            println(">>> Copied binaries to ktav-intellij/lib/bin")
+        } else {
+            println(">>> No bin/ directory — plugin built without bundled ktav-lsp")
         }
-        println(">>> Copied binaries to ktav-intellij/lib/bin")
     }
 }
 
