@@ -10,7 +10,13 @@
     { "include": "#compound-object-open" },
     { "include": "#compound-array-open" },
     { "include": "#compound-close" },
-    { "include": "#pair" }
+    { "include": "#pair" },
+    { "include": "#top-level-inline-object" },
+    { "include": "#top-level-inline-array" },
+    { "include": "#array-item-raw" },
+    { "include": "#array-item-keyword" },
+    { "include": "#array-item-number" },
+    { "include": "#array-item-string" }
   ],
   "repository": {
 
@@ -428,6 +434,18 @@
 
     "multiline-verbatim-content": {
       "match": "^.*$"
+    },
+
+    "top-level-inline-object": {
+      "begin": "^\\s*(?=\\{[^\\r\\n]*\\})",
+      "end": "$",
+      "patterns": [ { "include": "#inline-object" } ]
+    },
+
+    "top-level-inline-array": {
+      "begin": "^\\s*(?=\\[[^\\r\\n]*\\])",
+      "end": "$",
+      "patterns": [ { "include": "#inline-array" } ]
     },
 
     "array-item": {
