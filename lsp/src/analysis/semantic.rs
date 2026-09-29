@@ -53,12 +53,19 @@ pub fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
     // § 3.2: LF, CR and CRLF are all valid line terminators — go through
     // the shared splitter so semantic-token line numbers never desync
     // from diagnostics / symbols / hover on a non-LF document.
-    for (line_idx, line) in crate::lines::split_lines(text).into_iter().enumerate() {
+    let bom = crate::lines::leading_bom_len(text) as u32;
+    for (line_idx, line) in crate::lines::content_lines(text).into_iter().enumerate() {
         let line_idx = line_idx as u32;
+        let first_token = abs.len();
         multi = match multi {
             Some(form) => emit_multiline_line(line_idx, line, form, &mut abs),
             None => emit_line(line_idx, line, &mut abs),
         };
+        if line_idx == 0 {
+            for token in &mut abs[first_token..] {
+                token.start += bom;
+            }
+        }
     }
 
     encode_deltas(&abs)
@@ -379,14 +386,18 @@ pub(crate) fn walk_inline<'a>(text: &'a str, mut emit: impl FnMut(InlineEvent<'a
             _ => {
                 let start = i;
                 if expect_key {
-                    // Key run: opaque inside a quoted segment (§ 5.3.3) — a
-                    // quote character opens one only when it is the run's
-                    // OWN first byte; everything up to its matching
-                    // unescaped closer (including `: , { } [ ]`) is then
-                    // ordinary content, not a delimiter.
+                    let mut at_segment_start = true;
+                    // A quote opens after edge whitespace in each segment.
                     while i < b.len() {
+                        if at_segment_start {
+                            let ws = ws_len_at(i);
+                            if ws > 0 {
+                                i += ws;
+                                continue;
+                            }
+                        }
                         match b[i] {
-                            q @ (b'"' | b'\'' | b'`') if i == start => {
+                            q @ (b'"' | b'\'' | b'`') if at_segment_start => {
                                 i += 1;
                                 while i < b.len() {
                                     if b[i] == b'\\' && i + 1 < b.len() {
@@ -399,13 +410,24 @@ pub(crate) fn walk_inline<'a>(text: &'a str, mut emit: impl FnMut(InlineEvent<'a
                                     }
                                     i += 1;
                                 }
+                                at_segment_start = false;
                             }
                             // § 3.7: `\X` escapes a structural byte —
                             // `\[`, `\]`, `\{`, `\}`, `\,`, `\:` stay
                             // ordinary key content, not a delimiter.
-                            b'\\' if i + 1 < b.len() => i += 2,
+                            b'\\' if i + 1 < b.len() => {
+                                i += 2;
+                                at_segment_start = false;
+                            }
+                            b'.' => {
+                                i += 1;
+                                at_segment_start = true;
+                            }
                             b':' | b',' | b'{' | b'}' | b'[' | b']' => break,
-                            _ => i += 1,
+                            _ => {
+                                i += 1;
+                                at_segment_start = false;
+                            }
                         }
                     }
                     let run = &text[start..i];
@@ -575,6 +597,53 @@ mod tests {
             .filter(|&&(l, _, _, tt)| l == 0 && tt == TOK_PROPERTY)
             .count();
         assert_eq!(property_count, 3, "unexpected PROPERTY token split: {t:?}");
+    }
+
+    #[test]
+    fn spaced_quoted_dotted_keys_keep_highlight_ranges() {
+        let t = toks("root . \"a.b\": 1\nroot . \"a:b\": 2");
+        assert_eq!(
+            t,
+            vec![
+                (0, 0, 5, TOK_PROPERTY),
+                (0, 6, 6, TOK_PROPERTY),
+                (0, 12, 1, TOK_OPERATOR),
+                (0, 14, 1, TOK_NUMBER),
+                (1, 0, 5, TOK_PROPERTY),
+                (1, 6, 6, TOK_PROPERTY),
+                (1, 12, 1, TOK_OPERATOR),
+                (1, 14, 1, TOK_NUMBER),
+            ]
+        );
+    }
+
+    #[test]
+    fn quoted_inline_dotted_segment_keeps_comma_opaque() {
+        let t = toks("cfg: {a.\"b,c\": 1, tail: 2}");
+        assert_eq!(
+            t,
+            vec![
+                (0, 0, 3, TOK_PROPERTY),
+                (0, 3, 1, TOK_OPERATOR),
+                (0, 5, 1, TOK_OPERATOR),
+                (0, 6, 7, TOK_PROPERTY),
+                (0, 13, 1, TOK_OPERATOR),
+                (0, 15, 1, TOK_NUMBER),
+                (0, 16, 1, TOK_OPERATOR),
+                (0, 18, 4, TOK_PROPERTY),
+                (0, 22, 1, TOK_OPERATOR),
+                (0, 24, 1, TOK_NUMBER),
+                (0, 25, 1, TOK_OPERATOR),
+            ]
+        );
+
+        let t = toks("cfg: {a. \"b,c\": 1, tail: 2}");
+        assert!(t.contains(&(0, 6, 8, TOK_PROPERTY)), "spaced key: {t:?}");
+        assert!(
+            t.contains(&(0, 14, 1, TOK_OPERATOR)),
+            "pair separator: {t:?}"
+        );
+        assert!(t.contains(&(0, 19, 4, TOK_PROPERTY)), "sibling: {t:?}");
     }
 
     #[test]

@@ -18,6 +18,8 @@
 //! accurate enough to jump near the symbol; precise highlighting is
 //! the semantic-tokens path.
 
+use std::borrow::Cow;
+
 use ktav::Value;
 use tower_lsp::lsp_types::{DocumentSymbol, Position, Range, SymbolKind};
 
@@ -97,8 +99,9 @@ fn collect_top_array_item_lines(text: &str) -> Vec<(u32, u32)> {
     let mut multi = Multi::None;
     let mut depth: u32 = 0;
     let mut compound_pushes: Vec<u32> = Vec::new();
+    let mut first_content_line = true;
 
-    for (i, line) in crate::lines::split_lines(text).into_iter().enumerate() {
+    for (i, line) in crate::lines::content_lines(text).into_iter().enumerate() {
         if multi != Multi::None {
             let trimmed = line.trim();
             let is_term = match multi {
@@ -117,11 +120,17 @@ fn collect_top_array_item_lines(text: &str) -> Vec<(u32, u32)> {
 
         let trimmed = line.trim_start();
 
-        if trimmed.is_empty() || trimmed.starts_with('#') {
+        if trimmed.is_empty() || trimmed.starts_with("##") {
             continue;
         }
 
         let tail = trimmed.trim_end();
+
+        if first_content_line && tail == "[" {
+            first_content_line = false;
+            continue;
+        }
+        first_content_line = false;
 
         if tail == "}" || tail == "]" {
             if let Some(n) = compound_pushes.pop() {
@@ -132,7 +141,12 @@ fn collect_top_array_item_lines(text: &str) -> Vec<(u32, u32)> {
 
         // Record this line as a top-level item if we're at depth 0.
         if depth == 0 {
-            out.push((i as u32, line.len() as u32));
+            let bom = if i == 0 {
+                crate::lines::leading_bom_len(text) as u32
+            } else {
+                0
+            };
+            out.push((i as u32, bom + line.len() as u32));
         }
 
         // Now apply depth changes for the NEXT line.
@@ -294,7 +308,7 @@ impl<'a> Cursor<'a> {
         while self.pos < self.hits.len() {
             let h = &self.hits[self.pos];
             self.pos += 1;
-            if h.depth == depth && h.name == name {
+            if h.depth == depth && decode_symbol_key(h.name).is_some_and(|key| key == name) {
                 return Some(Range {
                     start: Position {
                         line: h.line,
@@ -309,6 +323,75 @@ impl<'a> Cursor<'a> {
         }
         None
     }
+}
+
+// The Value tree has decoded keys, but hit spans must remain in source bytes.
+fn decode_symbol_key(raw: &str) -> Option<Cow<'_, str>> {
+    let raw = raw.trim_matches(is_ktav_ws);
+    let input = match raw.as_bytes().first() {
+        Some(quote @ (b'"' | b'\'' | b'`')) => {
+            if raw.len() < 2 || raw.as_bytes().last() != Some(quote) {
+                return None;
+            }
+            &raw[1..raw.len() - 1]
+        }
+        _ => raw,
+    };
+    if !input.contains('\\') {
+        return Some(Cow::Borrowed(input));
+    }
+
+    let mut decoded = String::with_capacity(input.len());
+    let bytes = input.as_bytes();
+    let mut start = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'\\' {
+            i += 1;
+            continue;
+        }
+        decoded.push_str(&input[start..i]);
+        let next = *bytes.get(i + 1)?;
+        let ch = match next {
+            b'\\' => '\\',
+            b',' => ',',
+            b'}' => '}',
+            b']' => ']',
+            b'{' => '{',
+            b'[' => '[',
+            b'n' => '\n',
+            b'r' => '\r',
+            b'.' => '.',
+            b':' => ':',
+            b'"' => '"',
+            b'\'' => '\'',
+            b'`' => '`',
+            b'u' => {
+                let hex = std::str::from_utf8(bytes.get(i + 2..i + 6)?).ok()?;
+                let high = u16::from_str_radix(hex, 16).ok()?;
+                if (0xD800..=0xDBFF).contains(&high) {
+                    if bytes.get(i + 6..i + 8)? != b"\\u" {
+                        return None;
+                    }
+                    let low_hex = std::str::from_utf8(bytes.get(i + 8..i + 12)?).ok()?;
+                    let low = u16::from_str_radix(low_hex, 16).ok()?;
+                    if !(0xDC00..=0xDFFF).contains(&low) {
+                        return None;
+                    }
+                    i += 6;
+                    char::from_u32(0x10000 + ((high as u32 - 0xD800) << 10) + low as u32 - 0xDC00)?
+                } else {
+                    char::from_u32(high as u32)?
+                }
+            }
+            _ => return None,
+        };
+        decoded.push(ch);
+        i += if next == b'u' { 6 } else { 2 };
+        start = i;
+    }
+    decoded.push_str(&input[start..]);
+    Some(Cow::Owned(decoded))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -342,7 +425,7 @@ fn collect_key_hits(text: &str, root_is_array: bool) -> Vec<KeyHit<'_>> {
     let mut compound_pushes: Vec<u32> = Vec::new();
     let mut first_content_line = true;
 
-    for (i, line) in crate::lines::split_lines(text).into_iter().enumerate() {
+    for (i, line) in crate::lines::content_lines(text).into_iter().enumerate() {
         // Inside a multi-line block, the only line that matters is the
         // terminator. Comments / brackets / pseudo-keys in content are
         // not parsed (mirrors `Parser::handle_line` collecting branch).
@@ -364,13 +447,18 @@ fn collect_key_hits(text: &str, root_is_array: bool) -> Vec<KeyHit<'_>> {
 
         let trimmed = line.trim_start();
 
-        if trimmed.is_empty() || trimmed.starts_with('#') {
+        if trimmed.is_empty() || trimmed.starts_with("##") {
             continue;
         }
 
         let is_first = first_content_line;
         first_content_line = false;
-        let leading_ws = (line.len() - trimmed.len()) as u32;
+        let bom_offset = if i == 0 {
+            crate::lines::leading_bom_len(text) as u32
+        } else {
+            0
+        };
+        let leading_ws = bom_offset + (line.len() - trimmed.len()) as u32;
 
         // Lone closer line drops one physical compound off the stack.
         if trimmed == "}" || trimmed == "]" {
@@ -441,7 +529,7 @@ fn collect_key_hits(text: &str, root_is_array: bool) -> Vec<KeyHit<'_>> {
         // a `\.` inside a segment is a literal dot, not a separator;
         // split on UNESCAPED `.` only. Spec 0.7.0: a `.` inside a quoted
         // segment (§ 5.3.3) does not split it.
-        let line_len = line.len() as u32;
+        let line_len = bom_offset + line.len() as u32;
         let line_no = i as u32;
         let mut seg_count: u32 = 0;
         for (_, seg) in split_dotted(0, key_part) {
@@ -452,7 +540,7 @@ fn collect_key_hits(text: &str, root_is_array: bool) -> Vec<KeyHit<'_>> {
                 depth: virtual_depth + seg_count,
                 name: seg,
                 line: line_no,
-                col_start: 0,
+                col_start: bom_offset,
                 col_end: line_len,
             });
             seg_count += 1;
@@ -618,6 +706,127 @@ mod tests {
             .unwrap_or_else(|| panic!("no symbol named '{name}' among {syms:?}"))
     }
 
+    fn assert_range(sym: &DocumentSymbol, line: u32, start: u32, end: u32) {
+        assert_eq!(
+            sym.range,
+            Range {
+                start: Position {
+                    line,
+                    character: start
+                },
+                end: Position {
+                    line,
+                    character: end
+                },
+            },
+            "range for {}",
+            sym.name
+        );
+    }
+
+    #[test]
+    fn quoted_key_keeps_its_range_and_does_not_consume_sibling() {
+        let text = "\"a\": 1\nb: 2\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_range(find(&syms, "a"), 0, 0, 6);
+        assert_range(find(&syms, "b"), 1, 0, 4);
+    }
+
+    #[test]
+    fn escaped_and_quoted_dotted_segments_keep_source_spans() {
+        let text = "a\\.b: 1\nroot.\"x\\u0041\": 2\ntail: 3\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_range(find(&syms, "a.b"), 0, 0, 7);
+        let root = find(&syms, "root");
+        assert_range(root, 1, 0, 17);
+        assert_range(find(root.children.as_ref().unwrap(), "xA"), 1, 0, 17);
+        assert_range(find(&syms, "tail"), 2, 0, 7);
+    }
+
+    #[test]
+    fn spaced_quoted_dotted_segments_match_decoded_keys() {
+        let text = "root . \"a\\\"b\" : 1\nafter: 2\n";
+        let syms = build_symbols(&parse(text), text);
+        let root = find(&syms, "root");
+        assert_range(root, 0, 0, 17);
+        assert_range(find(root.children.as_ref().unwrap(), "a\"b"), 0, 0, 17);
+        assert_range(find(&syms, "after"), 1, 0, 8);
+    }
+
+    #[test]
+    fn spaced_quoted_dotted_segments_keep_colon_and_dot_in_names() {
+        let text = "root . \"a:b\": 1\nroot . \"a.b\": 2\n";
+        let syms = build_symbols(&parse(text), text);
+        let root = find(&syms, "root");
+        let kids = root.children.as_ref().unwrap();
+        assert_range(find(kids, "a:b"), 0, 0, 15);
+        assert_range(find(kids, "a.b"), 1, 0, 15);
+    }
+
+    #[test]
+    fn quoted_inline_dotted_segment_keeps_sibling_ranges() {
+        let text = "cfg: {a.\"b,c\": 1, tail: 2}\n";
+        let syms = build_symbols(&parse(text), text);
+        let kids = find(&syms, "cfg").children.as_ref().unwrap();
+        let a = find(kids, "a");
+        assert_range(a, 0, 6, 7);
+        assert_range(find(a.children.as_ref().unwrap(), "b,c"), 0, 8, 13);
+        assert_range(find(kids, "tail"), 0, 18, 22);
+
+        let text = "cfg: {a. \"b,c\": 1, tail: 2}\n";
+        let syms = build_symbols(&parse(text), text);
+        let kids = find(&syms, "cfg").children.as_ref().unwrap();
+        let a = find(kids, "a");
+        assert_range(find(a.children.as_ref().unwrap(), "b,c"), 0, 8, 14);
+        assert_range(find(kids, "tail"), 0, 19, 23);
+    }
+
+    #[test]
+    fn unicode_surrogate_escape_key_matches_value_name() {
+        let text = "\\uD83D\\uDE00: 1\nnext: 2\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_range(find(&syms, "\u{1f600}"), 0, 0, 15);
+        assert_range(find(&syms, "next"), 1, 0, 7);
+    }
+
+    #[test]
+    fn inline_quoted_and_escaped_keys_keep_raw_byte_columns() {
+        let text = "cfg: {\"a\": 1, b\\.c: 2, \"u\\u0041\": 3, tail: 4}\nnext: 5\n";
+        let syms = build_symbols(&parse(text), text);
+        let kids = find(&syms, "cfg").children.as_ref().unwrap();
+        assert_range(find(kids, "a"), 0, 6, 9);
+        assert_range(find(kids, "b.c"), 0, 14, 18);
+        assert_range(find(kids, "uA"), 0, 23, 32);
+        assert_range(find(kids, "tail"), 0, 37, 41);
+        assert_range(find(&syms, "next"), 1, 0, 7);
+    }
+
+    #[test]
+    fn hash_keys_and_array_items_are_not_comments() {
+        let object = "#child: 1\n## comment\n#value: 2\nend: 3\n";
+        let syms = build_symbols(&parse(object), object);
+        assert_range(find(&syms, "#child"), 0, 0, 9);
+        assert_range(find(&syms, "#value"), 2, 0, 9);
+        assert_range(find(&syms, "end"), 3, 0, 6);
+
+        let array = "#value\n## comment\nother\n";
+        let syms = build_symbols(&parse(array), array);
+        assert_range(&syms[0], 0, 0, 6);
+        assert_range(&syms[1], 2, 0, 5);
+    }
+
+    #[test]
+    fn bom_quoted_hash_and_inline_keys_keep_original_columns() {
+        let text = "\u{feff}\"#child\": {\"a\\u0041\": 1, #value: 2}\nnext: 3\n";
+        let syms = build_symbols(&parse(text), text);
+        let child = find(&syms, "#child");
+        assert_range(child, 0, 3, 38);
+        let kids = child.children.as_ref().unwrap();
+        assert_range(find(kids, "aA"), 0, 14, 23);
+        assert_range(find(kids, "#value"), 0, 28, 34);
+        assert_range(find(&syms, "next"), 1, 0, 7);
+    }
+
     #[test]
     fn inline_object_value_keys_get_precise_ranges() {
         // `a: {name: alice}` (valid/inline/object/single_pair.ktav) —
@@ -734,6 +943,49 @@ mod tests {
         assert_eq!(name0.range.start.line, 2);
         let name1 = find(syms[1].children.as_ref().unwrap(), "name");
         assert_eq!(name1.range.start.line, 5);
+    }
+
+    #[test]
+    fn top_level_multiline_array_items_have_exact_ranges() {
+        let text = "[\n    foo\n    bar\n    baz\n]\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 3);
+        for (sym, line) in syms.iter().zip(1..=3) {
+            assert_range(sym, line, 0, 7);
+        }
+    }
+
+    #[test]
+    fn top_level_array_wrapper_skips_comments_and_preserves_bom_cr_positions() {
+        let text = "\u{feff}## lead\r[\r    #value\r    ## comment\r    bar\r]\r";
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 2);
+        assert_range(&syms[0], 2, 0, 10);
+        assert_range(&syms[1], 4, 0, 7);
+    }
+
+    #[test]
+    fn top_level_array_nested_compound_does_not_shift_following_item() {
+        let text = "[\n    first\n    [\n        child\n    ]\n    last\n]\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 3);
+        assert_range(&syms[0], 1, 0, 9);
+        assert_range(&syms[1], 2, 0, 5);
+        assert_range(&syms[2], 5, 0, 8);
+    }
+
+    #[test]
+    fn bare_and_inline_top_level_arrays_keep_item_lines() {
+        let bare = "foo\nbar\n";
+        let syms = build_symbols(&parse(bare), bare);
+        assert_eq!(syms.len(), 2);
+        assert_range(&syms[0], 0, 0, 3);
+        assert_range(&syms[1], 1, 0, 3);
+
+        let inline = "[foo]\n";
+        let syms = build_symbols(&parse(inline), inline);
+        assert_eq!(syms.len(), 1);
+        assert_range(&syms[0], 0, 0, 5);
     }
 
     #[test]

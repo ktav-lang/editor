@@ -2,8 +2,8 @@
 //
 // Each bench file `include!`s this file so we don't ship a "common"
 // crate for four benches. The generator emits realistic Ktav content:
-// a mix of plain pairs, dotted keys, typed scalars (`:i`, `:f`), raw
-// markers (`::`), nested objects/arrays, and a few comment lines.
+// a mix of plain pairs, dotted keys, inferred scalars, raw markers
+// (`::`), nested objects/arrays, and a few comment lines.
 //
 // Sizes are TARGET byte counts. The function appends pairs until the
 // buffer reaches the target, so the actual size will be slightly above.
@@ -27,7 +27,7 @@ pub fn large() -> String {
 #[allow(dead_code)]
 pub fn synth(target_bytes: usize) -> String {
     let mut out = String::with_capacity(target_bytes + 256);
-    out.push_str("# generated benchmark fixture\n");
+    out.push_str("## generated benchmark fixture\n");
     let mut i = 0u32;
     // Round-robin pattern keeps the mix realistic without exploding
     // file structure (deeply-nested generated content tickles parser
@@ -40,11 +40,11 @@ pub fn synth(target_bytes: usize) -> String {
             }
             1 => {
                 use std::fmt::Write as _;
-                let _ = writeln!(out, "port_{}:i {}", i, 8000 + (i as u64 % 1000));
+                let _ = writeln!(out, "port_{}: {}", i, 8000 + (i as u64 % 1000));
             }
             2 => {
                 use std::fmt::Write as _;
-                let _ = writeln!(out, "ratio_{}:f {}.{}", i, i % 100, i % 1000);
+                let _ = writeln!(out, "ratio_{}: {}.{}", i, i % 100, i % 1000);
             }
             3 => {
                 use std::fmt::Write as _;
@@ -69,17 +69,17 @@ pub fn synth(target_bytes: usize) -> String {
             }
             6 => {
                 use std::fmt::Write as _;
-                let _ = writeln!(out, "service.{}.port:i {}", i, 30000 + (i as u64 % 5000));
+                let _ = writeln!(out, "service.{}.port: {}", i, 30000 + (i as u64 % 5000));
             }
             7 => {
                 use std::fmt::Write as _;
-                let _ = writeln!(out, "# section {}", i / 12);
+                let _ = writeln!(out, "## section {}", i / 12);
             }
             8 => {
                 use std::fmt::Write as _;
                 let _ = writeln!(out, "obj_{}: {{", i);
                 let _ = writeln!(out, "    inner_a: {}", i);
-                let _ = writeln!(out, "    inner_b:f {}.5", i % 100);
+                let _ = writeln!(out, "    inner_b: {}.5", i % 100);
                 let _ = writeln!(out, "    inner_c:: raw body for {}", i);
                 let _ = writeln!(out, "}}");
             }

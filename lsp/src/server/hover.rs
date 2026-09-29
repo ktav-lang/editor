@@ -127,7 +127,7 @@ fn enclosing_path(text: &str, line: usize, root_is_array: bool) -> Option<(Vec<S
     let mut root_index: usize = 0;
     let mut first_content_line = true;
 
-    for (i, raw_line) in crate::lines::split_lines(text).into_iter().enumerate() {
+    for (i, raw_line) in crate::lines::content_lines(text).into_iter().enumerate() {
         if i >= line {
             break;
         }

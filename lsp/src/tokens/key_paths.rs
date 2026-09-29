@@ -1,14 +1,16 @@
 //! Key-path scanners: locate the unescaped `:` key/value separator,
 //! split dotted key paths into segments, and detect whether a cursor
-//! sits after the separator. Quote-aware per spec 0.7 § 5.3.3.
+//! sits after the separator. Quote-aware per spec 0.8 § 5.3.3.
+
+use super::classify::is_ktav_ws;
 
 /// Find the byte index of the key/value separator `:` on `trimmed`,
 /// treating a `<quoted-segment>` (§ 5.3.3) as opaque — a `:` inside
 /// `"a:b"` / `'a:b'` / `` `a:b` `` is ordinary content, not the
 /// separator, exactly as `ktav`'s own quote-aware scan treats it. A
 /// quote character opens a segment only at a segment's first code
-/// point (line start, or right after an unescaped `.`); elsewhere it is
-/// an ordinary key byte and does not affect the scan.
+/// point after edge whitespace (line start, or right after an unescaped
+/// `.`); elsewhere it is an ordinary key byte and does not affect the scan.
 ///
 /// If a quote opens a segment with no matching unescaped closer before
 /// end of line, the whole rest of the line is swallowed (quote-opaque)
@@ -20,6 +22,14 @@ pub(crate) fn find_key_separator(s: &str) -> Option<usize> {
     let mut i = 0usize;
     let mut at_segment_start = true;
     while i < bytes.len() {
+        if at_segment_start {
+            if let Some(c) = s.get(i..).and_then(|rest| rest.chars().next()) {
+                if is_ktav_ws(c) {
+                    i += c.len_utf8();
+                    continue;
+                }
+            }
+        }
         let c = bytes[i];
         if at_segment_start && matches!(c, b'"' | b'\'' | b'`') {
             let quote = c;
@@ -77,7 +87,8 @@ pub(crate) fn find_key_separator(s: &str) -> Option<usize> {
 /// `.` inside `"b.c"` does not start a new segment, so
 /// `a."b.c".d` is three segments (`a`, `"b.c"`, `d`), not four. As with
 /// [`find_key_separator`], a quote opens a segment only at a segment's
-/// first code point (key start, or right after an unescaped `.`).
+/// first code point after edge whitespace (key start, or right after an
+/// unescaped `.`).
 pub fn split_dotted(key_start: u32, key: &str) -> impl Iterator<Item = (u32, &str)> {
     let bytes = key.as_bytes();
     let mut segs: Vec<(u32, &str)> = Vec::new();
@@ -85,6 +96,14 @@ pub fn split_dotted(key_start: u32, key: &str) -> impl Iterator<Item = (u32, &st
     let mut i = 0usize;
     let mut at_segment_start = true;
     while i < bytes.len() {
+        if at_segment_start {
+            if let Some(c) = key.get(i..).and_then(|rest| rest.chars().next()) {
+                if is_ktav_ws(c) {
+                    i += c.len_utf8();
+                    continue;
+                }
+            }
+        }
         let c = bytes[i];
         if at_segment_start && matches!(c, b'"' | b'\'' | b'`') {
             let quote = c;

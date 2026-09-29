@@ -354,7 +354,7 @@ pub fn line_is_multiline_content(text: &str, line_idx: usize) -> bool {
     }
 
     let mut multi: Option<Form> = None;
-    for (i, raw) in crate::lines::split_lines(text).into_iter().enumerate() {
+    for (i, raw) in crate::lines::content_lines(text).into_iter().enumerate() {
         if i == line_idx {
             return multi.is_some();
         }

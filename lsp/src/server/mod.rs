@@ -276,7 +276,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
 
-        let lines = crate::lines::split_lines(&text);
+        let lines = crate::lines::content_lines(&text);
         let line = lines.get(pos.line as usize).copied().unwrap_or("");
         // Route through the shared classifier so dotted keys, `:: literal`
         // array-items, comments and brace-only lines behave consistently

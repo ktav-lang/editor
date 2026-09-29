@@ -265,6 +265,14 @@ fn dotted_split_quoted_segment_dot_is_opaque() {
 }
 
 #[test]
+fn dotted_split_spaced_quoted_segment_dot_is_opaque() {
+    let segs: Vec<_> = split_dotted(3, "root . \"a.b\"").collect();
+    assert_eq!(segs, vec![(3, "root "), (9, " \"a.b\"")]);
+    let segs: Vec<_> = split_dotted(0, "root .\u{00a0}\"a.b\"").collect();
+    assert_eq!(segs, vec![(0, "root "), (6, "\u{00a0}\"a.b\"")]);
+}
+
+#[test]
 fn dotted_split_mid_token_quote_is_ordinary() {
     let segs: Vec<_> = split_dotted(0, "don't").collect();
     assert_eq!(segs, vec![(0, "don't")]);
@@ -373,6 +381,16 @@ fn find_key_separator_colon_inside_quoted_segment_is_opaque() {
     assert_eq!(find_key_separator(r#""a:b": 1"#), Some(5));
     assert_eq!(find_key_separator("'a:b': 1"), Some(5));
     assert_eq!(find_key_separator("`a:b`: 1"), Some(5));
+}
+
+#[test]
+fn spaced_quoted_segment_colon_does_not_switch_completion_to_value() {
+    let key = "root . \"a:b\"";
+    assert_eq!(find_key_separator(key), None);
+    assert!(!cursor_is_after_separator("root . \"a:"));
+    assert_eq!(find_key_separator("root . \"a:b\": 1"), Some(12));
+    assert!(cursor_is_after_separator("root . \"a:b\": "));
+    assert_eq!(find_key_separator("root .\u{00a0}\"a:b\": 1"), Some(13));
 }
 
 #[test]

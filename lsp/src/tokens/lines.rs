@@ -8,24 +8,13 @@
 //!
 //! Every feature that carves `text` into per-line pieces — hover,
 //! completion, semantic tokens, diagnostics, symbols, the reindenter,
-//! UTF-16 re-encoding — MUST go through [`split_lines`] / [`byte_to_line_col`]
-//! instead of `text.split('\n')`, or it silently desyncs from every other
-//! feature (and from the client) on a non-LF document.
+//! UTF-16 re-encoding — MUST go through [`split_lines`], [`content_lines`]
+//! or [`byte_to_line_col`] instead of `text.split('\n')`, or it silently
+//! desyncs from other features (and from the client) on a non-LF document.
 //!
-//! § 3.1: a conformant reader skips exactly one leading byte-order mark
-//! (U+FEFF, raw UTF-8 `EF BB BF`) if it is the very first code point of
-//! the document — it is metadata, not content. [`leading_bom_len`] is
-//! the single place that detects it; [`split_lines`] excludes it from
-//! line 0's own slice and [`byte_to_line_col`] starts counting after it,
-//! so every consumer that goes through either function (which is all of
-//! them, per the module's own contract) sees a document whose line 0
-//! starts at the first real character, with no per-feature BOM handling
-//! needed. `ktav::parse` does the same skip before its own scan (mirrored
-//! here so the LSP never disagrees with the reference parser about where
-//! a key or token starts), and its `Span` byte offsets stay in
-//! *original*-text coordinates — matching what `byte_to_line_col` expects.
-//! A U+FEFF anywhere else in the document is ordinary content, never
-//! stripped.
+//! § 3.1: the parser ignores one leading BOM, but LSP positions still
+//! count it. `split_lines` therefore preserves it; analysis consumers
+//! that mirror parser content use `content_lines` instead.
 
 /// Byte length of the UTF-8 byte-order mark (`EF BB BF`) at the very
 /// start of `text`, if present — 3 or 0. Mirrors `ktav`'s own
@@ -68,9 +57,8 @@ fn terminator_len(bytes: &[u8], i: usize) -> usize {
 /// behaviour on LF input.
 pub fn split_lines(text: &str) -> Vec<&str> {
     let bytes = text.as_bytes();
-    let bom = leading_bom_len(text);
     let mut out = Vec::new();
-    let mut start = bom;
+    let mut start = 0;
     let mut i = start;
     while i < bytes.len() {
         let tlen = terminator_len(bytes, i);
@@ -86,6 +74,15 @@ pub fn split_lines(text: &str) -> Vec<&str> {
     out
 }
 
+/// Split lines for parser-like analysis, excluding only a leading BOM.
+pub(crate) fn content_lines(text: &str) -> Vec<&str> {
+    let mut lines = split_lines(text);
+    if let Some(first) = lines.first_mut() {
+        *first = first.strip_prefix('\u{FEFF}').unwrap_or(first);
+    }
+    lines
+}
+
 /// Does `text` end with a line terminator (LF, CR or CRLF)? Used to
 /// decide whether a re-emitted document should keep a trailing newline.
 pub fn ends_with_terminator(text: &str) -> bool {
@@ -98,14 +95,10 @@ pub fn ends_with_terminator(text: &str) -> bool {
 /// end of `text` clamps to the last line.
 pub fn byte_to_line_col(text: &str, offset: usize) -> (u32, u32) {
     let bytes = text.as_bytes();
-    let bom = leading_bom_len(text);
-    // An offset landing inside the BOM itself (never produced by
-    // `ktav::parse`'s own spans, which start scanning at `bom`) clamps
-    // to the first real column rather than underflowing below it.
-    let offset = offset.max(bom).min(bytes.len());
+    let offset = offset.min(bytes.len());
     let mut line: u32 = 0;
-    let mut line_start = bom;
-    let mut i = bom;
+    let mut line_start = 0;
+    let mut i = 0;
     while i < offset {
         let tlen = terminator_len(bytes, i);
         if tlen == 0 {
@@ -186,7 +179,7 @@ mod tests {
         );
     }
 
-    // ---- § 3.1: leading BOM is metadata, never content ----
+    // ---- § 3.1: parser content versus LSP positions ----
 
     #[test]
     fn leading_bom_len_detects_and_excludes() {
@@ -198,34 +191,35 @@ mod tests {
     }
 
     #[test]
-    fn split_lines_excludes_leading_bom_from_first_line() {
+    fn split_lines_preserves_leading_bom_for_lsp_positions() {
         let text = "\u{FEFF}host: value\nport: 1\n";
-        assert_eq!(split_lines(text), vec!["host: value", "port: 1", ""]);
+        assert_eq!(
+            split_lines(text),
+            vec!["\u{FEFF}host: value", "port: 1", ""]
+        );
+        assert_eq!(content_lines(text), vec!["host: value", "port: 1", ""]);
     }
 
     #[test]
     fn split_lines_bom_only_document_is_one_empty_line() {
-        assert_eq!(split_lines("\u{FEFF}"), vec![""]);
+        assert_eq!(split_lines("\u{FEFF}"), vec!["\u{FEFF}"]);
+        assert_eq!(content_lines("\u{FEFF}"), vec![""]);
     }
 
     #[test]
-    fn byte_to_line_col_excludes_leading_bom() {
-        // Same absolute byte offset as the non-BOM sibling test above,
-        // shifted by the BOM's 3 bytes — must land on the same column.
+    fn byte_to_line_col_counts_leading_bom() {
         let bom = "\u{FEFF}key1: 1\nkey2: 2\n";
         let offset = bom.find("key2").unwrap();
         assert_eq!(byte_to_line_col(bom, offset), (1, 0));
-        // A byte inside the document's own first "real" line — 3 bytes
-        // ahead of the BOM-less sibling's offset for the same content.
         let offset_key1 = bom.find("key1").unwrap();
-        assert_eq!(byte_to_line_col(bom, offset_key1), (0, 0));
+        assert_eq!(byte_to_line_col(bom, offset_key1), (0, 3));
     }
 
     #[test]
-    fn byte_to_line_col_offset_inside_bom_clamps_to_first_column() {
+    fn byte_to_line_col_counts_offsets_inside_bom() {
         let text = "\u{FEFF}host: value\n";
         assert_eq!(byte_to_line_col(text, 0), (0, 0));
-        assert_eq!(byte_to_line_col(text, 1), (0, 0));
-        assert_eq!(byte_to_line_col(text, 2), (0, 0));
+        assert_eq!(byte_to_line_col(text, 1), (0, 1));
+        assert_eq!(byte_to_line_col(text, 2), (0, 2));
     }
 }

@@ -44,14 +44,8 @@ enum Multi {
 /// Re-emit `src` with canonical indentation. Blank lines, comments,
 /// and multi-line string contents are preserved.
 ///
-/// § 3.1: a leading BOM is metadata, not content — [`crate::lines::split_lines`]
-/// (which every line below goes through) already excludes it from line
-/// 0's own text, so the reindent logic below never sees it. It is
-/// re-emitted verbatim at the very start of the output: dropping it
-/// would silently change the file's encoding metadata for a client that
-/// never asked for that, and the reverse (adding one where none existed)
-/// would be just as surprising — so format is BOM-preserving, not
-/// BOM-normalising.
+/// A leading BOM is excluded from parser-like line processing and
+/// re-emitted verbatim at the start of the output.
 pub fn reindent(src: &str) -> String {
     let bom = &src[..crate::lines::leading_bom_len(src)];
     let mut out = String::with_capacity(src.len() + 32);
@@ -67,7 +61,7 @@ pub fn reindent(src: &str) -> String {
     // already strips whichever terminator (LF/CR/CRLF) each line had, so
     // there's no separate CR-stripping step here.
     let lines: Vec<&str> = {
-        let mut v = crate::lines::split_lines(src);
+        let mut v = crate::lines::content_lines(src);
         if v.last().map(|s| s.is_empty()).unwrap_or(false) {
             v.pop();
         }

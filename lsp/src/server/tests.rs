@@ -267,25 +267,99 @@ fn document_symbols_resolve_key_on_line_with_leading_bom() {
     let host = syms.iter().find(|s| s.name == "host").expect("host key");
     assert_eq!(host.range.start.line, 0);
     assert_eq!(
-        host.range.start.character, 0,
-        "BOM must not shift the key's column"
+        host.range.start.character, 3,
+        "the LSP byte column must include the BOM"
     );
+    assert_eq!(host.range.end.character, 3 + "host: value".len() as u32);
 }
 
 #[test]
-fn semantic_tokens_property_span_excludes_leading_bom() {
+fn semantic_tokens_property_span_counts_leading_bom_in_utf8_and_utf16() {
     let text = "\u{FEFF}host: value\n";
     let toks = semantic_tokens(text);
     let first = toks.first().expect("at least one token");
-    // PROPERTY token index is 4 (see `token_types`); its span must start
-    // at column 0 and cover exactly "host" (4 bytes) — never the BOM.
+    // The parser ignores the BOM, while client-facing coordinates count it.
     assert_eq!(first.token_type, 4);
-    assert_eq!(first.delta_start, 0);
+    assert_eq!(first.delta_start, 3);
     assert_eq!(first.length, 4);
+
+    let mut utf16 = toks;
+    convert_semantic_tokens_to_utf16(&mut utf16, text);
+    assert_eq!(utf16[0].delta_start, 1);
+    assert_eq!(utf16[0].length, 4);
 }
 
 #[test]
 fn reindent_preserves_leading_bom_and_content() {
     let text = "\u{FEFF}host: value\n";
     assert_eq!(crate::reindent::reindent(text), text);
+}
+
+#[test]
+fn formatting_edit_covers_bom_and_indented_document_in_both_encodings() {
+    let text = "\u{FEFF}    host: value  ";
+    let expected = "\u{FEFF}host: value";
+    let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
+
+    for (encoding, flag) in [(PositionEncoding::Utf8, 0), (PositionEncoding::Utf16, 1)] {
+        let (service, _socket) = tower_lsp::LspService::new(Backend::new);
+        let backend = service.inner();
+        backend
+            .encoding
+            .store(flag, std::sync::atomic::Ordering::Relaxed);
+        let uri = Url::parse("file:///bom-format.ktav").unwrap();
+        rt.block_on(backend.did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: "ktav".to_string(),
+                version: 1,
+                text: text.to_string(),
+            },
+        }));
+
+        let edits = rt
+            .block_on(backend.formatting(DocumentFormattingParams {
+                text_document: TextDocumentIdentifier { uri },
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                options: FormattingOptions {
+                    tab_size: 4,
+                    insert_spaces: true,
+                    ..Default::default()
+                },
+            }))
+            .expect("formatting must succeed")
+            .expect("opened document must have a formatting edit");
+        let edit = edits.first().expect("expected one whole-document edit");
+        assert_eq!(edit.range.start, Position::new(0, 0));
+        assert_eq!(edit.range.end.line, 0);
+
+        let end_byte = match encoding {
+            PositionEncoding::Utf8 => edit.range.end.character as usize,
+            PositionEncoding::Utf16 => text
+                .char_indices()
+                .scan(0u32, |units, (byte, ch)| {
+                    let here = *units;
+                    *units += ch.len_utf16() as u32;
+                    Some((here, byte))
+                })
+                .find(|(units, _)| *units == edit.range.end.character)
+                .map(|(_, byte)| byte)
+                .unwrap_or(text.len()),
+        };
+        let applied = format!(
+            "{}{}{}",
+            &text[..0],
+            edit.new_text.as_str(),
+            &text[end_byte..]
+        );
+        assert_eq!(
+            end_byte,
+            text.len(),
+            "range must reach document end ({encoding:?})"
+        );
+        assert_eq!(
+            applied, expected,
+            "edit must not duplicate trailing source text"
+        );
+    }
 }

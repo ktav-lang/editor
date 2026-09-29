@@ -131,40 +131,52 @@ fn compute_range_legacy(text: &str, msg: &str) -> Range {
         }
     };
 
-    let line_text = nth_line(text, line as usize).unwrap_or("");
+    let line_text = crate::lines::content_lines(text)
+        .get(line as usize)
+        .copied()
+        .unwrap_or("");
 
-    if msg.contains("MissingSeparatorSpace") {
-        if let Some(r) = range_for_missing_separator(line, line_text) {
-            return r;
-        }
+    let range = if msg.contains("MissingSeparatorSpace") {
+        range_for_missing_separator(line, line_text)
     } else if msg.contains("duplicate key")
         || msg.contains("Duplicate key")
         || msg.contains("conflicts with")
     {
         if let Some(key) = extract_quoted_key(msg) {
-            if let Some(r) = range_for_key_segment(line, line_text, &key) {
-                return r;
+            if let Some(range) = range_for_key_segment(line, line_text, &key) {
+                Some(range)
+            } else {
+                range_for_key(line, line_text)
             }
-        }
-        if let Some(r) = range_for_key(line, line_text) {
-            return r;
+        } else {
+            range_for_key(line, line_text)
         }
     } else if msg.contains("Empty key at line") {
-        if let Some(r) = range_for_leading_to_colon(line, line_text) {
-            return r;
-        }
+        range_for_leading_to_colon(line, line_text)
     } else if msg.contains("Invalid key at line") {
         if let Some(key) = extract_quoted_key(msg) {
-            if let Some(r) = range_for_key_segment(line, line_text, &key) {
-                return r;
+            if let Some(range) = range_for_key_segment(line, line_text, &key) {
+                Some(range)
+            } else {
+                range_for_key(line, line_text)
             }
+        } else {
+            range_for_key(line, line_text)
         }
-        if let Some(r) = range_for_key(line, line_text) {
-            return r;
-        }
-    }
+    } else {
+        None
+    };
 
-    full_line_range(text, line)
+    if let Some(mut range) = range {
+        if line == 0 {
+            let bom = crate::lines::leading_bom_len(text) as u32;
+            range.start.character += bom;
+            range.end.character += bom;
+        }
+        range
+    } else {
+        full_line_range(text, line)
+    }
 }
 
 fn range_for_missing_separator(line: u32, line_text: &str) -> Option<Range> {
@@ -343,12 +355,8 @@ fn extract_quoted_key(msg: &str) -> Option<String> {
     re.captures(msg)?.get(1).map(|m| m.as_str().to_string())
 }
 
-fn nth_line(text: &str, idx: usize) -> Option<&str> {
-    split_lines(text).get(idx).copied()
-}
-
 fn last_non_blank_line(text: &str) -> u32 {
-    let lines = split_lines(text);
+    let lines = crate::lines::content_lines(text);
     for (i, l) in lines.iter().enumerate().rev() {
         if !l.trim().is_empty() {
             return i as u32;
