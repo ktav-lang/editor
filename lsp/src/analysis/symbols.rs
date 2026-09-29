@@ -34,42 +34,58 @@ use crate::tokens::{find_key_separator, is_ktav_ws, split_dotted};
 /// shape we already use for nested arrays.
 pub fn build_symbols(value: &Value, text: &str) -> Vec<DocumentSymbol> {
     let root_is_array = matches!(value, Value::Array(_));
-    let hits = collect_key_hits(text, root_is_array);
+    let (hits, arrays, root_array) = collect_key_hits(text, root_is_array);
     let mut cursor = Cursor {
         hits: &hits,
         pos: 0,
     };
     match value {
-        Value::Object(map) => build_object_at(map, &mut cursor, 0),
-        Value::Array(items) => build_array_items(items, &mut cursor, 0, text),
+        Value::Object(map) => build_object_at(map, &mut cursor, &arrays, 0),
+        Value::Array(items) => build_array_items(items, &mut cursor, &arrays, root_array, 0, text),
         _ => Vec::new(),
     }
 }
 
-/// Build symbols for a top-level Array, where items appear at depth 0
-/// (no enclosing `[ ... ]` brackets in the source). Each item renders
-/// as `[i]`. For object items the line range is the line of the first
-/// key (depth 0); for bare-scalar items we fall back to the i-th
-/// non-blank, non-comment, non-closer line.
+/// Build `[i]` symbols for a top-level Array. Inline items use their
+/// own spans; multiline and bare items retain the physical-line fallback.
 fn build_array_items(
     items: &[Value],
     cursor: &mut Cursor<'_>,
+    arrays: &[InlineArray],
+    inline_id: Option<usize>,
     depth: u32,
     text: &str,
 ) -> Vec<DocumentSymbol> {
-    let item_lines = collect_top_array_item_lines(text);
+    let item_lines = if inline_id.is_none() {
+        collect_top_array_item_lines(text)
+    } else {
+        Vec::new()
+    };
     let mut out = Vec::with_capacity(items.len());
     for (i, v) in items.iter().enumerate() {
-        // Default range covers the i-th item line if we found one.
-        let range = item_lines
-            .get(i)
-            .copied()
-            .map(|(line, line_len)| Range {
-                start: Position { line, character: 0 },
-                end: Position {
-                    line,
-                    character: line_len,
-                },
+        let inline_item = inline_id.and_then(|id| arrays[id].items.get(i));
+        let child_array_id = inline_item.and_then(|item| item.array_id).or_else(|| {
+            if !matches!(v, Value::Array(_)) {
+                return None;
+            }
+            let line = item_lines.get(i)?.0;
+            // The first inline array on this physical item line is its outer value.
+            let id = arrays.partition_point(|array| array.line < line);
+            arrays
+                .get(id)
+                .filter(|array| array.line == line)
+                .map(|_| id)
+        });
+        let range = inline_item
+            .map(|item| item.range)
+            .or_else(|| {
+                item_lines.get(i).copied().map(|(line, line_len)| Range {
+                    start: Position { line, character: 0 },
+                    end: Position {
+                        line,
+                        character: line_len,
+                    },
+                })
             })
             .unwrap_or_else(zero_range);
         #[allow(deprecated)]
@@ -81,7 +97,7 @@ fn build_array_items(
             deprecated: None,
             range,
             selection_range: range,
-            children: build_children(v, cursor, depth + 1),
+            children: build_children(v, cursor, arrays, child_array_id, depth + 1),
         });
     }
     out
@@ -187,11 +203,14 @@ fn collect_top_array_item_lines(text: &str) -> Vec<(u32, u32)> {
 fn build_object_at(
     map: &ktav::value::ObjectMap,
     cursor: &mut Cursor<'_>,
+    arrays: &[InlineArray],
     depth: u32,
 ) -> Vec<DocumentSymbol> {
     let mut out = Vec::with_capacity(map.len());
     for (k, v) in map {
-        let range = cursor.lookup(depth, k.as_str()).unwrap_or_else(zero_range);
+        let (range, array_id) = cursor
+            .lookup(depth, k.as_str())
+            .unwrap_or((zero_range(), None));
         #[allow(deprecated)]
         out.push(DocumentSymbol {
             name: k.to_string(),
@@ -201,7 +220,7 @@ fn build_object_at(
             deprecated: None,
             range,
             selection_range: range,
-            children: build_children(v, cursor, depth + 1),
+            children: build_children(v, cursor, arrays, array_id, depth + 1),
         });
     }
     out
@@ -210,14 +229,17 @@ fn build_object_at(
 fn build_children(
     value: &Value,
     cursor: &mut Cursor<'_>,
+    arrays: &[InlineArray],
+    inline_id: Option<usize>,
     depth: u32,
 ) -> Option<Vec<DocumentSymbol>> {
     match value {
-        Value::Object(map) => Some(build_object_at(map, cursor, depth)),
+        Value::Object(map) => Some(build_object_at(map, cursor, arrays, depth)),
         Value::Array(items) => {
             let mut kids = Vec::with_capacity(items.len());
             for (i, v) in items.iter().enumerate() {
-                let r = zero_range();
+                let inline_item = inline_id.and_then(|id| arrays[id].items.get(i));
+                let r = inline_item.map_or_else(zero_range, |item| item.range);
                 #[allow(deprecated)]
                 kids.push(DocumentSymbol {
                     name: format!("[{}]", i),
@@ -230,7 +252,13 @@ fn build_children(
                     // An object inside an array sits one virtual level
                     // deeper than the array itself (the lone `{` opener
                     // bumps the scanner's depth too).
-                    children: build_children(v, cursor, depth + 1),
+                    children: build_children(
+                        v,
+                        cursor,
+                        arrays,
+                        inline_item.and_then(|item| item.array_id),
+                        depth + 1,
+                    ),
                 });
             }
             Some(kids)
@@ -291,6 +319,17 @@ struct KeyHit<'a> {
     /// shares a line with other hits — see [`collect_inline_hits`].
     col_start: u32,
     col_end: u32,
+    array_id: Option<usize>,
+}
+
+struct InlineItem {
+    range: Range,
+    array_id: Option<usize>,
+}
+
+struct InlineArray {
+    line: u32,
+    items: Vec<InlineItem>,
 }
 
 struct Cursor<'a> {
@@ -304,21 +343,24 @@ impl<'a> Cursor<'a> {
     /// `None` if we walked off the end (defensive: shouldn't happen for
     /// docs that parsed successfully, but a stale cache from
     /// `did_change` could still in principle slip through).
-    fn lookup(&mut self, depth: u32, name: &str) -> Option<Range> {
+    fn lookup(&mut self, depth: u32, name: &str) -> Option<(Range, Option<usize>)> {
         while self.pos < self.hits.len() {
             let h = &self.hits[self.pos];
             self.pos += 1;
             if h.depth == depth && decode_symbol_key(h.name).is_some_and(|key| key == name) {
-                return Some(Range {
-                    start: Position {
-                        line: h.line,
-                        character: h.col_start,
+                return Some((
+                    Range {
+                        start: Position {
+                            line: h.line,
+                            character: h.col_start,
+                        },
+                        end: Position {
+                            line: h.line,
+                            character: h.col_end,
+                        },
                     },
-                    end: Position {
-                        line: h.line,
-                        character: h.col_end,
-                    },
-                });
+                    h.array_id,
+                ));
             }
         }
         None
@@ -415,8 +457,13 @@ enum Multi {
 /// root's own keys/items at depth 0, so the wrapper must not consume a
 /// virtual-depth level here either, or every root-level hit ends up one
 /// level too deep and falls back to `zero_range()`.
-fn collect_key_hits(text: &str, root_is_array: bool) -> Vec<KeyHit<'_>> {
+fn collect_key_hits(
+    text: &str,
+    root_is_array: bool,
+) -> (Vec<KeyHit<'_>>, Vec<InlineArray>, Option<usize>) {
     let mut hits: Vec<KeyHit<'_>> = Vec::new();
+    let mut arrays = Vec::new();
+    let mut root_array = None;
     let mut multi = Multi::None;
     let mut virtual_depth: u32 = 0;
     // Per physical compound (object/array/multi-line) on the stack: how
@@ -505,7 +552,17 @@ fn collect_key_hits(text: &str, root_is_array: bool) -> Vec<KeyHit<'_>> {
             } else {
                 virtual_depth + 1
             };
-            collect_inline_hits(trimmed, leading_ws, base_depth, &mut hits, i as u32);
+            let id = collect_inline_hits(
+                trimmed,
+                leading_ws,
+                base_depth,
+                &mut hits,
+                &mut arrays,
+                i as u32,
+            );
+            if is_root_wrapper && root_is_array {
+                root_array = id;
+            }
             continue;
         }
 
@@ -542,6 +599,7 @@ fn collect_key_hits(text: &str, root_is_array: bool) -> Vec<KeyHit<'_>> {
                 line: line_no,
                 col_start: bom_offset,
                 col_end: line_len,
+                array_id: None,
             });
             seg_count += 1;
         }
@@ -562,13 +620,18 @@ fn collect_key_hits(text: &str, root_is_array: bool) -> Vec<KeyHit<'_>> {
             if matches!(value.as_bytes().first(), Some(b'{') | Some(b'['))
                 && !matches!(value, "{" | "[" | "(" | "((" | "{}" | "[]" | "()")
             {
-                collect_inline_hits(
+                let key_hit = hits.len() - 1;
+                let id = collect_inline_hits(
                     value,
                     value_col,
                     virtual_depth + seg_count,
                     &mut hits,
+                    &mut arrays,
                     line_no,
                 );
+                if value.starts_with('[') {
+                    hits[key_hit].array_id = id;
+                }
             }
         }
 
@@ -594,7 +657,7 @@ fn collect_key_hits(text: &str, root_is_array: bool) -> Vec<KeyHit<'_>> {
         // compound push happens.
     }
 
-    hits
+    (hits, arrays, root_array)
 }
 
 /// For a Plain-marker Pair line, the value substring after the marker
@@ -639,15 +702,47 @@ fn collect_inline_hits<'a>(
     col_base: u32,
     base_depth: u32,
     hits: &mut Vec<KeyHit<'a>>,
+    arrays: &mut Vec<InlineArray>,
     line: u32,
-) {
+) -> Option<usize> {
     let mut depth = base_depth;
     let mut frame_bumps: Vec<u32> = Vec::new();
     let mut pending_bump: Option<u32> = None;
+    let mut pending_key: Option<usize> = None;
+    let mut frames: Vec<(Option<usize>, Option<(usize, usize)>)> = Vec::new();
+    let mut root_array = None;
     let mut first_open_seen = false;
 
     walk_inline(text, |ev| match ev {
-        InlineEvent::Open { .. } => {
+        InlineEvent::Open { pos } => {
+            let parent_item = frames.last().and_then(|frame| frame.0).map(|parent| {
+                let item = arrays[parent].items.len();
+                arrays[parent].items.push(InlineItem {
+                    range: inline_range(line, col_base + pos as u32, col_base + pos as u32 + 1),
+                    array_id: None,
+                });
+                (parent, item)
+            });
+            let array_id = if text.as_bytes()[pos] == b'[' {
+                let id = arrays.len();
+                arrays.push(InlineArray {
+                    line,
+                    items: Vec::new(),
+                });
+                if !first_open_seen {
+                    root_array = Some(id);
+                }
+                if let Some((parent, item)) = parent_item {
+                    arrays[parent].items[item].array_id = Some(id);
+                }
+                if let Some(key) = pending_key {
+                    hits[key].array_id = Some(id);
+                }
+                Some(id)
+            } else {
+                None
+            };
+            frames.push((array_id, parent_item));
             if !first_open_seen {
                 // The outermost bracket is already accounted for by
                 // `base_depth` — never a bump of its own.
@@ -658,12 +753,17 @@ fn collect_inline_hits<'a>(
                 depth += bump;
             }
             pending_bump = None;
+            pending_key = None;
         }
-        InlineEvent::Close { .. } => {
+        InlineEvent::Close { pos } => {
+            if let Some((_, Some((parent, item)))) = frames.pop() {
+                arrays[parent].items[item].range.end.character = col_base + pos as u32 + 1;
+            }
             if let Some(b) = frame_bumps.pop() {
                 depth = depth.saturating_sub(b);
             }
             pending_bump = None;
+            pending_key = None;
         }
         InlineEvent::Key {
             start,
@@ -680,16 +780,46 @@ fn collect_inline_hits<'a>(
                     line,
                     col_start: seg_col,
                     col_end: seg_col + seg.len() as u32,
+                    array_id: None,
                 });
                 n += 1;
             }
             pending_bump = if n > 0 { Some(n) } else { None };
+            pending_key = if n > 0 { Some(hits.len() - 1) } else { None };
         }
-        InlineEvent::Value { .. } => {
+        InlineEvent::Value { start, text, .. } => {
+            if let Some(Some(array_id)) = frames.last().map(|frame| frame.0) {
+                arrays[array_id].items.push(InlineItem {
+                    range: inline_range(
+                        line,
+                        col_base + start as u32,
+                        col_base + (start + text.len()) as u32,
+                    ),
+                    array_id: None,
+                });
+            }
             pending_bump = None;
+            pending_key = None;
         }
-        InlineEvent::Comma { .. } | InlineEvent::Sep { .. } => {}
+        InlineEvent::Comma { .. } => {
+            pending_key = None;
+        }
+        InlineEvent::Sep { .. } => {}
     });
+    root_array
+}
+
+fn inline_range(line: u32, start: u32, end: u32) -> Range {
+    Range {
+        start: Position {
+            line,
+            character: start,
+        },
+        end: Position {
+            line,
+            character: end,
+        },
+    }
 }
 
 #[cfg(test)]
@@ -975,6 +1105,33 @@ mod tests {
     }
 
     #[test]
+    fn multiline_top_level_array_links_inline_array_items() {
+        let text = "[\n    [1, 2]\n    [3, 4]\n]\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 2);
+        for (i, line) in [1, 2].into_iter().enumerate() {
+            assert_range(&syms[i], line, 0, 10);
+            let items = syms[i].children.as_ref().expect("inline array children");
+            assert_eq!(items.len(), 2);
+            assert_range(&items[0], line, 5, 6);
+            assert_range(&items[1], line, 8, 9);
+        }
+    }
+
+    #[test]
+    fn bare_top_level_array_links_inline_array_item() {
+        let text = "first\n[1, 2]\n";
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 2);
+        assert_range(&syms[0], 0, 0, 5);
+        assert_range(&syms[1], 1, 0, 6);
+        let items = syms[1].children.as_ref().expect("inline array children");
+        assert_eq!(items.len(), 2);
+        assert_range(&items[0], 1, 1, 2);
+        assert_range(&items[1], 1, 4, 5);
+    }
+
+    #[test]
     fn bare_and_inline_top_level_arrays_keep_item_lines() {
         let bare = "foo\nbar\n";
         let syms = build_symbols(&parse(bare), bare);
@@ -985,7 +1142,66 @@ mod tests {
         let inline = "[foo]\n";
         let syms = build_symbols(&parse(inline), inline);
         assert_eq!(syms.len(), 1);
-        assert_range(&syms[0], 0, 0, 5);
+        assert_range(&syms[0], 0, 1, 4);
+    }
+
+    #[test]
+    fn spec_top_level_inline_array_has_distinct_item_ranges() {
+        let text =
+            include_str!("../../../spec/versions/0.8/tests/valid/top_level_inline/array.ktav");
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 5);
+        for (i, (start, end)) in [(1, 2), (4, 5), (7, 8), (10, 11), (13, 14)]
+            .into_iter()
+            .enumerate()
+        {
+            assert_eq!(syms[i].name, format!("[{i}]"));
+            assert_range(&syms[i], 0, start, end);
+        }
+    }
+
+    #[test]
+    fn spec_inline_nested_array_items_have_exact_ranges() {
+        let text = include_str!("../../../spec/versions/0.8/tests/valid/inline/nested/mixed.ktav");
+        let syms = build_symbols(&parse(text), text);
+        let users = find(&syms, "users").children.as_ref().unwrap();
+        assert_eq!(users.len(), 2);
+        assert_range(&users[0], 0, 8, 30);
+        assert_range(&users[1], 0, 32, 52);
+
+        let data = find(&syms, "data").children.as_ref().unwrap();
+        let names = find(data, "names").children.as_ref().unwrap();
+        let ages = find(data, "ages").children.as_ref().unwrap();
+        assert_eq!(names.len(), 2);
+        assert_eq!(ages.len(), 2);
+        assert_range(&names[0], 1, 15, 20);
+        assert_range(&names[1], 1, 22, 25);
+        assert_range(&ages[0], 1, 35, 37);
+        assert_range(&ages[1], 1, 39, 41);
+    }
+
+    #[test]
+    fn spec_top_level_inline_nested_array_uses_own_item_range() {
+        let text = include_str!("../../../spec/versions/0.8/tests/valid/top_level_inline/unquoted_key_context_from_active_scope.ktav");
+        let syms = build_symbols(&parse(text), text);
+        assert_range(&syms[0], 0, 1, 15);
+        let object = syms[0].children.as_ref().unwrap();
+        let b_items = find(object, "b").children.as_ref().unwrap();
+        assert_range(&b_items[0], 0, 12, 13);
+    }
+
+    #[test]
+    fn inline_array_ranges_keep_bom_hash_quoted_key_and_cr_columns() {
+        let text = "\u{feff}[#value, {\"#key\": [1, 2]}]\r";
+        let syms = build_symbols(&parse(text), text);
+        assert_eq!(syms.len(), 2);
+        assert_range(&syms[0], 0, 4, 10);
+        assert_range(&syms[1], 0, 12, 28);
+        let key = find(syms[1].children.as_ref().unwrap(), "#key");
+        assert_range(key, 0, 13, 19);
+        let items = key.children.as_ref().unwrap();
+        assert_range(&items[0], 0, 22, 23);
+        assert_range(&items[1], 0, 25, 26);
     }
 
     #[test]
