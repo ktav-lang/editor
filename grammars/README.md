@@ -8,9 +8,10 @@ Canonical TextMate grammar and VS Code language configuration for the
 ## Files
 
 - `ktav.tmLanguage.json` — TextMate grammar. Scope name `source.ktav`,
-  file extension `.ktav`. Suitable for any TextMate-compatible host
-  (VS Code, Sublime Text, Atom, GitHub
-  Linguist, `tree-sitter`-adjacent tools that consume TextMate, etc.).
+  file extension `.ktav`. Direct JSON loading requires a host that
+  accepts this format, such as VS Code. Sublime Text needs the XML
+  export described in [its installation guide](../docs/sublime.md).
+  This is not a tree-sitter grammar.
 - `language-configuration.json` — VS Code language configuration:
   comments, brackets, auto-closing pairs, indentation rules, word
   pattern.
@@ -47,10 +48,15 @@ keywords, and brackets all render distinctly under your color theme.
 
 ### Other editors
 
-Any editor with TextMate-grammar support can consume
-`ktav.tmLanguage.json` directly. Drop it into a TextMate bundle (or
-the editor's grammar directory) and associate `*.ktav` with scope
-`source.ktav`.
+Direct use of `ktav.tmLanguage.json` requires an editor that accepts
+TextMate grammars in JSON format, such as VS Code; TextMate support
+alone does not guarantee that. Follow the host's grammar-registration
+instructions and associate `*.ktav` with scope `source.ktav`.
+Sublime Text requires XML: use the existing
+`grammars/scripts/export-tmlanguage.js` exporter and follow the
+[Sublime installation recipe](../docs/sublime.md#file-type-association).
+Tree-sitter requires a separate Ktav grammar and highlight queries;
+the shared TextMate JSON cannot be installed as a tree-sitter grammar.
 
 ## Token classes
 
@@ -60,13 +66,18 @@ these scopes will style Ktav consistently.
 | Scope                                              | Matches                                    |
 | -------------------------------------------------- | ------------------------------------------ |
 | `comment.line.number-sign.ktav`                    | `## …` line comments                       |
-| `entity.name.tag.ktav`                             | Key segments (left of `:`)                 |
+| `entity.name.tag.ktav`                             | Bare key segments (left of `:`)            |
+| `string.quoted.double.key.ktav`                    | Double-quoted key segments                 |
+| `string.quoted.single.key.ktav`                    | Single-quoted key segments                 |
+| `string.quoted.backtick.key.ktav`                  | Backtick-quoted key segments               |
 | `punctuation.accessor.dot.ktav`                    | `.` separating dotted key segments         |
 | `punctuation.separator.key-value.ktav`             | The `:` of a plain pair                    |
 | `keyword.operator.marker.raw.ktav`                 | `::` (raw-string marker)                   |
-| `constant.language.ktav`                           | `null`, `true`, `false` scalars            |
+| `constant.language.boolean.ktav`                   | `true`, `false` scalars                    |
+| `constant.language.null.ktav`                      | `null` scalars                             |
 | `constant.numeric.integer.ktav`                    | Integer literal (§ 3.6; no redundant leading zero) |
 | `constant.numeric.float.ktav`                      | Float literal (§ 3.6; has `.` / exponent)  |
+| `constant.numeric.ktav`                            | Whole-line Array item number literals      |
 | `invalid.illegal.escape.unicode.ktav`              | Lone surrogate or malformed `\uXXXX`        |
 | `string.unquoted.ktav`                             | Ordinary string scalars                    |
 | `string.unquoted.raw.ktav`                         | Body after `::`                            |
@@ -108,20 +119,26 @@ these scopes will style Ktav consistently.
 ## Known limitations
 
 - Static syntax highlighting only. The grammar does not enforce
-  semantic rules (duplicate-name detection, path conflicts, typed
-  scalar body validation beyond the regex shape, dotted-key expansion,
-  empty-key checks). Those belong to a parser/linter.
+  semantic rules (duplicate-name detection, path conflicts, numeric
+  validity beyond the regex shape, dotted-key expansion, empty-key
+  checks). Those belong to a parser/linter.
 - Inline `#` is *not* a comment per the spec, and the grammar honors
   that. A `#` inside a value body is highlighted as part of the string.
-- Inside multi-line strings, lines that look like `key: value` are
-  **not** parsed as pairs — the `contentName` covers the whole region
-  with one string scope. This matches the spec but means a misplaced
-  `)` / `))` (one that isn't actually the closer the spec considers
-  it) may visually break out of the string region. Authors who need
-  to embed both `)` and `))` lines in the same value must split the
-  string per § 5.6.1.
-- The grammar uses regex-based line classification, not a real parser.
-  Pathological inputs (e.g. a key segment with mid-segment `.` that
-  would, by the strict grammar, not be a separator) are tokenized
-  as if every `.` were a separator. This matches every implementation
-  in the wild and is the only reasonable visual behavior.
+- Multi-line string content has one string scope; lines such as
+  `key: value` are not pairs. A line trimming to exactly `)` closes
+  stripped form, and one trimming to exactly `))` closes verbatim
+  form (§ 5.6.1). To include one colliding closer as content, switch
+  forms; other canonical representability checks still apply.
+  If a String has both kinds of colliding line, the canonical
+  multi-line writer must reject it with `BothFormsRequired` (§ 5.9.7).
+  Adjacent blocks do not concatenate into one String. This is a
+  canonical-output restriction, not a ban on every parseable spelling:
+  the inline document `{s: ))\n)}` yields one String containing both
+  lines, but has no canonical multi-line representation.
+- Key dots follow § 4 and § 5.3.2–5.3.3: an unescaped `.` outside a
+  quoted segment is a path separator. A literal dot in a bare segment
+  requires `\.`; inside a quoted segment it is ordinary content.
+  `example.com: 1` is a dotted path; `example\.com: 1` and
+  `"example.com": 1` each use one literal key. `x.y\.z: v` has the
+  path segments `x` and `y.z`. Regex highlighting is not validation
+  of these paths' semantic effects.

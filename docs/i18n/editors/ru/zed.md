@@ -6,10 +6,14 @@
 > опубликовано. Ниже — заметки о том, как мог бы выглядеть каркас
 > расширения; вклад приветствуется.
 
-## Ручная настройка (сегодня)
+## Требования для настройки
 
-Zed читает языковые настройки уровня workspace из
-`.zed/settings.json`:
+Стандартному Zed нужно установленное расширение (опубликованное или
+development), регистрирующее язык `Ktav`, расширение `.ktav` и адаптер
+language server `ktav-lsp`. Этот репозиторий такое расширение не
+поставляет. Одних settings недостаточно для регистрации языка или
+подключения сервера к Plain Text. После установки такого расширения
+зарегистрированные им имена можно настроить в `.zed/settings.json`:
 
 ```jsonc
 {
@@ -27,26 +31,27 @@ Zed читает языковые настройки уровня workspace из
 }
 ```
 
-Установите сервер:
+Установите сервер (для locked-сборки 0.8.0 нужен Rust 1.88+):
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
-Пока опубликованное расширение не зарегистрирует `Ktav` как известный
-язык, Zed будет считать `.ktav` обычным текстом — LSP всё равно
-подключится, если файл открыт, но подсветки не будет.
+Используйте имена языка и адаптера, зарегистрированные расширением.
+Для подсветки дополнительно нужны tree-sitter-грамматика Ktav и
+запросы; общая TextMate JSON-грамматика не является tree-sitter.
+См. [языковые расширения Zed](https://zed.dev/docs/extensions/languages)
+и [настройку language server](https://zed.dev/docs/configuring-languages#configuring-language-servers).
 
 ## Планируемая структура расширения
 
 ```
 zed-ktav/
-  extension.toml          # id, name, languages.ktav
+  extension.toml          # extension metadata, grammar pin, language_servers adapter
   languages/ktav/
     config.toml           # name, path_suffixes = ["ktav"], comment chars
-    highlights.scm        # tree-sitter highlight queries (TBD)
-  grammars/
-    ktav.toml             # tree-sitter grammar source pin
+    highlights.scm        # queries for a separately implemented tree-sitter grammar
+  src/lib.rs              # Zed extension API: ktav-lsp command adapter
 ```
 
 Отслеживающий issue: <https://github.com/ktav-lang/editor/issues>

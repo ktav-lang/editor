@@ -32,7 +32,7 @@ Drop this into your `init.el` (or a file on `load-path`):
 Install the server:
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
 Verify with `M-x eglot` after opening a `.ktav` file — the
@@ -42,7 +42,11 @@ modeline should show `[eglot:ktav]`. Diagnostics appear via
 ## Highlighting
 
 `ktav-mode` above is intentionally minimal (no font-lock keywords).
-The LSP's semantic-tokens response gives most of the colouring once
-eglot is attached. For richer offline highlighting you can run the
-shared TextMate grammar from `editor/grammars/` through `tree-sitter`
-or `polymode`, but that's beyond the scope of this stub.
+The server offers semantic tokens, but displaying them depends on the
+installed Emacs LSP client's support and configuration; attaching eglot
+does not add font-lock rules to this mode.
+Offline highlighting needs separately implemented Ktav font-lock rules,
+or a Ktav tree-sitter grammar, highlight queries and a major mode that
+uses them. This repository supplies none of those highlighting
+integrations. The shared TextMate JSON is not a tree-sitter grammar;
+neither tree-sitter nor polymode loads it as one.

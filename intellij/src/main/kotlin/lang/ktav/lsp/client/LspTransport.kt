@@ -25,6 +25,7 @@ class LspTransport(
 
     // Pending requests: id → CompletableFuture<JsonElement>
     private val pendingRequests = ConcurrentHashMap<Int, CompletableFuture<JsonElement>>()
+    private val requestLock = Any()
 
     // Use raw streams for binary-safe Content-Length-based protocol
     private val stdin = process.outputStream
@@ -62,9 +63,14 @@ class LspTransport(
      * Send a request and wait for response.
      */
     fun sendRequest(method: String, params: JsonObject?): CompletableFuture<JsonElement> {
-        val id = nextId.getAndIncrement()
-        val future = CompletableFuture<JsonElement>()
-        pendingRequests[id] = future
+        val id: Int
+        val future: CompletableFuture<JsonElement>
+        synchronized(requestLock) {
+            if (closed) return CompletableFuture.failedFuture(IllegalStateException("LSP transport is closed"))
+            id = nextId.getAndIncrement()
+            future = CompletableFuture()
+            pendingRequests[id] = future
+        }
 
         val request = LspRequest(id, method, params)
         val json = gson.toJson(request.toJson())
@@ -291,18 +297,15 @@ class LspTransport(
     }
 
     override fun close() {
-        if (closed) return
-        closed = true
+        synchronized(requestLock) {
+            if (closed) return
+            closed = true
+        }
         log.info("[Ktav Transport] Closing transport")
-        try {
-            stdin.close()
-        } catch (_: Exception) {}
-        try {
-            stdoutRaw.close()
-        } catch (_: Exception) {}
-        try {
-            stderrRaw.close()
-        } catch (_: Exception) {}
+        pendingRequests.values.forEach {
+            it.completeExceptionally(IllegalStateException("LSP transport is closed"))
+        }
+        pendingRequests.clear()
         try {
             process.destroy()
             process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
@@ -312,6 +315,15 @@ class LspTransport(
         } catch (ex: Exception) {
             log.warn("[Ktav Transport] Process destroy error: ${ex.message}")
         }
+        try {
+            stdin.close()
+        } catch (_: Exception) {}
+        try {
+            stdoutRaw.close()
+        } catch (_: Exception) {}
+        try {
+            stderrRaw.close()
+        } catch (_: Exception) {}
         readerThread.interrupt()
         writerThread.interrupt()
         stderrThread.interrupt()

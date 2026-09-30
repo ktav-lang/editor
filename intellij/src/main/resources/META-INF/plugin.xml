@@ -69,8 +69,10 @@
       displayName="Ktav" />
     <applicationService
       serviceImplementation="lang.ktav.lsp.settings.KtavSettings" />
-    <applicationService
+    <projectService
       serviceImplementation="lang.ktav.lsp.diagnostics.DiagnosticsHolder" />
+    <projectService
+      serviceImplementation="lang.ktav.lsp.diagnostics.DiagnosticsRenderer" />
     <notificationGroup
       id="Ktav"
       displayType="BALLOON" />

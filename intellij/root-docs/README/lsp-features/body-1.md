@@ -11,14 +11,19 @@ semantic tokens, but the built-in IntelliJ client does not integrate
 them. Syntax highlighting comes from the plugin's native lexer, not
 LSP semantic tokens.
 
-The server binary is discovered in this order:
+Diagnostics are tied to each project's current open client, version and
+document session. Cached annotations and direct editor highlights remain
+independent: stale publications or closing one project cannot clear another
+owner's errors.
 
-1. The explicit path configured under **Settings → Tools → Ktav**.
-2. The binary bundled inside the plugin distribution at
-   `lib/bin/<platform>-<arch>/ktav-lsp`, one per supported platform.
-3. `ktav-lsp` resolved via your shell `PATH` — install it with
-   `cargo install ktav-lsp` (matches the VS Code extension's
-   discovery order).
+Each project owns its LSP client and document subscriptions. A `.ktav`
+document open in two projects is synchronized to both independently;
+closing it in one project does not stop updates in the other. Restored
+editor tabs use the same open path, and reopening sends the current text
+as a new document session. Project disposal removes its subscriptions
+and closes its client, including a server process that starts late.
+Closing the transport fails outstanding requests and rejects new ones
+immediately instead of leaving them waiting for a response timeout.
 
 >>>>> lang=ru
 ### LSP-фичи
@@ -33,15 +38,20 @@ semantic tokens, но встроенный клиент IntelliJ их не ин�
 Подсветку синтаксиса обеспечивает нативный лексер плагина, а не
 семантические токены LSP.
 
-Бинарник сервера ищется в таком порядке:
+Диагностика привязана к текущему открытому клиенту, версии и сессии документа
+каждого проекта. Кэш аннотаций и прямая подсветка редакторов независимы:
+старые публикации или закрытие одного проекта не удаляют ошибки другого
+владельца.
 
-1. Явный путь, заданный в **Settings → Tools → Ktav**.
-2. Бинарник, вложенный в дистрибутив плагина по пути
-   `lib/bin/<platform>-<arch>/ktav-lsp` — по одному на каждую
-   поддерживаемую платформу.
-3. `ktav-lsp`, найденный через `PATH` вашей оболочки — установите
-   его командой `cargo install ktav-lsp` (совпадает с порядком
-   поиска в расширении VS Code).
+Каждый проект владеет своим LSP-клиентом и подписками документов. Документ
+`.ktav`, открытый в двух проектах, синхронизируется с каждым независимо;
+закрытие в одном проекте не останавливает обновления в другом.
+Восстановленные вкладки используют тот же путь открытия, а повторное
+открытие отправляет текущий текст как новую сессию документа. Закрытие
+проекта удаляет его подписки и закрывает клиент, включая процесс сервера,
+запустившийся с задержкой.
+Закрытие транспорта завершает ожидающие запросы с ошибкой и сразу
+отклоняет новые, не оставляя их ждать таймаута ответа.
 
 >>>>> lang=zh
 ### LSP 功能
@@ -54,11 +64,14 @@ semantic tokens, но встроенный клиент IntelliJ их не ин�
 客户端未集成这些功能。语法高亮由插件的原生词法分析器提供,
 而非 LSP 语义令牌。
 
-服务器二进制按以下顺序查找:
+诊断绑定每个项目当前打开的客户端、版本及文档会话。缓存注解和编辑器
+直接高亮保持独立：过期发布或关闭一个项目不会清除另一个拥有者的错误。
 
-1. **Settings → Tools → Ktav** 中显式配置的路径。
-2. 打包在插件分发包中的二进制
-   `lib/bin/<platform>-<arch>/ktav-lsp`,每个受支持平台各一份。
-3. 通过 shell `PATH` 解析的 `ktav-lsp` —— 用
-   `cargo install ktav-lsp` 安装(与 VS Code 扩展的查找顺序一致)。
+每个项目拥有自己的 LSP 客户端和文档订阅。同一 `.ktav` 文档在两个项目中
+打开时,会分别同步到两个客户端;在一个项目中关闭它不会停止另一个项目的
+更新。恢复的编辑器标签页使用相同的打开流程,重新打开时会将当前文本作为
+新的文档会话发送。项目关闭会移除其订阅并关闭客户端,包括延迟启动的
+服务器进程。
+传输关闭时,等待中的请求会失败,新请求也会立即被拒绝,而不会继续等待
+响应超时。
 

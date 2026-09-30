@@ -13,7 +13,7 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Then `cargo install ktav-lsp`.
+Then `cargo install ktav-lsp --version 0.8.0 --locked`.
 
 >>>>> lang=ru
 ### Helix
@@ -30,7 +30,7 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Затем `cargo install ktav-lsp`.
+Затем `cargo install ktav-lsp --version 0.8.0 --locked`.
 
 >>>>> lang=zh
 ### Helix
@@ -47,5 +47,5 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-然后执行 `cargo install ktav-lsp`。
+然后执行 `cargo install ktav-lsp --version 0.8.0 --locked`。
 

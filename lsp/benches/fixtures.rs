@@ -52,7 +52,7 @@ pub fn synth(target_bytes: usize) -> String {
                     out,
                     "flag_{}: {}",
                     i,
-                    if i % 2 == 0 { "true" } else { "false" }
+                    if i.is_multiple_of(2) { "true" } else { "false" }
                 );
             }
             4 => {

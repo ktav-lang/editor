@@ -1,6 +1,8 @@
 package lang.ktav.highlighting
 
 import com.intellij.lexer.LexerBase
+import com.intellij.lexer.RestartableLexer
+import com.intellij.lexer.TokenIterator
 import com.intellij.psi.TokenType
 import com.intellij.psi.tree.IElementType
 import lang.ktav.highlighting.KtavTokenTypes as Tokens
@@ -46,14 +48,13 @@ import lang.ktav.highlighting.KtavTokenTypes as Tokens
  *
  * Line states: LINE_START, AFTER_KEY, VALUE_STRING, VALUE_RAW.
  *
- * Inline state: when a `:` value begins with `{` or `[`, the lexer descends
- * into an inline-tokenising mode. The whole nesting context (depth, the
- * object/array stack, whether a key or a value is expected next, and
- * whether the pending value is a raw (`::`) scalar) is packed into the
- * integer lexer state so IntelliJ's incremental relexing stays correct
- * when it restarts at any inline token boundary.
+ * Container scopes are persistent, lexer-local nodes. Each (scope, mode)
+ * has an exact state ID, so incremental convergence cannot confuse different
+ * root kinds or stacks. Saved states restore directly on this lexer; a fresh
+ * lexer replays the prefix once in start() to recover the unbounded context.
+ * Public states describe the context BEFORE the current token.
  */
-class KtavLexer : LexerBase() {
+class KtavLexer : LexerBase(), RestartableLexer {
 
     companion object {
         private const val LINE_START = 0
@@ -65,23 +66,11 @@ class KtavLexer : LexerBase() {
         private const val MULTILINE_OPEN_STRIPPED = 6
         private const val MULTILINE_OPEN_VERBATIM = 7
 
-        // Inline states occupy everything >= INLINE_BASE. The remainder
-        // encodes: bit0 = expectKey, bit1 = pending value is raw (`::`),
-        // bits2..6 = depth, bits7+ = container stack (LSB = innermost;
-        // 1 = object, 0 = array).
-        private const val INLINE_BASE = 16
-        private const val MAX_INLINE_DEPTH = 24
+        private const val INLINE_KEY = 16
+        private const val INLINE_VALUE = 17
+        private const val INLINE_RAW = 18
 
-        private fun encodeInline(depth: Int, stack: Int, expectKey: Boolean, rawValue: Boolean = false): Int {
-            val d = depth.coerceIn(0, MAX_INLINE_DEPTH)
-            return INLINE_BASE + (if (expectKey) 1 else 0) + (if (rawValue) 2 else 0) + (d shl 2) + (stack shl 7)
-        }
-
-        private fun isInline(state: Int) = state >= INLINE_BASE
-        private fun inDepth(state: Int) = ((state - INLINE_BASE) shr 2) and 0x1F
-        private fun inStack(state: Int) = (state - INLINE_BASE) shr 7
-        private fun inExpectKey(state: Int) = ((state - INLINE_BASE) and 1) == 1
-        private fun inRawValue(state: Int) = ((state - INLINE_BASE) and 2) == 2
+        private fun isInline(state: Int) = state in INLINE_KEY..INLINE_RAW
 
         /**
          * § 3.3 — exactly these twenty-five code points, never a host
@@ -94,9 +83,8 @@ class KtavLexer : LexerBase() {
             else -> c in '\u2000'..'\u200A'
         }
 
-        /** Whitespace usable as an in-line separator — excludes the line terminators. */
-        private fun isHorizontalWs(c: Char) = c != '\n' && c != '\r' && isKtavWhitespace(c)
-        private fun isLineTerminator(c: Char) = c == '\n' || c == '\r'
+        internal fun isHorizontalWs(c: Char) = c != '\n' && c != '\r' && isKtavWhitespace(c)
+        internal fun isLineTerminator(c: Char) = c == '\n' || c == '\r'
 
         private fun CharSequence.trimKtav(): String {
             var start = 0
@@ -240,20 +228,62 @@ class KtavLexer : LexerBase() {
     private var myBuffer: CharSequence = ""
     private var myBufferEnd = 0
     private var myState = LINE_START
+    private var myTokenState = LINE_START
+
+    private class Scope(val rootKind: Int, val parent: Scope? = null,
+                        val objectScope: Boolean = rootKind == 1, val inline: Boolean = false) {
+        val states = IntArray(INLINE_RAW + 1) { -1 }
+        private val children = arrayOfNulls<Scope>(4)
+
+        fun child(objectScope: Boolean, inline: Boolean): Scope {
+            val index = (if (objectScope) 1 else 0) + (if (inline) 2 else 0)
+            return children[index] ?: Scope(rootKind, this, objectScope, inline).also { children[index] = it }
+        }
+    }
+
+    private data class SavedState(val scope: Scope, val mode: Int)
+    private val roots = Array(3) { Scope(it) }
+    private var scope = roots[0]
+    private val savedStates = mutableListOf(SavedState(scope, LINE_START))
+
+    init {
+        scope.states[LINE_START] = 0
+    }
     private var myTokenStart = 0
     private var myTokenEnd = 0
     private var myTokenType: IElementType? = null
 
+    override fun getStartState() = 0
+
+    override fun isRestartableState(state: Int) = state >= 0 && state < savedStates.size
+
+    override fun start(buffer: CharSequence, startOffset: Int, endOffset: Int,
+                       initialState: Int, tokenIterator: TokenIterator) {
+        start(buffer, startOffset, endOffset, initialState)
+    }
+
     override fun start(buffer: CharSequence, startOffset: Int, endOffset: Int, initialState: Int) {
         myBuffer = buffer
         myBufferEnd = endOffset
-        myState = initialState
-        myTokenStart = startOffset
-        myTokenEnd = startOffset
-        advance()
+        if (startOffset > 0 && isRestartableState(initialState)) {
+            val saved = savedStates[initialState]
+            scope = saved.scope
+            myState = saved.mode
+            myTokenEnd = startOffset
+            advance()
+        } else {
+            // Fresh instances have no saved stack. Replay only on restart,
+            // never on ordinary advance/getState. IDs remain lexer-local.
+            scope = roots[0]
+            myState = LINE_START
+            myTokenEnd = 0
+            advance()
+            while (myTokenType != null && myTokenEnd <= startOffset) advance()
+            myTokenStart = startOffset
+        }
     }
 
-    override fun getState() = myState
+    override fun getState() = myTokenState
     override fun getTokenType(): IElementType? = myTokenType
     override fun getTokenStart() = myTokenStart
     override fun getTokenEnd() = myTokenEnd
@@ -262,6 +292,13 @@ class KtavLexer : LexerBase() {
 
     override fun advance() {
         myTokenStart = myTokenEnd
+        var stateId = scope.states[myState]
+        if (stateId < 0) {
+            stateId = savedStates.size
+            savedStates.add(SavedState(scope, myState))
+            scope.states[myState] = stateId
+        }
+        myTokenState = stateId
         if (myTokenStart >= myBufferEnd) {
             myTokenType = null
             return
@@ -282,7 +319,10 @@ class KtavLexer : LexerBase() {
                 MULTILINE_OPEN_STRIPPED -> MULTILINE_BODY_STRIPPED
                 MULTILINE_OPEN_VERBATIM -> MULTILINE_BODY_VERBATIM
                 MULTILINE_BODY_STRIPPED, MULTILINE_BODY_VERBATIM -> myState
-                else -> LINE_START
+                else -> {
+                    while (scope.inline) scope = scope.parent!!
+                    LINE_START
+                }
             }
             return
         }
@@ -334,24 +374,29 @@ class KtavLexer : LexerBase() {
             scanHorizWhitespace()
             return
         }
-        when (c) {
-            // A line beginning with `{` / `[` is an inline-compound value
-            // (an array item like `{name: alice, age: 30}`), not a key. Enter
-            // the inline tokenizer so the whole compound is broken into
-            // structural + scalar sub-tokens (mirrors `scanValueString`).
-            '{' -> { myTokenEnd++; myTokenType = Tokens.LBRACE
-                myState = encodeInline(1, 1, expectKey = true); return }
-            '[' -> { myTokenEnd++; myTokenType = Tokens.LBRACKET
-                myState = encodeInline(1, 0, expectKey = false); return }
-            // Lone closers stay plain braces and keep the line-start state.
-            '}' -> { myTokenEnd++; myTokenType = Tokens.RBRACE; return }
-            ']' -> { myTokenEnd++; myTokenType = Tokens.RBRACKET; return }
+        if (scope.rootKind == 0) {
+            val separator = findLineSeparator(myTokenStart)
+            val rootKind = when {
+                c == '{' -> 1
+                c == '[' -> 2
+                separator > myTokenStart && (
+                    separator + 1 == myBufferEnd ||
+                        myBuffer[separator + 1] == ':' ||
+                        isKtavWhitespace(myBuffer[separator + 1])
+                    ) -> 1
+                else -> 2
+            }
+            scope = roots[rootKind]
         }
-        if (c == ')') {
-            val isDouble = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == ')'
-            myTokenEnd = if (isDouble) myTokenStart + 2 else myTokenStart + 1
-            myTokenType = Tokens.MULTILINE_CLOSE
-            return
+        when (c) {
+            '{' -> { openCompound(objectScope = true); return }
+            '[' -> { openCompound(objectScope = false); return }
+            '}', ']' -> if (isLineTailWhitespace(myTokenStart + 1)) {
+                myTokenEnd++
+                myTokenType = if (c == '}') Tokens.RBRACE else Tokens.RBRACKET
+                if (scope.parent != null && scope.objectScope == (c == '}')) scope = scope.parent!!
+                return
+            }
         }
         // A bare (top-level or array-item) multiline block: `(`/`((` alone
         // opens a block whose body lines are opaque text until the matching
@@ -360,21 +405,21 @@ class KtavLexer : LexerBase() {
             if (!scanMultilineOpener()) scanToEndOfLine(recognise = true)
             return
         }
-        // Array item / pair starting with a marker (`::` or `:`).
-        if (c == ':') {
+        // In Array context a pair-shaped line is a scalar, not a pair.
+        if (c == ':' && myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == ':') {
             scanColonMarker()
             return
         }
+        val objectScope = scope.objectScope
+        if (!objectScope) {
+            scanToEndOfLine(recognise = true)
+            return
+        }
         if (isKeyChar(c)) {
-            if (lineHasSeparatorBeforeNewline(myTokenStart)) {
+            if (findLineSeparator(myTokenStart) >= 0) {
                 scanKeySegment()
                 myState = AFTER_KEY
             } else {
-                // No `:` on this line (or an unterminated quoted key segment
-                // swallowed it — § 5.3.3) ⇒ a bare array-item scalar. The
-                // WHOLE trimmed line is one value; commas / brackets / dots
-                // here are literal string content. Mirrors the reference
-                // parser's per-line classifier and degrades gracefully.
                 scanToEndOfLine(recognise = true)
                 myState = LINE_START
             }
@@ -391,11 +436,6 @@ class KtavLexer : LexerBase() {
                 myTokenEnd++
                 myTokenType = Tokens.KEY_DOT
             }
-            // Spec 0.6.0: `\` begins an escape inside the key — it is a
-            // regular key character (no special highlight) and the next
-            // byte is folded into the same KEY token. `\.` and `\:` thus
-            // do NOT trigger KEY_DOT / COLON here.
-            c == '\\' -> scanIdentifier(asKey = true)
             c == ':' -> scanColonMarker()
             isHorizontalWs(c) -> scanHorizWhitespace()
             isKeyChar(c) -> scanKeySegment()
@@ -412,7 +452,7 @@ class KtavLexer : LexerBase() {
      * only `##` at line start opens a comment). Non-ASCII letters
      * (Cyrillic / CJK / emoji) belong to keys just like ASCII.
      *
-     * `\` is also a key char — it is the escape lead; `scanIdentifier`
+     * `\` is also a key char — it is the escape lead; `scanKeySegment`
      * handles `\x` as a two-char unit so `\.` / `\:` stay inside the KEY
      * token. A quote character (`"`, `'`, `` ` ``) is likewise an ordinary
      * key char here — § 5.3.3's positional rule (quote opens a segment
@@ -435,12 +475,12 @@ class KtavLexer : LexerBase() {
      * any `:` in it — so this correctly reports "no separator" for it,
      * which is how the line then degrades to a bare value (§ 5.3.3 case 3).
      */
-    private fun lineHasSeparatorBeforeNewline(from: Int): Boolean {
+    private fun findLineSeparator(from: Int): Int {
         var i = from
         var atSegmentStart = true
         while (i < myBufferEnd) {
             val ch = myBuffer[i]
-            if (isLineTerminator(ch)) return false
+            if (isLineTerminator(ch)) return -1
             if (atSegmentStart && (ch == '"' || ch == '\'' || ch == '`')) {
                 var j = i + 1
                 var closed = false
@@ -454,7 +494,7 @@ class KtavLexer : LexerBase() {
                     if (qc == ch) { closed = true; j++; break }
                     j++
                 }
-                if (!closed) return false
+                if (!closed) return -1
                 i = j
                 atSegmentStart = false
                 continue
@@ -465,11 +505,11 @@ class KtavLexer : LexerBase() {
                 continue
             }
             if (ch == '.') { i++; atSegmentStart = true; continue }
-            if (ch == ':') return true
+            if (ch == ':') return i
             if (!isHorizontalWs(ch)) atSegmentStart = false
             i++
         }
-        return false
+        return -1
     }
 
     private fun scanColonMarker() {
@@ -507,10 +547,8 @@ class KtavLexer : LexerBase() {
         }
         if (!asRaw) {
             when (c) {
-                '{' -> { myTokenEnd++; myTokenType = Tokens.LBRACE
-                    myState = encodeInline(1, 1, expectKey = true); return }
-                '[' -> { myTokenEnd++; myTokenType = Tokens.LBRACKET
-                    myState = encodeInline(1, 0, expectKey = false); return }
+                '{' -> { openCompound(objectScope = true); return }
+                '[' -> { openCompound(objectScope = false); return }
                 '(' -> if (scanMultilineOpener()) return
             }
         }
@@ -518,18 +556,27 @@ class KtavLexer : LexerBase() {
         scanToEndOfLine(recognise = !asRaw)
     }
 
+    private fun isLineTailWhitespace(from: Int): Boolean {
+        var end = from
+        while (end < myBufferEnd && isHorizontalWs(myBuffer[end])) end++
+        return end == myBufferEnd || isLineTerminator(myBuffer[end])
+    }
+
+    private fun openCompound(objectScope: Boolean) {
+        myTokenEnd++
+        myTokenType = if (objectScope) Tokens.LBRACE else Tokens.LBRACKET
+        val inline = !isLineTailWhitespace(myTokenEnd)
+        scope = scope.child(objectScope, inline)
+        myState = if (!inline) VALUE_RAW else if (objectScope) INLINE_KEY else INLINE_VALUE
+    }
+
     // -------------------------------------------------------------------
     // Inline-compound tokeniser
     // -------------------------------------------------------------------
 
     private fun scanInline(c: Char) {
-        val depth = inDepth(myState)
-        val stack = inStack(myState)
-        val expectKey = inExpectKey(myState)
-        // Pending value is the body of a `::` raw marker: no keyword/number
-        // inference, and a leading `{`/`[` is literal, not a nested compound
-        // (§ 5.2 preamble, § 5.8.5).
-        val rawPending = !expectKey && inRawValue(myState)
+        val expectKey = myState == INLINE_KEY
+        val rawPending = myState == INLINE_RAW
 
         if (isHorizontalWs(c)) {
             scanHorizWhitespace()
@@ -539,22 +586,23 @@ class KtavLexer : LexerBase() {
             '{' -> if (!rawPending) {
                 myTokenEnd = myTokenStart + 1
                 myTokenType = Tokens.LBRACE
-                myState = encodeInline(depth + 1, (stack shl 1) or 1, expectKey = true)
+                scope = scope.child(objectScope = true, inline = true)
+                myState = INLINE_KEY
                 return
             }
             '[' -> if (!rawPending) {
                 myTokenEnd = myTokenStart + 1
                 myTokenType = Tokens.LBRACKET
-                myState = encodeInline(depth + 1, stack shl 1, expectKey = false)
+                scope = scope.child(objectScope = false, inline = true)
+                myState = INLINE_VALUE
                 return
             }
-            '}' -> { closeInline(Tokens.RBRACE, depth, stack); return }
-            ']' -> { closeInline(Tokens.RBRACKET, depth, stack); return }
+            '}' -> { closeInline(Tokens.RBRACE); return }
+            ']' -> { closeInline(Tokens.RBRACKET); return }
             ',' -> {
                 myTokenEnd = myTokenStart + 1
                 myTokenType = Tokens.COMMA
-                val containerIsObject = (stack and 1) == 1
-                myState = encodeInline(depth, stack, expectKey = containerIsObject)
+                myState = if (scope.objectScope) INLINE_KEY else INLINE_VALUE
                 return
             }
             ':' -> if (expectKey) {
@@ -564,7 +612,7 @@ class KtavLexer : LexerBase() {
                 val dbl = myTokenStart + 1 < myBufferEnd && myBuffer[myTokenStart + 1] == ':'
                 myTokenEnd = if (dbl) myTokenStart + 2 else myTokenStart + 1
                 myTokenType = if (dbl) Tokens.DOUBLE_COLON else Tokens.COLON
-                myState = encodeInline(depth, stack, expectKey = false, rawValue = dbl)
+                myState = if (dbl) INLINE_RAW else INLINE_VALUE
                 return
             }
         }
@@ -641,17 +689,11 @@ class KtavLexer : LexerBase() {
         // expectKey stays true until the `:` separator flips it.
     }
 
-    private fun closeInline(close: IElementType, depth: Int, stack: Int) {
+    private fun closeInline(close: IElementType) {
         myTokenEnd = myTokenStart + 1
         myTokenType = close
-        val newDepth = depth - 1
-        val newStack = stack shr 1
-        // After a closed value the next significant char is a `,` (which sets
-        // expectKey from the enclosing container) or another closer — so
-        // expectKey = false here. Depth 0 means the top-level inline value is
-        // finished; consume any trailing characters as a plain value.
-        myState = if (newDepth <= 0) VALUE_RAW
-        else encodeInline(newDepth, newStack, expectKey = false)
+        scope = scope.parent ?: scope
+        myState = if (scope.inline) INLINE_VALUE else VALUE_RAW
     }
 
     // -------------------------------------------------------------------
@@ -660,12 +702,9 @@ class KtavLexer : LexerBase() {
 
     /**
      * A key segment: quoted (§ 5.3.3, opened by `"`/`'`/`` ` `` as the
-     * segment's first code point) or bare (delegates to `scanIdentifier`).
-     * An unterminated quote degrades gracefully — consumed to EOL as an
-     * ordinary KEY run rather than left in an invalid state; this path is
-     * normally unreachable from a fresh line scan (`lineHasSeparatorBeforeNewline`
-     * already routed an unterminated line to the bare-value branch) but stays
-     * safe if incremental relex restarts mid-key with edited-in content.
+     * segment's first code point) or bare, with interior whitespace preserved.
+     * An unterminated quote consumes the rest of the line as an ordinary KEY
+     * run. Fresh line dispatch normally routes it to a scalar first.
      */
     private fun scanKeySegment() {
         val quote = myBuffer[myTokenStart]
@@ -687,26 +726,22 @@ class KtavLexer : LexerBase() {
             myTokenType = Tokens.KEY
             return
         }
-        scanIdentifier(asKey = true)
-    }
-
-    private fun scanIdentifier(asKey: Boolean) {
-        myTokenEnd = myTokenStart
-        while (myTokenEnd < myBufferEnd) {
-            val ch = myBuffer[myTokenEnd]
-            // Spec 0.6.0: in a key, `\` is the escape lead — consume it
-            // AND the following byte (whatever it is) as part of the key,
-            // so `a\.b`, `a\:b`, `path\\to` stay one KEY token. A dangling
-            // `\` at end-of-buffer is consumed as a lone byte.
-            if (asKey && ch == '\\') {
-                myTokenEnd += if (myTokenEnd + 1 < myBufferEnd && !isLineTerminator(myBuffer[myTokenEnd + 1])) 2 else 1
+        // Scan a whole bare segment, including interior whitespace. A quote
+        // later in that segment remains ordinary content even after a space.
+        var end = myTokenStart
+        while (end < myBufferEnd) {
+            val ch = myBuffer[end]
+            if (isLineTerminator(ch)) break
+            if (ch == '\\') {
+                end += if (end + 1 < myBufferEnd && !isLineTerminator(myBuffer[end + 1])) 2 else 1
                 continue
             }
-            if (isKeyChar(ch)) myTokenEnd++ else break
+            if (!isHorizontalWs(ch) && !isKeyChar(ch)) break
+            end++
         }
-        myTokenType = if (asKey) Tokens.KEY else {
-            classifyScalar(myBuffer.subSequence(myTokenStart, myTokenEnd).toString())
-        }
+        while (end > myTokenStart && isHorizontalWs(myBuffer[end - 1])) end--
+        myTokenEnd = end
+        myTokenType = Tokens.KEY
     }
 
     private fun scanCommentRest() {

@@ -3,12 +3,11 @@
 
 ```
 zed-ktav/
-  extension.toml          # id, name, languages.ktav
+  extension.toml          # extension metadata, grammar pin, language_servers adapter
   languages/ktav/
     config.toml           # name, path_suffixes = ["ktav"], comment chars
-    highlights.scm        # tree-sitter highlight queries (TBD)
-  grammars/
-    ktav.toml             # tree-sitter grammar source pin
+    highlights.scm        # queries for a separately implemented tree-sitter grammar
+  src/lib.rs              # Zed extension API: ktav-lsp command adapter
 ```
 
 Tracking issue: <https://github.com/ktav-lang/editor/issues>
@@ -17,12 +16,11 @@ Tracking issue: <https://github.com/ktav-lang/editor/issues>
 
 ```
 zed-ktav/
-  extension.toml          # id, name, languages.ktav
+  extension.toml          # extension metadata, grammar pin, language_servers adapter
   languages/ktav/
     config.toml           # name, path_suffixes = ["ktav"], comment chars
-    highlights.scm        # tree-sitter highlight queries (TBD)
-  grammars/
-    ktav.toml             # tree-sitter grammar source pin
+    highlights.scm        # queries for a separately implemented tree-sitter grammar
+  src/lib.rs              # Zed extension API: ktav-lsp command adapter
 ```
 
 Отслеживающий issue: <https://github.com/ktav-lang/editor/issues>
@@ -31,12 +29,11 @@ zed-ktav/
 
 ```
 zed-ktav/
-  extension.toml          # id, name, languages.ktav
+  extension.toml          # extension metadata, grammar pin, language_servers adapter
   languages/ktav/
     config.toml           # name, path_suffixes = ["ktav"], comment chars
-    highlights.scm        # tree-sitter highlight queries (TBD)
-  grammars/
-    ktav.toml             # tree-sitter grammar source pin
+    highlights.scm        # queries for a separately implemented tree-sitter grammar
+  src/lib.rs              # Zed extension API: ktav-lsp command adapter
 ```
 
 跟踪 issue:<https://github.com/ktav-lang/editor/issues>

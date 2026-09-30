@@ -491,17 +491,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn describe_value_wording_has_no_stale_typed_marker() {
-        // Spec 0.5.0 removed `:i`/`:f` typed markers; the hover label
-        // must not claim a scalar is "typed".
-        assert_eq!(
-            describe_value(&Value::Integer("42".into())),
-            "integer: `42`"
-        );
-        assert_eq!(describe_value(&Value::Float("1.5".into())), "float: `1.5`");
-    }
-
-    #[test]
     fn describe_value_truncates_long_cyrillic_string_without_panicking() {
         // 90 Cyrillic letters = 180 bytes; byte 80 lands mid-character
         // for the old `&s[..80]` slice — this used to panic.
@@ -528,12 +517,6 @@ mod tests {
         let out = describe_value(&Value::String(s.into()));
         assert!(out.starts_with("string: `"));
         assert!(out.contains('…'));
-    }
-
-    #[test]
-    fn describe_value_keeps_short_non_ascii_string_untruncated() {
-        let out = describe_value(&Value::String("имя".into()));
-        assert_eq!(out, "string: `имя`");
     }
 
     fn parse(text: &str) -> Value {

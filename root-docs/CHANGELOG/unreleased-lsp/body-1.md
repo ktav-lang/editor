@@ -1,6 +1,19 @@
 >>>>> lang=en
 - `Cargo.toml`: `ktav = "=0.8.0"` (was `"0.6"`, the version in the last
-  released v0.6.1); `rust-version` raised `1.70` → `1.71`.
+  released v0.6.1); `rust-version` raised `1.70` → `1.88`, matching the
+  locked dependency graph. CI builds all targets on the declared minimum.
+- Value completion preserves required separator whitespace after `:` and
+  `::`, including existing whitespace to the right of the cursor. The raw
+  marker item edits the separator itself; pair completions are not offered
+  inside Array strings, multiline bodies or existing values.
+- The parser corpus checks acceptance and structured error categories,
+  not incidental error/hover wording. Editor-feature checks compare against
+  the pinned parser's tree, including value-preserving formatting; they do
+  not certify independent JSON oracle values or strict body/canonical fields.
+- Document symbols now separate enclosing declaration ranges from precise
+  navigation selections. Object/Array/String ranges include values, children
+  and matching closers without outer whitespace; reopened dotted prefixes
+  enclose every occurrence while retaining their first source-key anchor.
 - **Quoted keys were supported by the `ktav` parser since 0.7.0, but
   not fully by the LSP.** Parser-based diagnostics needed no changes;
   document symbols still needed this release's `decode_symbol_key`
@@ -130,7 +143,21 @@
 
 >>>>> lang=ru
 - `Cargo.toml`: `ktav = "=0.8.0"` (было `"0.6"`, версия последнего
-  выпущенного релиза v0.6.1); `rust-version` повышен с `1.70` до `1.71`.
+  выпущенного релиза v0.6.1); `rust-version` повышен с `1.70` до `1.88`
+  по требованиям закреплённого графа зависимостей. CI собирает все targets
+  на объявленном минимуме.
+- Подстановка значений сохраняет обязательный пробел после `:` и `::`,
+  включая уже существующие пробелы справа от курсора. Элемент raw-маркера
+  изменяет сам разделитель; pair-подстановки не предлагаются внутри строк
+  Array, многострочного содержимого или уже введённых значений.
+- Корпус парсера проверяет приём входа и категории структурированных ошибок,
+  а не текст ошибок/hover. Проверки editor-функций используют дерево
+  закреплённого парсера, включая сохранение значения при форматировании;
+  они не подтверждают независимые JSON oracle values или strict body/canonical.
+- Document symbols разделяют охватывающий диапазон объявления и точное
+  выделение для навигации. Диапазоны Object/Array/String включают значения,
+  дочерние символы и matching closer без внешних пробелов; повторно открытые
+  точечные префиксы охватывают все вхождения, сохраняя первый исходный ключ.
 - **Парсер `ktav` поддерживает квотированные ключи с 0.7.0, но LSP
   поддерживал их не полностью.** Диагностика на базе парсера не требовала
   правок; для символов документа в этом выпуске понадобились
@@ -268,7 +295,17 @@
 
 >>>>> lang=zh
 - `Cargo.toml`:`ktav = "=0.8.0"`(原为 `"0.6"`,即上一个已发布版本
-  v0.6.1 使用的版本);`rust-version` 从 `1.70` 提升至 `1.71`。
+  v0.6.1 使用的版本);`rust-version` 从 `1.70` 提升至 `1.88`,与锁定依赖图
+  的要求一致。CI 在声明的最低 Rust 版本上构建所有 targets。
+- 值补全保留 `:`/`::` 后必需的空白，包括光标右侧已有空白。
+  raw 标记项修改分隔符本身；Array 字符串、多行正文及已存在值中不提供
+  键值对补全。
+- 解析器语料库检查输入接受及结构化错误类别，不固定错误/hover 文案。
+  编辑器功能检查使用锁定解析器的树，包括格式化保值；这些检查不验证
+  独立 JSON oracle 值或 strict body/canonical 字段。
+- 文档符号区分完整声明范围和精确导航选择。Object/Array/String 范围包含
+  值、子符号及匹配闭合符，但不含外围空白；重新打开的点状前缀覆盖所有
+  出现位置，同时保留首次源键定位。
 - **`ktav` 解析器自 0.7.0 起支持带引号的键,但 LSP 此前支持并不完整。**
   基于解析器的诊断无需改动;文档符号则需要本次发布中的
   `decode_symbol_key` 和位置修复,才能正确匹配、定位带引号的键。

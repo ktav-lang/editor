@@ -19,6 +19,11 @@ so error messages and behaviour match exactly.
 
 ## Install
 
+Source builds require Rust 1.88+ for the current locked dependency graph.
+CI builds all targets on the declared minimum as well as running the
+existing stable-toolchain checks. Unlocked installs may need newer Rust
+if transitive dependencies raise their requirements.
+
 ```bash
 cargo install ktav-lsp
 ```
@@ -48,6 +53,10 @@ file-types = ["ktav"]
 roots = []
 language-servers = ["ktav-lsp"]
 ```
+
+This enables LSP diagnostics and hover, not syntax highlighting in stock
+Helix. Highlighting requires a separate Ktav tree-sitter grammar and
+queries, which this repo does not supply; TextMate JSON is not a substitute.
 
 ### Neovim (with `nvim-lspconfig`)
 
@@ -106,9 +115,12 @@ unsupported platform, or when building the extension from source.
 - **Completion** — context-aware after a `:` separator: suggests `null`,
   `true`, `false`, openers (`{`, `[`, `(`, `((`), empty literals (`{}`,
   `[]`, `()`), and the value markers (`:`, `::`).
-- **Document symbols** — outline view reflects the parsed object tree;
+- **Document symbols** — outline view reflects the parsed object/array tree;
   scalars become Property/Number/String, objects become Module, arrays
-  become Array.
+  become Array. Declaration ranges include values, nested children and closing
+  delimiters (also for multiline strings), excluding outer whitespace.
+  Navigation selects only the source key or item anchor. Reopened dotted
+  prefixes enclose all their definitions and keep their first navigation anchor.
 - **Semantic tokens** — token types `comment`, `keyword`, `number`,
   `string`, `property`, `operator`, `null`. Editors can use these instead of (or
   layered over) TextMate grammars for more accurate colouring,

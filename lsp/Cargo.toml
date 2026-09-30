@@ -9,7 +9,7 @@ authors = ["Marat K <phpcraftdream@gmail.com>"]
 readme = "README.md"
 keywords = ["lsp", "ktav", "config", "language-server"]
 categories = ["development-tools", "config"]
-rust-version = "1.71"
+rust-version = "1.88"
 
 [[bin]]
 name = "ktav-lsp"

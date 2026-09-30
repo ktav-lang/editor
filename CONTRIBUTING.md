@@ -36,7 +36,7 @@ Each subproject has its own toolchain. See the README in each:
 - `grammars/` — pure JSON; no build
 - `vscode/` — Node + `vsce`
 - `intellij/` — JDK 17 + Gradle
-- `lsp/` — Rust 1.71+
+- `lsp/` — Rust 1.88+ (minimum required by the locked dependency graph)
 
 The prebuilt `ktav-lsp` binaries (`vscode/bin/`, `intellij/bin/`) are not
 committed. Build them with `scripts/build-binaries.sh` (it uses `cross`

@@ -19,6 +19,12 @@ plugin) move to 0.8.0 in step with the `ktav` crate and the
 specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 (0.8.0 section) for the full list.
 
+- Incremental highlighting preserves root/container context and whole Array
+  Strings, including lone paren closers and multiword bare keys with quotes.
+- Folding uses lexer tokens, keeping raw values and multiline bodies opaque.
+- Diagnostics are project/client/version/session-owned; delayed publications
+  and other project closures cannot overwrite current results. Split-editor
+  highlighters are cleared through each actual owning model.
 - Highlighting lexer: exact § 3.6 / § 5.2 numbers (ASCII digits only),
   § 3.3 whitespace, quoted key segments, raw `::` values inside inline
   compounds.
@@ -31,6 +37,17 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 - Lexer: multi-line `(` / `((` block bodies are opaque and CRLF no longer
   breaks value typing; a corpus-wide lexer test covers every valid
   fixture.
+- LSP document subscriptions are owned per project, including shared
+  documents, restored tabs and close/reopen. Disposal removes only that
+  project's listeners; initialization publishes only a ready client
+  and safely stops a server process created during disposal.
+  Transport closure fails pending requests and immediately rejects
+  requests racing with disposal.
+- Formatting checks the synchronized document/version/session and client
+  again when applying the result, so intervening edits, close/reopen,
+  disposal, cancellation and expired responses cannot overwrite current
+  text. Application is atomic with the final check and has a separate
+  Undo step; the applied text is sent to every subscribed project.
 
 ## 0.5.1
 

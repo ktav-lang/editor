@@ -14,6 +14,14 @@ plugin) move to 0.8.0 in step with the `ktav` crate and the
 specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 (0.8.0 section) for the full list.
 
+- Source builds require Rust 1.88 for the locked dependency graph;
+  CI builds all targets on that declared minimum as well as stable.
+- Completion keeps separator whitespace and raw marker placement valid,
+  including UTF-8/UTF-16 positions, BOM and LF/CR/CRLF. Pair suggestions do
+  not rewrite Array strings, multiline bodies or existing values.
+- Document symbol declaration ranges contain their values, nested children and
+  compound/multiline closers. Separate selections retain exact first-source
+  navigation anchors, including reopened dotted prefixes and array items.
 - Exact § 3.6 / § 5.2 scalar classification (`01234`, `0_7`, `1_`,
   `2026-09-28` are Strings) and the exact § 3.3 whitespace set.
 - Inline compounds: `::` values stay raw Strings; quoted key segments

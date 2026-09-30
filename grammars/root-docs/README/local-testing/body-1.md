@@ -17,10 +17,15 @@ keywords, and brackets all render distinctly under your color theme.
 
 ### Other editors
 
-Any editor with TextMate-grammar support can consume
-`ktav.tmLanguage.json` directly. Drop it into a TextMate bundle (or
-the editor's grammar directory) and associate `*.ktav` with scope
-`source.ktav`.
+Direct use of `ktav.tmLanguage.json` requires an editor that accepts
+TextMate grammars in JSON format, such as VS Code; TextMate support
+alone does not guarantee that. Follow the host's grammar-registration
+instructions and associate `*.ktav` with scope `source.ktav`.
+Sublime Text requires XML: use the existing
+`grammars/scripts/export-tmlanguage.js` exporter and follow the
+[Sublime installation recipe](../docs/sublime.md#file-type-association).
+Tree-sitter requires a separate Ktav grammar and highlight queries;
+the shared TextMate JSON cannot be installed as a tree-sitter grammar.
 
 >>>>> lang=ru
 ## Локальное тестирование
@@ -41,9 +46,15 @@ the editor's grammar directory) and associate `*.ktav` with scope
 
 ### Другие редакторы
 
-Любой редактор с поддержкой TextMate-грамматик может использовать
-`ktav.tmLanguage.json` напрямую. Положите его в TextMate-бандл (или в
-каталог грамматик редактора) и свяжите `*.ktav` со scope `source.ktav`.
+Для прямого использования `ktav.tmLanguage.json` редактор должен
+принимать TextMate-грамматики в формате JSON, как VS Code; одной
+поддержки TextMate недостаточно. Следуйте инструкции хоста по регистрации
+грамматики и свяжите `*.ktav` со scope `source.ktav`.
+Sublime Text нужен XML: используйте существующий экспортёр
+`grammars/scripts/export-tmlanguage.js` и
+[инструкцию Sublime](../../docs/i18n/editors/ru/sublime.md#привязка-типа-файла).
+Tree-sitter нужны отдельные грамматика Ktav и запросы подсветки;
+общую TextMate JSON нельзя установить как tree-sitter-грамматику.
 
 >>>>> lang=zh
 ## 本地测试
@@ -62,7 +73,12 @@ the editor's grammar directory) and associate `*.ktav` with scope
 
 ### 其他编辑器
 
-任何支持 TextMate 语法的编辑器都可以直接使用 `ktav.tmLanguage.json`。
-把它放进 TextMate 包(或编辑器的语法目录),并将 `*.ktav` 关联到
-scope `source.ktav`。
+直接使用 `ktav.tmLanguage.json` 需要编辑器接受 JSON 格式的 TextMate
+语法,例如 VS Code;仅支持 TextMate 并不能保证这一点。请按宿主的语法
+注册说明操作,并将 `*.ktav` 关联到 scope `source.ktav`。
+Sublime Text 需要 XML:请使用现有的
+`grammars/scripts/export-tmlanguage.js` 导出器,并遵循
+[Sublime 安装步骤](../../docs/i18n/editors/zh/sublime.md#文件类型关联)。
+Tree-sitter 需要独立的 Ktav 语法和高亮查询;
+共享的 TextMate JSON 不能作为 tree-sitter 语法安装。
 

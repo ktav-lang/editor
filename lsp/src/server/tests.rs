@@ -363,3 +363,153 @@ fn formatting_edit_covers_bom_and_indented_document_in_both_encodings() {
         );
     }
 }
+
+fn complete_at_cursor(
+    rt: &tokio::runtime::Runtime,
+    marked: &str,
+    encoding: PositionEncoding,
+) -> (String, Position, Option<CompletionResponse>) {
+    let cursor = marked.find('|').expect("cursor marker");
+    let mut text = marked.to_string();
+    text.remove(cursor);
+    let lines = crate::lines::split_lines(&text);
+    let (line, byte_column) = crate::lines::byte_to_line_col(&text, cursor);
+    let byte_column = byte_column as usize;
+    let character = match encoding {
+        PositionEncoding::Utf8 => byte_column as u32,
+        PositionEncoding::Utf16 => byte_to_utf16(lines[line as usize], byte_column),
+    };
+    let position = Position::new(line, character);
+    let (service, _socket) = tower_lsp::LspService::new(Backend::new);
+    let backend = service.inner();
+    backend.encoding.store(encoding.as_u8(), Ordering::Relaxed);
+    let uri = Url::parse("file:///completion.ktav").unwrap();
+    backend
+        .docs
+        .insert(uri.clone(), DocEntry::new(1, text.clone()));
+    let response = rt
+        .block_on(backend.completion(CompletionParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: None,
+        }))
+        .expect("completion request");
+    (text, position, response)
+}
+
+fn completion_offset(text: &str, position: Position, encoding: PositionEncoding) -> usize {
+    let lines = crate::lines::split_lines(text);
+    let line = lines[position.line as usize];
+    let prefix = prefix_by_encoding(line, position.character, encoding);
+    line.as_ptr() as usize - text.as_ptr() as usize + prefix.len()
+}
+
+#[test]
+fn completion_edits_preserve_separator_and_parsed_value() {
+    let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
+    for encoding in [PositionEncoding::Utf8, PositionEncoding::Utf16] {
+        for (marked, label, expected) in [
+            ("anchor: 1\nkey:|", "null", "anchor: 1\nkey: null"),
+            ("key:|", "true", "key: true"),
+            ("\u{FEFF}key:|", ":", "\u{FEFF}key:: "),
+            ("anchor: 1\nkey::|", "null", "anchor: 1\nkey:: null"),
+            ("anchor: 1\nkey: |", "false", "anchor: 1\nkey: false"),
+            ("anchor: 1\nkey:\t|", "{}", "anchor: 1\nkey:\t{}"),
+            (
+                "anchor: 1\nkey:\u{2003}|",
+                "[]",
+                "anchor: 1\nkey:\u{2003}[]",
+            ),
+            ("anchor: 1\nkey:|  ", "null", "anchor: 1\nkey:  null"),
+            ("{\n\"😀:имя\":|\n}", "()", "{\n\"😀:имя\": ()\n}"),
+            ("anchor: 1\nkey:|", ":", "anchor: 1\nkey:: "),
+            ("anchor: 1\nkey: \t|", ":", "anchor: 1\nkey:: \t"),
+            ("anchor: 1\nkey:|  ", ":", "anchor: 1\nkey::  "),
+        ] {
+            for eol in ["\n", "\r", "\r\n"] {
+                let marked = marked.replace('\n', eol);
+                let expected = expected.replace('\n', eol);
+                let (text, position, response) = complete_at_cursor(&rt, &marked, encoding);
+                let Some(CompletionResponse::Array(items)) = response else {
+                    panic!("missing completions: {marked:?}");
+                };
+                let item = items
+                    .iter()
+                    .find(|item| item.label == label)
+                    .expect("value item");
+                let mut applied = text.clone();
+                match &item.text_edit {
+                    Some(CompletionTextEdit::Edit(edit)) => {
+                        let start = completion_offset(&text, edit.range.start, encoding);
+                        let end = completion_offset(&text, edit.range.end, encoding);
+                        applied.replace_range(start..end, &edit.new_text);
+                    }
+                    None => {
+                        let offset = completion_offset(&text, position, encoding);
+                        applied.insert_str(offset, item.insert_text.as_ref().expect("insert text"));
+                    }
+                    Some(CompletionTextEdit::InsertAndReplace(_)) => panic!("unexpected edit"),
+                }
+                assert_eq!(applied, expected, "{marked:?}, {label}, {encoding:?}");
+                let Value::Object(object) =
+                    ktav::parse(&applied).expect("accepted completion must parse")
+                else {
+                    panic!("completion changed the root kind");
+                };
+                let value = match label {
+                    "null" if marked.contains("::") => Value::String("null".into()),
+                    "null" => Value::Null,
+                    "true" => Value::Bool(true),
+                    "false" => Value::Bool(false),
+                    "{}" => Value::Object(Default::default()),
+                    "[]" => Value::Array(Vec::new()),
+                    "()" | ":" => Value::String(Default::default()),
+                    _ => panic!("missing value oracle"),
+                };
+                let key = if marked.contains("😀:имя") {
+                    "😀:имя"
+                } else {
+                    "key"
+                };
+                assert_eq!(object.get(key), Some(&value));
+                if marked.contains("anchor:") {
+                    assert_eq!(object.get("anchor"), Some(&Value::Integer("1".into())));
+                    assert_eq!(object.len(), 2);
+                } else {
+                    assert_eq!(object.len(), 1);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn completion_ignores_non_pair_context_and_existing_values() {
+    let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
+    for marked in [
+        "hello\nkey:|",
+        "[\nkey:|\n]",
+        "text: ((\nkey:|\n))",
+        "## key:|",
+        "anchor: 1\nkey:| value",
+        "anchor: 1\nkey: |value",
+        "anchor: 1\nkey: va|lue",
+        "anchor: 1\nkey:|:",
+        "anchor: 1\n::|",
+    ] {
+        let (_, _, response) = complete_at_cursor(&rt, marked, PositionEncoding::Utf16);
+        assert!(response.is_none(), "offered pair values at {marked:?}");
+    }
+    let (_, _, response) = complete_at_cursor(&rt, "anchor: 1\nkey::|", PositionEncoding::Utf16);
+    let Some(CompletionResponse::Array(items)) = response else {
+        panic!("raw value completions");
+    };
+    assert!(
+        items.iter().all(|item| item.label != ":"),
+        "must not create a third colon"
+    );
+}

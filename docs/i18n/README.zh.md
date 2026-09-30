@@ -56,9 +56,9 @@ LSP 功能取决于编辑器的客户端。IntelliJ 插件仅集成实时诊断�
        │ VS Code          │   │ IntelliJ Platform    │   │ Helix / Neovim │
        │ ext (`vscode/`)  │   │ plugin (`intellij/`) │   │ + LSP config   │
        │                  │   │                      │   │                │
-       │ TextMate grammar │   │ Native lexer         │   │ (LSP semantic  │
-       │ from grammars/   │   │ (no TextMate)        │   │  tokens for    │
-       │                  │   │                      │   │  highlighting) │
+       │ TextMate grammar │   │ Native lexer         │   │ Highlighting:  │
+       │ from grammars/   │   │ (no TextMate)        │   │ client-specific│
+       │                  │   │                      │   │ (see below)    │
        └──────────────────┘   └──────────────────────┘   └────────────────┘
 ```
 
@@ -67,6 +67,11 @@ TextMate 语法(VS Code)与 IntelliJ 的原生词法分析器都能即时提供
 取决于编辑器客户端。IntelliJ 内置客户端仅提供实时诊断和整文件
 格式化,未集成悬停、补全、文档符号或语义令牌。将 `ktav-lsp`
 加入 PATH 不会补上这些缺失的客户端集成。
+
+标准 Helix 使用 tree-sitter 高亮,不使用 LSP 语义令牌;本仓库不提供
+Ktav tree-sitter 语法,TextMate JSON 也不能代替它。Neovim 语义高亮
+取决于其 LSP 客户端配置。Zed 还需要扩展来注册 Ktav 语言和服务器
+适配器;仅靠 settings 无法将 LSP 连接到 Plain Text。
 
 ## 用户安装
 
@@ -96,7 +101,7 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-然后执行 `cargo install ktav-lsp`。
+然后执行 `cargo install ktav-lsp --version 0.8.0 --locked`。
 
 ### Neovim
 
@@ -115,7 +120,7 @@ require("lspconfig.configs").ktav = {
 require("lspconfig").ktav.setup({})
 ```
 
-然后执行 `cargo install ktav-lsp`。
+然后执行 `cargo install ktav-lsp --version 0.8.0 --locked`。
 
 ### 其他编辑器
 
@@ -128,7 +133,7 @@ require("lspconfig").ktav.setup({})
 - `grammars/` —— 纯 JSON,无需构建
 - `vscode/` —— Node + `vsce`
 - `intellij/` —— JDK 17 + Gradle
-- `lsp/` —— Rust 1.71+
+- `lsp/` —— Rust 1.88+(锁定依赖图要求的最低版本)
 
 一个 tag 同时触发全部四个子项目的发布(参见 [`.github/workflows/release.yml`](../../.github/workflows/release.yml))。
 

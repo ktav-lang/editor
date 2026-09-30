@@ -5,8 +5,8 @@
 //! identities. Explicit compounds save/restore their enclosing node, so dotted
 //! extensions remain independent of source order and equal-depth siblings.
 //! Hash-indexed children keep indexing O(source bytes + Value nodes), without
-//! cloning dotted prefixes or rescanning the document. Block spans remain
-//! whole-line approximations; inline keys/items retain their own byte spans.
+//! cloning dotted prefixes or rescanning the document. Declaration ranges
+//! include values and closers; selections retain the first key/item anchor.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -21,8 +21,9 @@ use crate::tokens::{find_key_separator, is_ktav_ws, split_dotted};
 /// Columns are bytes; the server converts them to the negotiated encoding.
 pub fn build_symbols(value: &Value, text: &str) -> Vec<DocumentSymbol> {
     let mut index = SourceIndex { nodes: Vec::new() };
-    let root = index.add_node(value);
+    let root = index.add_node(value, None);
     index.scan(root, text);
+    index.enclose_children();
     index.build_children(root).unwrap_or_default()
 }
 
@@ -32,6 +33,8 @@ struct Node<'a> {
     value: &'a Value,
     children: Children<'a>,
     range: Option<Range>,
+    selection_range: Option<Range>,
+    parent: Option<NodeId>,
 }
 
 enum Children<'a> {
@@ -43,7 +46,15 @@ enum Children<'a> {
 enum Frame {
     Object { id: NodeId },
     Array { id: NodeId, next_item: usize },
-    Multiline { closer: &'static str },
+    Multiline { id: NodeId, closer: &'static str },
+}
+
+impl Frame {
+    fn id(&self) -> NodeId {
+        match *self {
+            Self::Object { id } | Self::Array { id, .. } | Self::Multiline { id, .. } => id,
+        }
+    }
 }
 
 struct SourceIndex<'a> {
@@ -51,24 +62,29 @@ struct SourceIndex<'a> {
 }
 
 impl<'a> SourceIndex<'a> {
-    fn add_node(&mut self, value: &'a Value) -> NodeId {
+    fn add_node(&mut self, value: &'a Value, parent: Option<NodeId>) -> NodeId {
         let id = self.nodes.len();
         self.nodes.push(Node {
             value,
             children: Children::Scalar,
             range: None,
+            selection_range: None,
+            parent,
         });
         let children = match value {
             Value::Object(map) => {
                 let mut children = HashMap::with_capacity(map.len());
                 for (key, child) in map {
-                    children.insert(key.as_str(), self.add_node(child));
+                    children.insert(key.as_str(), self.add_node(child, Some(id)));
                 }
                 Children::Object(children)
             }
-            Value::Array(items) => {
-                Children::Array(items.iter().map(|child| self.add_node(child)).collect())
-            }
+            Value::Array(items) => Children::Array(
+                items
+                    .iter()
+                    .map(|child| self.add_node(child, Some(id)))
+                    .collect(),
+            ),
             _ => Children::Scalar,
         };
         self.nodes[id].children = children;
@@ -89,20 +105,46 @@ impl<'a> SourceIndex<'a> {
         raw: &str,
         line: u32,
         col: u32,
-        whole_line: Option<Range>,
+        declaration_end: Option<u32>,
     ) -> Option<NodeId> {
         for (start, segment) in split_dotted(col, raw) {
+            let lead = segment.len() - segment.trim_start_matches(is_ktav_ws).len();
+            let segment = segment.trim_matches(is_ktav_ws);
+            let start = start + lead as u32;
             let name = decode_symbol_key(segment)?;
             let Children::Object(children) = &self.nodes[object].children else {
                 return None;
             };
             object = *children.get(name.as_ref())?;
-            let range = whole_line
-                .unwrap_or_else(|| inline_range(line, start, start + segment.len() as u32));
-            // A reopened dotted prefix keeps its first source occurrence.
-            self.nodes[object].range.get_or_insert(range);
+            let selection = inline_range(line, start, start + segment.len() as u32);
+            self.record_selection(object, selection);
+            if let Some(end) = declaration_end {
+                self.include_range(object, inline_range(line, start, end));
+            }
         }
         Some(object)
+    }
+
+    fn include_range(&mut self, id: NodeId, range: Range) {
+        let enclosing = self.nodes[id].range.get_or_insert(range);
+        enclosing.start = enclosing.start.min(range.start);
+        enclosing.end = enclosing.end.max(range.end);
+    }
+
+    fn record_selection(&mut self, id: NodeId, range: Range) {
+        // Reopened definitions navigate to their first source occurrence.
+        self.nodes[id].selection_range.get_or_insert(range);
+        self.include_range(id, range);
+    }
+
+    fn enclose_children(&mut self) {
+        // Arena parents precede their descendants. One reverse pass propagates
+        // all reopened/dotted occurrences without walking ancestor prefixes.
+        for id in (0..self.nodes.len()).rev() {
+            if let (Some(parent), Some(range)) = (self.nodes[id].parent, self.nodes[id].range) {
+                self.include_range(parent, range);
+            }
+        }
     }
 
     fn next_item(&self, frame: &mut Frame) -> Option<NodeId> {
@@ -126,8 +168,13 @@ impl<'a> SourceIndex<'a> {
         let bom = crate::lines::leading_bom_len(text) as u32;
         for (line_no, raw) in crate::lines::content_lines(text).into_iter().enumerate() {
             let tail = raw.trim_matches(is_ktav_ws);
-            if let Some(Frame::Multiline { closer }) = frames.last() {
+            let line = line_no as u32;
+            let bom = if line_no == 0 { bom } else { 0 };
+            let col = bom + (raw.len() - raw.trim_start_matches(is_ktav_ws).len()) as u32;
+            let line_end = col + tail.len() as u32;
+            if let Some(Frame::Multiline { id, closer }) = frames.last() {
                 if tail == *closer {
+                    self.include_range(*id, inline_range(line, col, col + closer.len() as u32));
                     frames.pop();
                 }
                 continue;
@@ -135,10 +182,6 @@ impl<'a> SourceIndex<'a> {
             if tail.is_empty() || tail.starts_with("##") {
                 continue;
             }
-            let line = line_no as u32;
-            let bom = if line_no == 0 { bom } else { 0 };
-            let col = bom + (raw.len() - raw.trim_start_matches(is_ktav_ws).len()) as u32;
-            let line_end = bom + raw.len() as u32;
             let is_root_wrapper = first_content
                 && matches!(
                     (self.nodes[root].value, tail.as_bytes().first()),
@@ -152,7 +195,9 @@ impl<'a> SourceIndex<'a> {
                 continue;
             }
             if matches!(tail, "}" | "]") {
-                frames.pop();
+                if let Some(frame) = frames.pop() {
+                    self.include_range(frame.id(), inline_range(line, col, line_end));
+                }
                 continue;
             }
             let Some(frame) = frames.last_mut() else {
@@ -164,13 +209,7 @@ impl<'a> SourceIndex<'a> {
                         continue;
                     };
                     let key = tail[..colon].trim_end_matches(is_ktav_ws);
-                    let Some(value) = self.record_key(
-                        *id,
-                        key,
-                        line,
-                        col,
-                        Some(inline_range(line, bom, line_end)),
-                    ) else {
+                    let Some(value) = self.record_key(*id, key, line, col, Some(line_end)) else {
                         continue;
                     };
                     // Spec 0.8 section 5.3: raw bodies never open a scope.
@@ -186,7 +225,13 @@ impl<'a> SourceIndex<'a> {
                     let Some(value) = self.next_item(frame) else {
                         continue;
                     };
-                    self.nodes[value].range = Some(inline_range(line, 0, line_end));
+                    self.include_range(value, inline_range(line, col, line_end));
+                    let anchor_end = match tail {
+                        "{" | "[" | "(" | "((" => col + tail.len() as u32,
+                        _ if matches!(tail.as_bytes().first(), Some(b'{') | Some(b'[')) => col + 1,
+                        _ => line_end,
+                    };
+                    self.record_selection(value, inline_range(line, col, anchor_end));
                     if !tail.starts_with("::") {
                         self.scan_value(value, tail, line, col, &mut frames);
                     }
@@ -204,8 +249,8 @@ impl<'a> SourceIndex<'a> {
                     frames.push(frame);
                 }
             }
-            "(" => frames.push(Frame::Multiline { closer: ")" }),
-            "((" => frames.push(Frame::Multiline { closer: "))" }),
+            "(" => frames.push(Frame::Multiline { id, closer: ")" }),
+            "((" => frames.push(Frame::Multiline { id, closer: "))" }),
             _ if matches!(body.as_bytes().first(), Some(b'{') | Some(b'[')) => {
                 self.scan_inline(id, body, line, col);
             }
@@ -214,62 +259,61 @@ impl<'a> SourceIndex<'a> {
     }
 
     fn scan_inline(&mut self, root: NodeId, text: &str, line: u32, col: u32) {
-        // The optional ID is an inline array item whose end is its closer.
-        let mut frames: Vec<(Frame, Option<NodeId>)> = Vec::new();
+        let mut frames: Vec<Frame> = Vec::new();
         let mut pending_value = None;
         let mut first_open = true;
         walk_inline(text, |event| match event {
             InlineEvent::Open { pos } => {
-                let (id, array_item) = if first_open {
+                let id = if first_open {
                     first_open = false;
-                    (Some(root), None)
+                    Some(root)
                 } else if let Some(id) = pending_value.take() {
-                    (Some(id), None)
+                    Some(id)
                 } else {
-                    let item = frames
-                        .last_mut()
-                        .and_then(|(frame, _)| self.next_item(frame));
-                    (item, item)
+                    let item = frames.last_mut().and_then(|frame| self.next_item(frame));
+                    if let Some(item) = item {
+                        self.record_selection(
+                            item,
+                            inline_range(line, col + pos as u32, col + pos as u32 + 1),
+                        );
+                    }
+                    item
                 };
-                if let Some(id) = id {
-                    if let Some(item) = array_item {
-                        self.nodes[item].range =
-                            Some(inline_range(line, col + pos as u32, col + pos as u32 + 1));
-                    }
-                    if let Some(frame) = self.frame(id) {
-                        frames.push((frame, array_item));
-                    }
+                if let Some(frame) = id.and_then(|id| self.frame(id)) {
+                    frames.push(frame);
                 }
             }
             InlineEvent::Close { pos } => {
-                if let Some((_, Some(item))) = frames.pop() {
-                    if let Some(range) = &mut self.nodes[item].range {
-                        range.end.character = col + pos as u32 + 1;
-                    }
+                if let Some(frame) = frames.pop() {
+                    self.include_range(
+                        frame.id(),
+                        inline_range(line, col + pos as u32, col + pos as u32 + 1),
+                    );
                 }
                 pending_value = None;
             }
             InlineEvent::Key { start, text } => {
-                if let Some((Frame::Object { id }, _)) = frames.last() {
+                if let Some(Frame::Object { id }) = frames.last() {
                     pending_value = self.record_key(*id, text, line, col + start as u32, None);
                 }
             }
             InlineEvent::Value { start, text, .. } => {
-                if pending_value.take().is_none() {
-                    if let Some(item) = frames
-                        .last_mut()
-                        .and_then(|(frame, _)| self.next_item(frame))
-                    {
-                        self.nodes[item].range = Some(inline_range(
-                            line,
-                            col + start as u32,
-                            col + (start + text.len()) as u32,
-                        ));
-                    }
+                let range =
+                    inline_range(line, col + start as u32, col + (start + text.len()) as u32);
+                if let Some(id) = pending_value.take() {
+                    self.include_range(id, range);
+                } else if let Some(item) = frames.last_mut().and_then(|frame| self.next_item(frame))
+                {
+                    self.record_selection(item, range);
                 }
             }
             InlineEvent::Comma { .. } => pending_value = None,
-            InlineEvent::Sep { .. } => {}
+            InlineEvent::Sep { pos, raw } => {
+                if let Some(id) = pending_value {
+                    let end = col + pos as u32 + if raw { 2 } else { 1 };
+                    self.include_range(id, inline_range(line, col + pos as u32, end));
+                }
+            }
         });
     }
 
@@ -303,7 +347,7 @@ impl<'a> SourceIndex<'a> {
             tags: None,
             deprecated: None,
             range,
-            selection_range: range,
+            selection_range: node.selection_range.unwrap_or_else(zero_range),
             children: self.build_children(id),
         }
     }

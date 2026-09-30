@@ -32,7 +32,7 @@ Emacs 29).
 Установите сервер:
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
 Проверьте `M-x eglot` после открытия файла `.ktav` — в modeline
@@ -42,7 +42,11 @@ cargo install ktav-lsp
 ## Подсветка
 
 `ktav-mode` выше намеренно минимален (без font-lock keywords).
-Semantic-tokens ответ LSP даёт большую часть подсветки после
-подключения eglot. Для более богатой офлайн-подсветки можно
-пропустить общую TextMate-грамматику из `editor/grammars/` через
-`tree-sitter` или `polymode`, но это выходит за рамки этой заглушки.
+Сервер предоставляет semantic tokens, но их отображение зависит от
+поддержки и настройки установленного LSP-клиента Emacs; подключение
+eglot не добавляет правила font-lock в этот mode.
+Для офлайн-подсветки нужны отдельно реализованные правила font-lock для
+Ktav либо tree-sitter-грамматика Ktav, запросы подсветки и major mode,
+который их использует. В репозитории этих интеграций подсветки нет.
+Общая TextMate JSON не является tree-sitter-грамматикой;
+ни tree-sitter, ни polymode не загружают её как такую грамматику.

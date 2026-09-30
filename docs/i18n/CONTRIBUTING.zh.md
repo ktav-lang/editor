@@ -33,7 +33,7 @@ Rust crate
 - `grammars/` —— 纯 JSON,无需构建
 - `vscode/` —— Node + `vsce`
 - `intellij/` —— JDK 17 + Gradle
-- `lsp/` —— Rust 1.71+
+- `lsp/` —— Rust 1.88+(锁定依赖图要求的最低版本)
 
 预构建的 `ktav-lsp` 二进制(`vscode/bin/`、`intellij/bin/`)不提交到仓库。
 请用 `scripts/build-binaries.sh` 构建(Linux 和 macOS 目标使用 `cross`);

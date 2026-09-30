@@ -5,9 +5,12 @@
 > **状态:** 待定。官方 Zed 扩展已列入路线图,但尚未发布。下面的说明
 > 概述了扩展骨架大致会是什么样子 —— 欢迎贡献。
 
-## 手动配置(目前)
+## 配置前提
 
-Zed 从 `.zed/settings.json` 读取工作区级别的语言设置:
+标准 Zed 需要安装扩展(已发布或开发扩展),注册 `Ktav` 语言、
+`.ktav` 后缀和 `ktav-lsp` language-server 适配器。本仓库不提供该
+扩展。仅靠 settings 无法注册语言或将此服务器连接到 Plain Text。
+安装这样的扩展后,可在 `.zed/settings.json` 中配置它注册的名称:
 
 ```jsonc
 {
@@ -25,25 +28,26 @@ Zed 从 `.zed/settings.json` 读取工作区级别的语言设置:
 }
 ```
 
-安装服务器:
+安装服务器(锁定的 0.8.0 构建需要 Rust 1.88+):
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
-在已发布的扩展把 `Ktav` 注册为已知语言之前,Zed 会把 `.ktav` 当作
-纯文本 —— 如果文件已打开,LSP 仍会接入,但不会有高亮。
+请使用扩展注册的语言和适配器名称。语法高亮还需要 Ktav
+tree-sitter 语法和查询;共享的 TextMate JSON 不是 tree-sitter 语法。
+参见 [Zed 语言扩展](https://zed.dev/docs/extensions/languages)与
+[语言服务器配置](https://zed.dev/docs/configuring-languages#configuring-language-servers)。
 
 ## 计划中的扩展结构
 
 ```
 zed-ktav/
-  extension.toml          # id, name, languages.ktav
+  extension.toml          # extension metadata, grammar pin, language_servers adapter
   languages/ktav/
     config.toml           # name, path_suffixes = ["ktav"], comment chars
-    highlights.scm        # tree-sitter highlight queries (TBD)
-  grammars/
-    ktav.toml             # tree-sitter grammar source pin
+    highlights.scm        # queries for a separately implemented tree-sitter grammar
+  src/lib.rs              # Zed extension API: ktav-lsp command adapter
 ```
 
 跟踪 issue:<https://github.com/ktav-lang/editor/issues>

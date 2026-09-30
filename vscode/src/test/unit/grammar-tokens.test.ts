@@ -443,3 +443,202 @@ suite("grammar: :: raw marker inside inline objects (§ 5.8.2)", () => {
     assertScope(grammar, line, "::", "keyword.operator.marker.raw.ktav");
   });
 });
+
+// Check every visible token, including unscoped whitespace, with the real
+// ruleStack threaded through the entire document. Expectations are segmented
+// text plus the complete scope list, not aggregate counts or substring hits.
+function assertExactLines(
+  grammar: IGrammar,
+  lines: string[],
+  expected: Array<Array<[string, ...string[]]>>,
+): void {
+  const actual = tokenizeLines(grammar, lines);
+  assert.strictEqual(expected.length, lines.length);
+  for (let row = 0; row < lines.length; row++) {
+    let offset = 0;
+    const wanted = expected[row].map(([text, ...scopes]) => {
+      const startIndex = offset;
+      offset += text.length;
+      return { startIndex, endIndex: offset, scopes: ["source.ktav", ...scopes] };
+    });
+    assert.strictEqual(offset, lines[row].length, `incomplete expectation on line ${row}`);
+    const visible = actual[row]
+      .map(({ startIndex, endIndex, scopes }) => ({
+        startIndex,
+        endIndex: Math.min(endIndex, lines[row].length),
+        scopes,
+      }))
+      .filter(({ startIndex, endIndex }) => startIndex < endIndex);
+    assert.deepStrictEqual(visible, wanted, `tokens on line ${row}: ${JSON.stringify(lines[row])}`);
+  }
+}
+
+suite("grammar: first-content dispatch and legal key spans", () => {
+  let grammar: IGrammar;
+  suiteSetup(async () => {
+    grammar = await getGrammar();
+  });
+
+  const key = "entity.name.tag.ktav";
+  const sep = "punctuation.separator.key-value.ktav";
+  const bool = "constant.language.boolean.ktav";
+  const nil = "constant.language.null.ktav";
+  const int = "constant.numeric.integer.ktav";
+  const dot = "punctuation.accessor.dot.ktav";
+  const openObject = "punctuation.section.braces.begin.ktav";
+  const closeObject = "punctuation.section.braces.end.ktav";
+  const openArray = "punctuation.section.brackets.begin.ktav";
+  const closeArray = "punctuation.section.brackets.end.ktav";
+  const openString = "punctuation.section.parens.begin.ktav";
+  const closeString = "punctuation.section.parens.end.ktav";
+
+  test("blank/comment prefixes do not dispatch; scalar fixes the implicit Array", () => {
+    assertExactLines(grammar,
+      ["", " ## comment", "hello", "name: (", "true", "name: true", "null", "7", ":: (", "false"],
+      [
+        [],
+        [[" ## comment", "comment.line.number-sign.ktav"]],
+        [["hello", STRING_SCOPE]],
+        [["name: (", STRING_SCOPE]],
+        [["true", bool]],
+        [["name: true", STRING_SCOPE]],
+        [["null", nil]],
+        [["7", ARRAY_NUMBER_SCOPE]],
+        [["::", "keyword.operator.marker.raw.ktav"], [" "], ["(", RAW_STRING_SCOPE]],
+        [["false", bool]],
+      ]);
+  });
+
+  test("nested compounds restore their enclosing Array and Object contexts", () => {
+    assertExactLines(grammar,
+      ["hello", "{", "first name: 1", "items: [", "name: (", "true", "{", "#child: null", "}",
+        "after: true", "]", "after: false", "}", "name: ((", "true", "(", "inside", ")", "null"],
+      [
+        [["hello", STRING_SCOPE]],
+        [["{", openObject]],
+        [["first name", key], [":", sep], [" "], ["1", int]],
+        [["items", key], [":", sep], [" "], ["[", openArray]],
+        [["name: (", STRING_SCOPE]],
+        [["true", bool]],
+        [["{", openObject]],
+        [["#child", key], [":", sep], [" "], ["null", nil]],
+        [["}", closeObject]],
+        [["after: true", STRING_SCOPE]],
+        [["]", closeArray]],
+        [["after", key], [":", sep], [" "], ["false", bool]],
+        [["}", closeObject]],
+        [["name: ((", STRING_SCOPE]],
+        [["true", bool]],
+        [["(", openString]],
+        [["inside", "string.quoted.multiline.stripped.ktav"]],
+        [[")", closeString]],
+        [["null", nil]],
+      ]);
+  });
+
+  test("a first multiline item fixes the implicit Array after its close", () => {
+    assertExactLines(grammar, ["((", "## body", "))", "name: (", "true"], [
+      [["((", openString]],
+      [["## body", "string.quoted.multiline.verbatim.ktav"]],
+      [["))", closeString]],
+      [["name: (", STRING_SCOPE]],
+      [["true", bool]],
+    ]);
+  });
+
+  test("bare hash, multiword keys, and trimmed dotted segment edges retain exact spans", () => {
+    assertExactLines(grammar,
+      ["first name: 1", "#child: true", "a ## b: null", "  first name \t.  \"last.part\"  .\t#leaf  : false"],
+      [
+        [["first name", key], [":", sep], [" "], ["1", int]],
+        [["#child", key], [":", sep], [" "], ["true", bool]],
+        [["a ## b", key], [":", sep], [" "], ["null", nil]],
+        [["  "], ["first name", key], [" \t"], [".", dot], ["  "],
+          ['"last.part"', "string.quoted.double.key.ktav"], ["  "], [".", dot], ["\t"],
+          ["#leaf", key], ["  "], [":", sep], [" "], ["false", bool]],
+      ]);
+  });
+
+  for (const whitespace of ["\t", "\v", "\f", "\u0085", "\u00a0", "\u1680", "\u2003", "\u2028", "\u2029", "\u202f", "\u205f", "\u3000"]) {
+    test(`key whitespace ${JSON.stringify(whitespace)} is internal or trimmed by position`, () => {
+      assertExactLines(grammar, [`first${whitespace}name${whitespace}.${whitespace}last${whitespace}: 1`], [
+        [[`first${whitespace}name`, key], [whitespace], [".", dot], [whitespace],
+          ["last", key], [whitespace], [":", sep], [" "], ["1", int]],
+      ]);
+    });
+  }
+
+  test("quotes after bare content never open quoted segments or multiline values", () => {
+    assertExactLines(grammar, ['first "name: 1', "first 'name: true", "first `name: null", 'first "closed": 1', "next: false"], [
+      [['first "name', key], [":", sep], [" "], ["1", int]],
+      [["first 'name", key], [":", sep], [" "], ["true", bool]],
+      [["first `name", key], [":", sep], [" "], ["null", nil]],
+      [['first "closed"', key], [":", sep], [" "], ["1", int]],
+      [["next", key], [":", sep], [" "], ["false", bool]],
+    ]);
+  });
+
+  test("legal hash/multiword keys really open multiline and compound values", () => {
+    assertExactLines(grammar,
+      ["#child: ((", "a: true", "))", "first name: (", "true", ")", "some child: {", "x: 1", "}", "after: true"],
+      [
+        [["#child", key], [":", sep], [" "], ["((", openString]],
+        [["a: true", "string.quoted.multiline.verbatim.ktav"]],
+        [["))", closeString]],
+        [["first name", key], [":", sep], [" "], ["(", openString]],
+        [["true", "string.quoted.multiline.stripped.ktav"]],
+        [[")", closeString]],
+        [["some child", key], [":", sep], [" "], ["{", openObject]],
+        [["x", key], [":", sep], [" "], ["1", int]],
+        [["}", closeObject]],
+        [["after", key], [":", sep], [" "], ["true", bool]],
+      ]);
+  });
+
+  test("inline keys start at the real boundary, not a multiword suffix", () => {
+    assertExactLines(grammar, ['{first name: 1, #child: true, first "name: null, a . "b.c" : false}'], [
+      [["{", openObject], ["first name", key], [":", sep], [" "], ["1", int],
+        [",", "punctuation.separator.comma.ktav"], [" "], ["#child", key], [":", sep], [" "], ["true", bool],
+        [",", "punctuation.separator.comma.ktav"], [" "], ['first "name', key], [":", sep], [" "], ["null", nil],
+        [",", "punctuation.separator.comma.ktav"], [" "], ["a", key], [" "], [".", dot], [" "],
+        ['"b.c"', "string.quoted.double.key.ktav"], [" "], [":", sep], [" "], ["false", bool], ["}", closeObject]],
+    ]);
+  });
+
+  test("raw multiword pairs stay raw and escaped dots do not split segments", () => {
+    assertExactLines(grammar, ["first name:: true", "a\\.b . c: 1", "inline: {first name:: 7, #child: null}"], [
+      [["first name", key], ["::", "keyword.operator.marker.raw.ktav"], [" "], ["true", RAW_STRING_SCOPE]],
+      [["a", key], ["\\.", key, "constant.character.escape.ktav"], ["b", key],
+        [" "], [".", dot], [" "], ["c", key], [":", sep], [" "], ["1", int]],
+      [["inline", key], [":", sep], [" "], ["{", openObject], ["first name", key], ["::", "keyword.operator.marker.raw.ktav"], [" "], ["7", RAW_STRING_SCOPE],
+        [",", "punctuation.separator.comma.ktav"], [" "], ["#child", key], [":", sep], [" "], ["null", nil], ["}", closeObject]],
+    ]);
+  });
+
+  test("a glued first colon is a scalar, never an Object root candidate", () => {
+    assertExactLines(grammar, ["name:true", "#child: ((", "null"], [
+      [["name:true", STRING_SCOPE]],
+      [["#child: ((", STRING_SCOPE]],
+      [["null", nil]],
+    ]);
+  });
+
+  test("legal keys dispatch empty compounds, inline compounds and an Array opener", () => {
+    assertExactLines(grammar,
+      ["first name: {}", "#array: []", "first inline: {first child: 1}", "first list: [true, null]",
+        "some child: [", "name: (", "true", "]", "after: true"],
+      [
+        [["first name", key], [":", sep], [" "], ["{", openObject], ["}", closeObject]],
+        [["#array", key], [":", sep], [" "], ["[", openArray], ["]", closeArray]],
+        [["first inline", key], [":", sep], [" "], ["{", openObject], ["first child", key],
+          [":", sep], [" "], ["1", int], ["}", closeObject]],
+        [["first list", key], [":", sep], [" "], ["[", openArray], ["true", bool],
+          [",", "punctuation.separator.comma.ktav"], [" "], ["null", nil], ["]", closeArray]],
+        [["some child", key], [":", sep], [" "], ["[", openArray]],
+        [["name: (", STRING_SCOPE]],
+        [["true", bool]],
+        [["]", closeArray]],
+        [["after", key], [":", sep], [" "], ["true", bool]],
+      ]);
+  });
+});

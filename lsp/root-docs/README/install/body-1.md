@@ -1,6 +1,11 @@
 >>>>> lang=en
 ## Install
 
+Source builds require Rust 1.88+ for the current locked dependency graph.
+CI builds all targets on the declared minimum as well as running the
+existing stable-toolchain checks. Unlocked installs may need newer Rust
+if transitive dependencies raise their requirements.
+
 ```bash
 cargo install ktav-lsp
 ```
@@ -18,6 +23,11 @@ cargo install ktav-lsp --version 0.8.0 --locked
 >>>>> lang=ru
 ## Установка
 
+Для сборки исходников с текущим закреплённым графом зависимостей нужен
+Rust 1.88+. CI собирает все targets на объявленном минимуме и сохраняет
+проверки stable-toolchain. Установка без `--locked` может потребовать
+более новый Rust при повышении требований транзитивных зависимостей.
+
 ```bash
 cargo install ktav-lsp
 ```
@@ -34,6 +44,10 @@ cargo install ktav-lsp --version 0.8.0 --locked
 
 >>>>> lang=zh
 ## 安装
+
+当前锁定依赖图的源码构建需要 Rust 1.88+。CI 在声明的最低版本上
+构建所有 targets,同时保留原有 stable 工具链检查。若传递依赖提高
+要求,不带 `--locked` 的安装可能需要更新的 Rust。
 
 ```bash
 cargo install ktav-lsp

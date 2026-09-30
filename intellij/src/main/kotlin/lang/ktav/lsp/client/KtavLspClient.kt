@@ -13,17 +13,28 @@ import java.util.concurrent.CompletableFuture
  * 2. Sync documents: didOpen/didChange/didClose
  * 3. Shutdown: send shutdown request, exit
  */
-class KtavLspClient(
+class KtavLspClient internal constructor(
     private val serverCommand: String,
     private val workspaceRoot: String,
-    private val onDiagnostics: (com.google.gson.JsonElement?) -> Unit = {},
-    private val onPostDiagnostics: () -> Unit = {}
+    private val onDiagnostics: (com.google.gson.JsonElement?) -> Unit,
+    private val onPostDiagnostics: () -> Unit,
+    private val startProcess: () -> Process
 ) : AutoCloseable {
+    constructor(
+        serverCommand: String,
+        workspaceRoot: String,
+        onDiagnostics: (com.google.gson.JsonElement?) -> Unit = {},
+        onPostDiagnostics: () -> Unit = {}
+    ) : this(serverCommand, workspaceRoot, onDiagnostics, onPostDiagnostics, {
+        ProcessBuilder(serverCommand).redirectErrorStream(false).directory(File(workspaceRoot)).start()
+    })
 
     private val log = Logger.getInstance(KtavLspClient::class.java)
-    private var transport: LspTransport? = null
+    private val lifecycleLock = Any()
+    @Volatile private var transport: LspTransport? = null
     @Volatile private var isInitialized = false
     private var process: Process? = null
+    private var closed = false
 
     /**
      * Start the LSP server process and send initialize request.
@@ -34,33 +45,38 @@ class KtavLspClient(
                 log.info("[Ktav LSP Client] Starting process: $serverCommand")
                 log.info("[Ktav LSP Client] Working directory: $workspaceRoot")
 
-                // Start process
-                val processBuilder = ProcessBuilder(serverCommand)
-                    .redirectErrorStream(false)
-                    .directory(File(workspaceRoot))
-                process = processBuilder.start()
-
-                log.info("[Ktav LSP Client] Process started, PID=${process?.pid()}")
-
-                // Create transport
-                transport = LspTransport(
-                    process = process!!,
-                    onNotification = { notification ->
-                        handleNotification(notification)
+                synchronized(lifecycleLock) { check(!closed) { "LSP client is closed" } }
+                // Process creation may block; disposal must not wait for it.
+                val startedProcess = startProcess()
+                val activeTransport = synchronized(lifecycleLock) {
+                    if (closed) {
+                        startedProcess.destroyForcibly()
+                        return@runAsync
                     }
-                )
+                    process = startedProcess
+                    LspTransport(startedProcess, ::handleNotification).also { transport = it }
+                }
+                log.info("[Ktav LSP Client] Process started, PID=${startedProcess.pid()}")
                 log.info("[Ktav LSP Client] Transport created, sending initialize request")
 
                 // Send initialize request
                 val initParams = createInitializeParams()
                 log.info("[Ktav LSP Client] Initialize params: $initParams")
 
-                val response = transport!!.sendRequest("initialize", initParams).get()
+                val response = synchronized(lifecycleLock) {
+                    if (closed) return@runAsync
+                    activeTransport.sendRequest("initialize", initParams)
+                }.get()
 
                 log.info("[Ktav LSP Client] Initialize response received: $response")
-                isInitialized = true
+                synchronized(lifecycleLock) {
+                    if (!closed) isInitialized = true
+                }
             } catch (ex: Exception) {
-                log.error("[Ktav LSP Client] Failed to initialize", ex)
+                if (!synchronized(lifecycleLock) { closed }) {
+                    log.error("[Ktav LSP Client] Failed to initialize", ex)
+                }
+                if (ex is InterruptedException) Thread.currentThread().interrupt()
                 throw ex
             }
         }
@@ -153,32 +169,51 @@ class KtavLspClient(
             return java.util.concurrent.CompletableFuture.failedFuture(IllegalStateException("LSP not initialized"))
         }
         log.info("[Ktav LSP Client] formatting request")
-        return transport!!.sendRequest("textDocument/formatting", params)
+        val activeTransport = transport
+            ?: return CompletableFuture.failedFuture(IllegalStateException("LSP client is closed"))
+        return activeTransport.sendRequest("textDocument/formatting", params)
     }
 
     /**
      * Shutdown and exit.
      */
     override fun close() {
+        val closingTransport: LspTransport?
+        val closingProcess: Process?
+        val initialized: Boolean
+        synchronized(lifecycleLock) {
+            if (closed) return
+            closed = true
+            closingTransport = transport
+            closingProcess = process
+            initialized = isInitialized
+            transport = null
+            process = null
+            isInitialized = false
+        }
         try {
             log.info("[Ktav LSP Client] Closing client")
-            if (isInitialized) {
+            if (initialized) {
                 try {
-                    transport?.sendRequest("shutdown", null)?.get(2, java.util.concurrent.TimeUnit.SECONDS)
+                    closingTransport?.sendRequest("shutdown", null)?.get(2, java.util.concurrent.TimeUnit.SECONDS)
                 } catch (ex: Exception) {
                     log.warn("[Ktav LSP Client] shutdown request failed: ${ex.message}")
+                    if (ex is InterruptedException) Thread.currentThread().interrupt()
                 }
                 try {
-                    transport?.sendNotification("exit", null)
+                    closingTransport?.sendNotification("exit", null)
                 } catch (ex: Exception) {
                     log.warn("[Ktav LSP Client] exit notification failed: ${ex.message}")
                 }
             }
-            transport?.close()
-            isInitialized = false
-            log.info("[Ktav LSP Client] Closed successfully")
-        } catch (ex: Exception) {
-            log.error("[Ktav LSP Client] Error during close", ex)
+        } finally {
+            // Transport marks itself closed and terminates the process before closing blocked streams.
+            try {
+                closingTransport?.close()
+            } finally {
+                // Also covers startup that failed before a transport was installed.
+                closingProcess?.destroyForcibly()
+            }
         }
     }
 

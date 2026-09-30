@@ -18,6 +18,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   (`vscode-languageclient`); the 0.6.1 VSIX was built without them.
 - TextMate grammar: a top-level single-line inline object or array is
   highlighted; a corpus-wide tokenizer test covers every valid fixture.
+- TextMate keeps implicit root Array context after scalar items and nested
+  compounds. Legal hash/multiword keys and positional quotes retain exact
+  key/value spans, covered by stateful tokenizer regressions.
 
 ## 0.5.0
 

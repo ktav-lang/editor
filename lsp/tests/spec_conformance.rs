@@ -37,20 +37,12 @@
 //! NOTE: this file does NOT compare the parsed `Value` tree against the
 //! JSON oracle for `valid/**` — that's the reference Rust crate's own
 //! test suite's job; the LSP only ever consumes `ktav::parse`'s result.
-//! Pinning the exact text of every error message is handled separately
-//! by `tests/error_format_pinning.rs`. This file is the "did the parser
-//! accept/reject the right files, in every corpus category" floor.
+//! This file checks acceptance and structured error categories across
+//! every corpus category, not the incidental wording of error messages.
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-
-/// If `true`, an `invalid/**` fixture whose error category is NOT
-/// found in the parser's message becomes a hard failure. Set to
-/// `false` to keep the test green when `ktav` adds a new internal
-/// rename without updating the spec — but lose visibility. Today the
-/// suite is small enough that we keep this strict.
-const MISSING_CATEGORY_IS_FATAL: bool = true;
 
 /// Corpus manifest schema version this file understands (see
 /// `manifest.json`'s own `$comment`). An unrecognised schema is a hard
@@ -457,7 +449,7 @@ fn conformance_reference_parser_invalid() {
     );
 
     let mut accepted = Vec::new();
-    let mut missing_category_in_msg = Vec::new();
+    let mut category_mismatches = Vec::new();
     // A missing/unreadable `.json` oracle, or one missing `expected_error`,
     // used to make `expected_error_category` return `None` — and the `Err`
     // arm below then silently skipped the category comparison entirely
@@ -488,7 +480,7 @@ fn conformance_reference_parser_invalid() {
                 // (`ErrorEnvelope::error`); no message-substring guessing.
                 let envelope = ktav::ErrorEnvelope::from_error(&e, &text);
                 if envelope.error != expected {
-                    missing_category_in_msg.push(format!(
+                    category_mismatches.push(format!(
                         "{}: expected '{}', envelope reports '{}' ({:?})",
                         path.display(),
                         expected,
@@ -516,12 +508,11 @@ fn conformance_reference_parser_invalid() {
             accepted.join("\n")
         ));
     }
-    if MISSING_CATEGORY_IS_FATAL && !missing_category_in_msg.is_empty() {
+    if !category_mismatches.is_empty() {
         report.push(format!(
-            "{} fixtures did not include the expected category in the \
-             error message:\n{}",
-            missing_category_in_msg.len(),
-            missing_category_in_msg.join("\n")
+            "{} fixtures reported a different structured error category:\n{}",
+            category_mismatches.len(),
+            category_mismatches.join("\n")
         ));
     }
     if !report.is_empty() {

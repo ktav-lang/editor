@@ -26,13 +26,14 @@ require("lspconfig").ktav.setup({})
 安装服务器:
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
 打开 `.ktav` 文件后用 `:LspInfo` 验证 —— `ktav` 客户端应显示为
 `Active`。诊断信息通过 `vim.diagnostic` 呈现(默认按键 `]d` / `[d`)。
 
-若不运行 LSP 也想要高亮,可以让 Neovim 通过你偏好的 TextMate /
-tree-sitter 集成插件指向共享的
-`editor/grammars/ktav.tmLanguage.json` —— LSP 的 semantic tokens
-运行时已覆盖常见情况。
+LSP 语义高亮取决于 Neovim 客户端的支持和配置。
+不使用 LSP 时,tree-sitter 高亮需要独立的 Ktav 语法和高亮查询,
+本仓库不提供这些文件。`grammars/ktav.tmLanguage.json` 是 TextMate
+语法,不是 tree-sitter 语法;上面的 filetype 和 LSP 配置都不会安装
+语法高亮集成。

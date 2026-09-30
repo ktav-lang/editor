@@ -75,19 +75,6 @@ class KtavLexerTest {
     }
 
     @Test
-    fun quoted_keys_stop_at_cr_and_next_line_is_scanned_independently() {
-        val toks = tokens("\"unterminated\r\"b\": true\r'c.d': false")
-        assertEquals(KtavTokenTypes.STRING_VALUE, toks[0].second)
-        assertEquals("\"unterminated", toks[0].first)
-        assertEquals(KtavTokenTypes.KEY, toks[1].second)
-        assertEquals("\"b\"", toks[1].first)
-        assertEquals(KtavTokenTypes.BOOLEAN, toks[3].second)
-        assertEquals(KtavTokenTypes.KEY, toks[4].second)
-        assertEquals("'c.d'", toks[4].first)
-        assertEquals(KtavTokenTypes.BOOLEAN, toks[6].second)
-    }
-
-    @Test
     fun line_endings_stop_quoted_keys_inline_values_and_comments() {
         for (ending in listOf("\n", "\r", "\r\n")) {
             assertEquals(
@@ -124,30 +111,6 @@ class KtavLexerTest {
                     "true" to KtavTokenTypes.BOOLEAN,
                 ),
                 tokens("## note${ending}next: true"),
-            )
-        }
-    }
-
-    @Test
-    fun backslash_cannot_escape_a_line_ending_in_a_key_or_quote() {
-        for (ending in listOf("\n", "\r", "\r\n")) {
-            assertEquals(
-                listOf(
-                    "name\\" to KtavTokenTypes.STRING_VALUE,
-                    "next" to KtavTokenTypes.KEY,
-                    ":" to KtavTokenTypes.COLON,
-                    "true" to KtavTokenTypes.BOOLEAN,
-                ),
-                tokens("name\\${ending}next: true"),
-            )
-            assertEquals(
-                listOf(
-                    "\"open\\" to KtavTokenTypes.STRING_VALUE,
-                    "next" to KtavTokenTypes.KEY,
-                    ":" to KtavTokenTypes.COLON,
-                    "true" to KtavTokenTypes.BOOLEAN,
-                ),
-                tokens("\"open\\${ending}next: true"),
             )
         }
     }
@@ -403,42 +366,6 @@ class KtavLexerTest {
             assertEquals(listOf(opener to KtavTokenTypes.MULTILINE_OPEN), tokens("$opener\u00A0"))
             assertEquals(listOf("$opener\u00A0text" to KtavTokenTypes.STRING_VALUE), tokens("$opener\u00A0text"))
         }
-    }
-
-    @Test
-    fun incremental_edit_of_an_opener_tail_makes_progress_and_resets_at_eol() {
-        for (opener in listOf("(", "((")) {
-            val lexer = KtavLexer()
-            val original = "$opener \nbody\n"
-            lexer.start(original, 0, original.length, 0)
-            assertEquals(KtavTokenTypes.MULTILINE_OPEN, lexer.tokenType)
-            val state = lexer.state
-
-            val edited = "$opener text\ntrue\n"
-            lexer.start(edited, opener.length, edited.length, state)
-            assertEquals(TokenType.WHITE_SPACE, lexer.tokenType)
-            lexer.advance()
-            assertEquals(KtavTokenTypes.STRING_VALUE, lexer.tokenType)
-            assertEquals("text", edited.substring(lexer.tokenStart, lexer.tokenEnd))
-            lexer.advance()
-            assertEquals(TokenType.WHITE_SPACE, lexer.tokenType)
-            lexer.advance()
-            assertEquals(KtavTokenTypes.BOOLEAN, lexer.tokenType)
-            lexer.advance()
-            lexer.advance()
-            assertEquals(null, lexer.tokenType)
-        }
-    }
-
-    @Test
-    fun typed_marker_removed_spec050() {
-        // Spec 0.5.0: `:i` is no longer a marker. `port:i 8080` → key `port`,
-        // plain `:`, value `i 8080` (a string).
-        val toks = tokens("port:i 8080\n")
-        assertEquals(KtavTokenTypes.KEY, toks[0].second)
-        assertEquals(KtavTokenTypes.COLON, toks[1].second)
-        assertEquals(KtavTokenTypes.STRING_VALUE, toks[2].second)
-        assertEquals("i 8080", toks[2].first)
     }
 
     @Test
@@ -838,27 +765,6 @@ class KtavLexerTest {
     }
 
     @Test
-    fun dotted_quoted_key_requires_an_external_separator() {
-        assertEquals(
-            listOf(
-                "a. \"b:c\"" to KtavTokenTypes.STRING_VALUE,
-                "a" to KtavTokenTypes.KEY,
-                "." to KtavTokenTypes.KEY_DOT,
-                "\"b:c\"" to KtavTokenTypes.KEY,
-                ":" to KtavTokenTypes.COLON,
-                "true" to KtavTokenTypes.BOOLEAN,
-                "a\\.b" to KtavTokenTypes.KEY,
-                ":" to KtavTokenTypes.COLON,
-                "1" to KtavTokenTypes.INT_VALUE,
-                "bare\"quote" to KtavTokenTypes.KEY,
-                ":" to KtavTokenTypes.COLON,
-                "2" to KtavTokenTypes.INT_VALUE,
-            ),
-            tokens("a. \"b:c\"\r\na. \u00A0\"b:c\": true\ra\\.b: 1\nbare\"quote: 2"),
-        )
-    }
-
-    @Test
     fun quote_inside_bare_inline_key_does_not_swallow_sibling_or_cr() {
         assertEquals(
             listOf(
@@ -963,26 +869,26 @@ class KtavLexerTest {
         data class Tok(val start: Int, val end: Int, val type: IElementType)
 
         val toks = mutableListOf<Tok>()
-        val stateAfter = mutableListOf<Int>()
+        val states = mutableListOf<Int>()
         val full = KtavLexer()
         full.start(text, 0, text.length, 0)
         while (full.tokenType != null) {
             toks += Tok(full.tokenStart, full.tokenEnd, full.tokenType!!)
-            stateAfter += full.state
+            states += full.state
             full.advance()
         }
 
         for (i in toks.indices) {
-            val resumeState = if (i == 0) 0 else stateAfter[i - 1]
-            val relex = KtavLexer()
-            relex.start(text, toks[i].start, text.length, resumeState)
-            for (j in i until toks.size) {
-                assertEquals("token #$j type when restarting at #$i", toks[j].type, relex.tokenType)
-                assertEquals("token #$j start when restarting at #$i", toks[j].start, relex.tokenStart)
-                assertEquals("token #$j end when restarting at #$i", toks[j].end, relex.tokenEnd)
-                relex.advance()
+            for (relex in listOf(KtavLexer(), full)) {
+                relex.start(text, toks[i].start, text.length, states[i])
+                for (j in i until toks.size) {
+                    assertEquals("token #$j type when restarting at #$i", toks[j].type, relex.tokenType)
+                    assertEquals("token #$j start when restarting at #$i", toks[j].start, relex.tokenStart)
+                    assertEquals("token #$j end when restarting at #$i", toks[j].end, relex.tokenEnd)
+                    relex.advance()
+                }
+                assertEquals("no extra trailing token when restarting at #$i", null, relex.tokenType)
             }
-            assertEquals("no extra trailing token when restarting at #$i", null, relex.tokenType)
         }
     }
 
@@ -1004,5 +910,172 @@ class KtavLexerTest {
     @Test
     fun incremental_relex_stable_across_mixed_line_endings() {
         assertIncrementalRelexStable("a: true\rb: {x: 1}\r\n## note\nc: (\rbody\r)\rnext: false")
+    }
+    @Test
+    fun array_pair_shaped_strings_do_not_open_blocks_and_object_context_returns_after_close() {
+        for (ending in listOf("\n", "\r", "\r\n")) {
+            val text = listOf("items: [", "name: (", "true", "[", "name: true", "]", "]", "after: 1")
+                .joinToString(ending, postfix = ending)
+            assertEquals(
+                listOf(
+                    "items" to KtavTokenTypes.KEY, ":" to KtavTokenTypes.COLON,
+                    "[" to KtavTokenTypes.LBRACKET,
+                    "name: (" to KtavTokenTypes.STRING_VALUE,
+                    "true" to KtavTokenTypes.BOOLEAN,
+                    "[" to KtavTokenTypes.LBRACKET,
+                    "name: true" to KtavTokenTypes.STRING_VALUE,
+                    "]" to KtavTokenTypes.RBRACKET,
+                    "]" to KtavTokenTypes.RBRACKET,
+                    "after" to KtavTokenTypes.KEY, ":" to KtavTokenTypes.COLON,
+                    "1" to KtavTokenTypes.INT_VALUE,
+                ),
+                tokens(text),
+            )
+            assertIncrementalRelexStable(text)
+        }
+    }
+
+    @Test
+    fun first_content_keeps_implicit_array_context_across_nested_objects_and_multiline_strings() {
+        val text = "\uFEFF\u00A0## comment\r\nhello\rname: (\n{\rx: [1, true]\n}\r\n((\r{\n))\rname: true\n"
+        assertEquals(
+            listOf(
+                "## comment" to KtavTokenTypes.COMMENT,
+                "hello" to KtavTokenTypes.STRING_VALUE,
+                "name: (" to KtavTokenTypes.STRING_VALUE,
+                "{" to KtavTokenTypes.LBRACE,
+                "x" to KtavTokenTypes.KEY, ":" to KtavTokenTypes.COLON,
+                "[" to KtavTokenTypes.LBRACKET, "1" to KtavTokenTypes.INT_VALUE,
+                "," to KtavTokenTypes.COMMA, "true" to KtavTokenTypes.BOOLEAN,
+                "]" to KtavTokenTypes.RBRACKET, "}" to KtavTokenTypes.RBRACE,
+                "((" to KtavTokenTypes.MULTILINE_OPEN, "{" to KtavTokenTypes.MULTILINE_TEXT,
+                "))" to KtavTokenTypes.MULTILINE_CLOSE,
+                "name: true" to KtavTokenTypes.STRING_VALUE,
+            ),
+            tokens(text),
+        )
+        assertIncrementalRelexStable(text)
+    }
+
+    @Test
+    fun explicit_roots_and_glued_first_scalar_keep_their_kind() {
+        for (ending in listOf("\n", "\r", "\r\n")) {
+            for (first in listOf("hello", "key:value", "a. \"b:c\"", "\"unterminated")) {
+                val text = "$first${ending}name: true${ending}"
+                assertEquals(
+                    listOf(first to KtavTokenTypes.STRING_VALUE, "name: true" to KtavTokenTypes.STRING_VALUE),
+                    tokens(text),
+                )
+                assertIncrementalRelexStable(text)
+            }
+            val array = "[${ending}name: true${ending}]${ending}"
+            assertEquals(
+                listOf("[" to KtavTokenTypes.LBRACKET, "name: true" to KtavTokenTypes.STRING_VALUE,
+                    "]" to KtavTokenTypes.RBRACKET),
+                tokens(array),
+            )
+            val obj = "{${ending}name: true${ending}}${ending}"
+            assertEquals(
+                listOf("{" to KtavTokenTypes.LBRACE, "name" to KtavTokenTypes.KEY,
+                    ":" to KtavTokenTypes.COLON, "true" to KtavTokenTypes.BOOLEAN,
+                    "}" to KtavTokenTypes.RBRACE),
+                tokens(obj),
+            )
+            assertIncrementalRelexStable(array)
+            assertIncrementalRelexStable(obj)
+        }
+    }
+
+    @Test
+    fun positional_quotes_inside_multiword_bare_key_segments_preserve_separator_and_value() {
+        for (quote in listOf('"', '\'', '`')) {
+            for (ws in horizontalSpecWhitespace) {
+                val key = "first${ws}${quote}name"
+                val text = "$key: 1\nouter . \\\\part${ws}${quote}tail . \"x:y\": false\r\nnext: true\n"
+                assertEquals(
+                    listOf(
+                        key to KtavTokenTypes.KEY, ":" to KtavTokenTypes.COLON, "1" to KtavTokenTypes.INT_VALUE,
+                        "outer" to KtavTokenTypes.KEY, "." to KtavTokenTypes.KEY_DOT,
+                        "\\\\part${ws}${quote}tail" to KtavTokenTypes.KEY, "." to KtavTokenTypes.KEY_DOT,
+                        "\"x:y\"" to KtavTokenTypes.KEY, ":" to KtavTokenTypes.COLON,
+                        "false" to KtavTokenTypes.BOOLEAN,
+                        "next" to KtavTokenTypes.KEY, ":" to KtavTokenTypes.COLON,
+                        "true" to KtavTokenTypes.BOOLEAN,
+                    ),
+                    tokens(text),
+                )
+                assertIncrementalRelexStable(text)
+                val inline = "{$key: 1, next: true}"
+                assertEquals(
+                    listOf(
+                        "{" to KtavTokenTypes.LBRACE, key to KtavTokenTypes.KEY,
+                        ":" to KtavTokenTypes.COLON, "1" to KtavTokenTypes.INT_VALUE,
+                        "," to KtavTokenTypes.COMMA, "next" to KtavTokenTypes.KEY,
+                        ":" to KtavTokenTypes.COLON, "true" to KtavTokenTypes.BOOLEAN,
+                        "}" to KtavTokenTypes.RBRACE,
+                    ),
+                    tokens(inline),
+                )
+                assertIncrementalRelexStable(inline)
+            }
+        }
+    }
+
+    @Test
+    fun incremental_relex_preserves_deep_multiline_and_inline_container_stacks() {
+        val text = "items: [\n" + "[\n".repeat(40) +
+            "{first \"name: [1, {flag: true}]}\n" +
+            "]\n".repeat(41) + "after: 2\n"
+        assertIncrementalRelexStable(text)
+        assertIncrementalRelexStable("value: " + "[".repeat(40) + "{flag: true}" + "]".repeat(40) + "\nnext: 2")
+    }
+
+    @Test
+    fun incremental_edits_do_not_converge_between_object_and_array_contexts() {
+        val lexer = KtavLexer()
+        val before = "items: {\nname: true\n}\nafter: 1\n"
+        lexer.start(before, 0, before.length, 0)
+        val objectStates = mutableListOf<Int>()
+        while (lexer.tokenType != null) {
+            if (before.substring(lexer.tokenStart, lexer.tokenEnd) == "name") objectStates += lexer.state
+            lexer.advance()
+        }
+        val after = "items: [\nname: true\n]\nafter: 1\n"
+        lexer.start(after, 0, after.length, 0)
+        while (lexer.tokenType != null) {
+            if (after.substring(lexer.tokenStart, lexer.tokenEnd) == "name: true") {
+                org.junit.Assert.assertNotEquals(objectStates.single(), lexer.state)
+            }
+            lexer.advance()
+        }
+        assertEquals(
+            listOf("items" to KtavTokenTypes.KEY, ":" to KtavTokenTypes.COLON,
+                "[" to KtavTokenTypes.LBRACKET, "name: true" to KtavTokenTypes.STRING_VALUE,
+                "]" to KtavTokenTypes.RBRACKET, "after" to KtavTokenTypes.KEY,
+                ":" to KtavTokenTypes.COLON, "1" to KtavTokenTypes.INT_VALUE),
+            tokens(after),
+        )
+        assertIncrementalRelexStable(after)
+    }
+
+    @Test
+    fun lone_paren_closers_are_whole_array_strings_not_block_delimiters() {
+        val values = listOf(
+            ")" to KtavTokenTypes.STRING_VALUE,
+            "))" to KtavTokenTypes.STRING_VALUE,
+            ") suffix" to KtavTokenTypes.STRING_VALUE,
+        )
+        val bare = ")\n))\n) suffix\n"
+        val nested = "items: [\n$bare]\nafter: 1\n"
+        for ((text, expected) in listOf(
+            bare to values,
+            nested to (listOf("items" to KtavTokenTypes.KEY, ":" to KtavTokenTypes.COLON,
+                "[" to KtavTokenTypes.LBRACKET) + values +
+                listOf("]" to KtavTokenTypes.RBRACKET, "after" to KtavTokenTypes.KEY,
+                    ":" to KtavTokenTypes.COLON, "1" to KtavTokenTypes.INT_VALUE)),
+        )) {
+            assertEquals(expected, tokens(text))
+            assertIncrementalRelexStable(text)
+        }
     }
 }

@@ -17,6 +17,10 @@
 
 ## 安装
 
+当前锁定依赖图的源码构建需要 Rust 1.88+。CI 在声明的最低版本上
+构建所有 targets,同时保留原有 stable 工具链检查。若传递依赖提高
+要求,不带 `--locked` 的安装可能需要更新的 Rust。
+
 ```bash
 cargo install ktav-lsp
 ```
@@ -44,6 +48,10 @@ file-types = ["ktav"]
 roots = []
 language-servers = ["ktav-lsp"]
 ```
+
+此配置启用 LSP 诊断和悬停,不会在标准 Helix 中启用语法高亮。
+高亮需要独立的 Ktav tree-sitter 语法和查询,本仓库不提供它们;
+TextMate JSON 不能代替它们。
 
 ### Neovim (with `nvim-lspconfig`)
 
@@ -99,8 +107,11 @@ au BufRead,BufNewFile *.ktav set filetype=ktav
 - **补全**:在 `:` 分隔符之后上下文感知补全:`null`、`true`、`false`、
   开括号(`{`、`[`、`(`、`((`)、空字面量(`{}`、`[]`、`()`)以及
   值标记(`:`、`::`)。
-- **文档符号**:大纲视图反映已解析的对象树;标量为
-  Property/Number/String,对象为 Module,数组为 Array。
+- **文档符号**:大纲视图反映已解析的对象/数组树;标量为
+  Property/Number/String,对象为 Module,数组为 Array。声明范围包含值、
+  子符号和结束分隔符(多行字符串亦然),但不包含外围空白。
+  导航仅选择源键或数组项的定位部分。重新打开的点状前缀覆盖所有定义,
+  并保留首次出现的导航位置。
 - **Semantic tokens**:token 类型 `comment`、`keyword`、`number`、
   `string`、`property`、`operator`、`null`。编辑器可使用它们替代(或叠加于)
   TextMate 语法,尤其在点状键和 `::` 原始值附近获得更准确的着色。

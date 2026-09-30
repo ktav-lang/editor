@@ -6,6 +6,13 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import lang.ktav.lsp.client.KtavLspClient
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
+import com.google.gson.JsonElement
+import lang.ktav.lsp.diagnostics.DiagnosticsRenderer
+import java.lang.ref.WeakReference
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 /**
  * Project-level service that manages LSP client lifecycle.
@@ -18,12 +25,12 @@ import lang.ktav.lsp.client.KtavLspClient
  * - Cleans up on project close
  */
 @Service(Service.Level.PROJECT)
-class KtavLspProjectService(private val project: Project) : AutoCloseable {
+class KtavLspProjectService(private val project: Project) : Disposable, AutoCloseable {
 
     private val log = Logger.getInstance(KtavLspProjectService::class.java)
-    private var client: KtavLspClient? = null
-    private var isInitializing = false
-    private var initFailed = false
+    private val lifecycle = ProjectClientLifecycle(
+        { project.isDisposed }, ::createClient, KtavLspClient::initialize, KtavLspClient::notifyInitialized
+    ) { ex -> log.warn("[Ktav LSP] Client lifecycle failed", ex) }
 
     init {
         log.info("[Ktav LSP] KtavLspProjectService created for project: ${project.name}")
@@ -33,114 +40,162 @@ class KtavLspProjectService(private val project: Project) : AutoCloseable {
     /**
      * Initialize LSP client (lazy initialization on first .ktav file).
      */
-    @Synchronized
-    fun ensureInitialized() {
-        if (client != null) {
-            log.info("[Ktav LSP] Already initialized, reusing existing client")
-            return
-        }
-        if (isInitializing) {
-            log.info("[Ktav LSP] Already initializing, waiting...")
-            return
-        }
-        if (initFailed) {
-            log.warn("[Ktav LSP] Previous init failed, not retrying")
-            return
-        }
+    fun ensureInitialized() = lifecycle.ensureInitialized()
 
-        isInitializing = true
-        try {
-            log.info("[Ktav LSP] Starting initialization sequence")
-            println(">>> [Ktav LSP] Starting initialization sequence")
-
-            // Resolve server command
-            val command = KtavServerDiscovery.resolve()
-            log.info("[Ktav LSP] Discovery returned command: $command")
-            println(">>> [Ktav LSP] Discovery returned command: $command")
-
-            val serverCommand = command.firstOrNull()
-                ?: throw IllegalStateException("ktav-lsp binary not found in any location")
-
-            // Verify it's executable
-            log.info("[Ktav LSP] Server command: '$serverCommand'")
-            val cmdFile = java.io.File(serverCommand)
-            if (cmdFile.exists()) {
-                log.info("[Ktav LSP] Binary exists: ${cmdFile.absolutePath} (${cmdFile.length()} bytes, executable=${cmdFile.canExecute()})")
-            } else {
-                log.warn("[Ktav LSP] Binary path doesn't exist as file (may be on PATH): $serverCommand")
-            }
-
-            // Resolve workspace root
-            val workspaceRoot = project.basePath
-                ?: throw IllegalStateException("Project has no base path")
-            log.info("[Ktav LSP] Workspace root: $workspaceRoot")
-
-            // Create client
-            client = KtavLspClient(
-                serverCommand = serverCommand,
-                workspaceRoot = workspaceRoot,
-                onDiagnostics = { params ->
-                    log.info("[Ktav LSP] Received diagnostics callback")
-                    DiagnosticsHolder.handlePublishDiagnostics(params)
-                },
-                onPostDiagnostics = {
-                    log.info("[Ktav LSP] Triggering DaemonCodeAnalyzer restart")
-                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
-                        if (!project.isDisposed) {
-                            // Restart highlighting per open .ktav file: the no-arg
-                            // DaemonCodeAnalyzer.restart() is deprecated, and a
-                            // per-file restart is more targeted than a global one.
-                            val daemon = com.intellij.codeInsight.daemon.DaemonCodeAnalyzer.getInstance(project)
-                            val psiManager = com.intellij.psi.PsiManager.getInstance(project)
-                            com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFiles
-                                .filter { it.extension == "ktav" }
-                                .forEach { vf ->
-                                    val psiFile = psiManager.findFile(vf) ?: return@forEach
-                                    daemon.restart(psiFile)
-                                }
+    private fun createClient(): KtavLspClient {
+        val serverCommand = KtavServerDiscovery.resolve().firstOrNull()
+            ?: throw IllegalStateException("ktav-lsp binary not found in any location")
+        val workspaceRoot = project.basePath
+            ?: throw IllegalStateException("Project has no base path")
+        val owner = WeakReference(project)
+        lateinit var client: KtavLspClient
+        client = KtavLspClient(
+            serverCommand = serverCommand,
+            workspaceRoot = workspaceRoot,
+            onDiagnostics = { params ->
+                val activeProject = owner.get()
+                if (activeProject != null && !activeProject.isDisposed) {
+                    // Read access precedes lifecycle/tracker locks, matching formatting.
+                    ApplicationManager.getApplication().runReadAction {
+                        if (!activeProject.isDisposed) {
+                            val service = activeProject.getLspService()
+                            service.withClient(client) { service.publishDiagnostics(client, params) }
                         }
                     }
                 }
-            )
+            }
+        )
+        return client
+    }
 
-            log.info("[Ktav LSP] Client created, calling initialize()")
-            client!!.initialize().thenRun {
-                log.info("[Ktav LSP] Initialize completed, sending initialized notification")
-                client!!.notifyInitialized()
-                log.info("[Ktav LSP] Initialized notification sent. LSP fully active.")
-                println(">>> [Ktav LSP] LSP fully active")
-            }.exceptionally { ex ->
-                log.error("[Ktav LSP] Failed to initialize LSP client", ex)
-                println(">>> [Ktav LSP] Init failed: ${ex.message}")
-                initFailed = true
-                client?.close()
-                client = null
-                null
-            }.get()
-        } catch (ex: Exception) {
-            log.error("[Ktav LSP] Error ensuring LSP initialization", ex)
-            println(">>> [Ktav LSP] Init error: ${ex.message}")
-            initFailed = true
-            client?.close()
-            client = null
-        } finally {
-            isInitializing = false
-        }
+    internal fun publishDiagnostics(clientIdentity: Any, params: JsonElement?): Boolean {
+        if (project.isDisposed) return false
+        return DiagnosticsHolder.getInstance(project).handlePublishDiagnostics(clientIdentity, params)
     }
 
     /**
      * Get initialized LSP client (or null if not initialized).
      */
-    fun getClient(): KtavLspClient? = client
+    fun getClient(): KtavLspClient? = lifecycle.getClient()
+
+    internal fun withClient(client: KtavLspClient, action: () -> Unit): Boolean = lifecycle.withClient(client, action)
+
+    override fun dispose() = close()
 
     override fun close() {
-        log.info("[Ktav LSP] Closing project service")
+        lifecycle.close()
+        project.getServiceIfCreated(ChangeTracker::class.java)?.dispose()
+        project.getServiceIfCreated(DiagnosticsHolder::class.java)?.dispose()
+        project.getServiceIfCreated(DiagnosticsRenderer::class.java)?.dispose()
+    }
+}
+
+internal class ProjectClientLifecycle<C : AutoCloseable>(
+    private val isDisposed: () -> Boolean,
+    private val create: () -> C,
+    private val initialize: (C) -> CompletableFuture<Void>,
+    private val notifyInitialized: (C) -> Unit,
+    private val timeoutMillis: Long = 15_000,
+    private val onFailure: (Exception) -> Unit
+) : AutoCloseable {
+    private val lifecycleLock = Any()
+    @Volatile private var client: C? = null
+    @Volatile private var closed = false
+    private var failed = false
+    private var session: Session? = null
+
+    // Serializes callers, but close never waits for discovery or initialization.
+    @Synchronized
+    fun ensureInitialized() {
+        synchronized(lifecycleLock) {
+            if (closed || isDisposed() || failed || client != null) return
+        }
+        var candidate: Session? = null
+        var accepted = false
         try {
-            client?.close()
-            client = null
-            log.info("[Ktav LSP] Project service closed")
+            val owned = Session(create())
+            candidate = owned
+            val pending = synchronized(lifecycleLock) {
+                if (closed || isDisposed()) return
+                session = owned
+                owned.start()
+            }
+            // Do not mutate the raw future with orTimeout: startup may outlive this wait.
+            pending.get(timeoutMillis, TimeUnit.MILLISECONDS)
+            synchronized(lifecycleLock) {
+                if (closed || isDisposed() || session !== owned) return
+                notifyInitialized(owned.value)
+                if (closed || isDisposed() || session !== owned) return
+                client = owned.value
+                accepted = true
+            }
         } catch (ex: Exception) {
-            log.error("[Ktav LSP] Error closing project service", ex)
+            synchronized(lifecycleLock) { failed = true }
+            if (ex is InterruptedException) Thread.currentThread().interrupt()
+            if (!closed && !isDisposed()) onFailure(ex)
+        } finally {
+            if (!accepted) {
+                synchronized(lifecycleLock) {
+                    if (session === candidate) {
+                        session = null
+                        client = null
+                    }
+                }
+                candidate?.close()
+            }
+        }
+    }
+
+    fun getClient(): C? = if (closed || isDisposed()) null else client
+
+    fun withClient(identity: C, action: () -> Unit): Boolean = synchronized(lifecycleLock) {
+        if (closed || isDisposed() || client !== identity) return@synchronized false
+        action()
+        true
+    }
+
+    override fun close() {
+        val owned = synchronized(lifecycleLock) {
+            closed = true
+            client = null
+            session.also { session = null }
+        }
+        owned?.close()
+    }
+
+    private inner class Session(val value: C) : AutoCloseable {
+        private var pending: CompletableFuture<Void>? = null
+        private var closeRequested = false
+        private var finalCleanup = false
+
+        fun start(): CompletableFuture<Void> {
+            val future = initialize(value)
+            pending = future
+            future.whenComplete { _, _ ->
+                synchronized(this) {
+                    if (closeRequested && !finalCleanup) {
+                        finalCleanup = true
+                        cleanup()
+                    }
+                }
+            }
+            return future
+        }
+
+        @Synchronized
+        override fun close() {
+            if (closeRequested) return
+            closeRequested = true
+            finalCleanup = pending?.isDone != false
+            cleanup()
+        }
+
+        private fun cleanup() {
+            try {
+                value.close()
+            } catch (ex: Exception) {
+                onFailure(ex)
+            }
         }
     }
 }

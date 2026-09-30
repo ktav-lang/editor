@@ -63,9 +63,9 @@ LSP-функции зависят от клиента редактора. Пла
        │ VS Code          │   │ IntelliJ Platform    │   │ Helix / Neovim │
        │ ext (`vscode/`)  │   │ plugin (`intellij/`) │   │ + LSP config   │
        │                  │   │                      │   │                │
-       │ TextMate grammar │   │ Native lexer         │   │ (LSP semantic  │
-       │ from grammars/   │   │ (no TextMate)        │   │  tokens for    │
-       │                  │   │                      │   │  highlighting) │
+       │ TextMate grammar │   │ Native lexer         │   │ Highlighting:  │
+       │ from grammars/   │   │ (no TextMate)        │   │ client-specific│
+       │                  │   │                      │   │ (see below)    │
        └──────────────────┘   └──────────────────────┘   └────────────────┘
 ```
 
@@ -76,6 +76,13 @@ LSP-сервер предлагает *интеллектуальные* фун�
 только live-диагностику и форматирование всего файла; hover,
 автокомплит, document symbols и semantic tokens не интегрированы.
 Установка `ktav-lsp` в PATH не добавляет недостающие интеграции клиента.
+
+Стандартный Helix использует tree-sitter для подсветки, а не semantic
+tokens LSP; Ktav tree-sitter-грамматики в этом репозитории нет.
+TextMate JSON не может её заменить. Semantic-подсветка Neovim зависит
+от настройки LSP-клиента. Zed дополнительно нужно расширение,
+регистрирующее язык Ktav и адаптер сервера; settings сами по себе
+не подключают LSP к Plain Text.
 
 ## Установка для пользователя
 
@@ -106,7 +113,7 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Затем `cargo install ktav-lsp`.
+Затем `cargo install ktav-lsp --version 0.8.0 --locked`.
 
 ### Neovim
 
@@ -125,7 +132,7 @@ require("lspconfig.configs").ktav = {
 require("lspconfig").ktav.setup({})
 ```
 
-Затем `cargo install ktav-lsp`.
+Затем `cargo install ktav-lsp --version 0.8.0 --locked`.
 
 ### Другие редакторы
 
@@ -138,7 +145,7 @@ require("lspconfig").ktav.setup({})
 - `grammars/` — чистый JSON; без сборки
 - `vscode/` — Node + `vsce`
 - `intellij/` — JDK 17 + Gradle
-- `lsp/` — Rust 1.71+
+- `lsp/` — Rust 1.88+ (минимум для закреплённого графа зависимостей)
 
 Один тег запускает релиз всех четырёх (см. [`.github/workflows/release.yml`](../../.github/workflows/release.yml)).
 

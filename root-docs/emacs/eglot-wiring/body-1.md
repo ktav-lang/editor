@@ -12,7 +12,7 @@
 Install the server:
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
 Verify with `M-x eglot` after opening a `.ktav` file — the
@@ -33,7 +33,7 @@ modeline should show `[eglot:ktav]`. Diagnostics appear via
 Установите сервер:
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
 Проверьте `M-x eglot` после открытия файла `.ktav` — в modeline
@@ -54,7 +54,7 @@ cargo install ktav-lsp
 安装服务器:
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
 打开 `.ktav` 文件后用 `M-x eglot` 验证 —— modeline 应显示

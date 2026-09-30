@@ -55,9 +55,9 @@ Its syntax highlighting is provided by a native lexer.
        │ VS Code          │   │ IntelliJ Platform    │   │ Helix / Neovim │
        │ ext (`vscode/`)  │   │ plugin (`intellij/`) │   │ + LSP config   │
        │                  │   │                      │   │                │
-       │ TextMate grammar │   │ Native lexer         │   │ (LSP semantic  │
-       │ from grammars/   │   │ (no TextMate)        │   │  tokens for    │
-       │                  │   │                      │   │  highlighting) │
+       │ TextMate grammar │   │ Native lexer         │   │ Highlighting:  │
+       │ from grammars/   │   │ (no TextMate)        │   │ client-specific│
+       │                  │   │                      │   │ (see below)    │
        └──────────────────┘   └──────────────────────┘   └────────────────┘
 ```
 
@@ -68,6 +68,13 @@ which are integrated. IntelliJ's built-in client provides live
 diagnostics and whole-file formatting only; it does not integrate
 hover, completion, document symbols or semantic tokens. Installing
 `ktav-lsp` on PATH does not enable those missing client integrations.
+
+Stock Helix uses tree-sitter for highlighting, not LSP semantic tokens;
+this repo provides no Ktav tree-sitter grammar. The TextMate JSON cannot
+serve as one. Neovim semantic highlighting depends on its LSP client
+configuration. Zed additionally needs an extension registering the
+Ktav language and server adapter; settings alone do not attach LSP
+to Plain Text.
 
 ## Installing as a user
 
@@ -98,7 +105,7 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Then `cargo install ktav-lsp`.
+Then `cargo install ktav-lsp --version 0.8.0 --locked`.
 
 ### Neovim
 
@@ -117,7 +124,7 @@ require("lspconfig.configs").ktav = {
 require("lspconfig").ktav.setup({})
 ```
 
-Then `cargo install ktav-lsp`.
+Then `cargo install ktav-lsp --version 0.8.0 --locked`.
 
 ### Other editors
 
@@ -130,7 +137,7 @@ Each subproject has its own toolchain. See its `README.md`:
 - `grammars/` — pure JSON; no build
 - `vscode/` — Node + `vsce`
 - `intellij/` — JDK 17 + Gradle
-- `lsp/` — Rust 1.71+
+- `lsp/` — Rust 1.88+ (minimum required by the locked dependency graph)
 
 A single tag triggers a release of all four (see [`.github/workflows/release.yml`](.github/workflows/release.yml)).
 

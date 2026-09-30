@@ -15,6 +15,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   (`vscode-languageclient`); the 0.6.1 VSIX was built without them.
 - TextMate grammar: a top-level single-line inline object or array is
   highlighted; a corpus-wide tokenizer test covers every valid fixture.
+- TextMate keeps implicit root Array context after scalar items and nested
+  compounds. Legal hash/multiword keys and positional quotes retain exact
+  key/value spans, covered by stateful tokenizer regressions.
 
 >>>>> lang=ru
 ## [0.8.0] — 2026-09-28
@@ -34,6 +37,10 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 - Грамматика TextMate: однострочный inline-объект или массив верхнего
   уровня теперь подсвечивается; тест токенизатора по всему корпусу
   покрывает каждую valid-фикстуру.
+- TextMate сохраняет контекст неявного корневого Array после скалярных
+  элементов и вложенных контейнеров. Допустимые ключи с `#`, многословные
+  ключи и позиционные кавычки сохраняют точные границы ключей и значений;
+  это проверяют регрессии токенизатора с состоянием.
 
 >>>>> lang=zh
 ## [0.8.0] — 2026-09-28
@@ -50,4 +57,6 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   VSIX 构建时缺少它们。
 - TextMate 语法:顶层单行内联对象或数组现在会被高亮;覆盖整个语料库的
   分词器测试涵盖每个 valid 样例。
+- TextMate 在标量元素及嵌套容器之后保留隐式根 Array 上下文。
+  合法的 `#`/多词键及位置性引号保留精确键/值范围，并有带状态分词回归覆盖。
 

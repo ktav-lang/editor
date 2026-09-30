@@ -75,6 +75,9 @@ jobs:
           bash -n scripts/build-binaries.sh
           bash -n scripts/tests/build-binaries.sh
           bash scripts/tests/build-binaries.sh
+          bash -n intellij/dev-rebuild.sh
+          bash -n scripts/tests/dev-rebuild.sh
+          bash scripts/tests/dev-rebuild.sh
 
   # ------------------------------------------------------------------
   # lsp/ — Rust LSP server. fmt + clippy + test.
@@ -106,6 +109,34 @@ jobs:
       - run: cargo clippy --locked --release --all-targets -- -D warnings
       - run: cargo test --locked --release
       - run: cargo build --locked --release
+
+  lsp-msrv:
+    name: lsp / declared minimum Rust
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: lsp
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - name: Read declared rust-version
+        id: minimum
+        run: |
+          python3 - <<'PY'
+          import os, tomllib
+          with open("Cargo.toml", "rb") as manifest:
+              version = tomllib.load(manifest)["package"]["rust-version"]
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"version={version}\n")
+          PY
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.minimum.outputs.version }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lsp
+      - run: cargo build --locked --release --all-targets
 
   # ------------------------------------------------------------------
   # vscode/ — compile/unit tests plus a headless VS Code + ktav-lsp E2E gate.

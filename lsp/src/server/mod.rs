@@ -13,13 +13,15 @@ use tower_lsp::{Client, LanguageServer};
 use crate::diagnostics::parse_for_diagnostics;
 use crate::semantic::{semantic_tokens, token_types};
 use crate::symbols::build_symbols;
-use crate::tokens::{classify_line, cursor_is_after_separator, prefix_by_encoding, LineKind};
+use crate::tokens::{
+    classify_line, cursor_is_after_separator, is_ktav_ws, prefix_by_encoding, DocumentContext,
+    LineKind, Marker,
+};
 mod completion;
 mod formatting;
 mod hover;
 mod utf16;
 
-use completion::value_item;
 use formatting::end_of_document;
 use hover::{describe_value, resolve_value};
 use utf16::{
@@ -331,24 +333,58 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        // § 5.6: inside an open multi-line string, `key: `-shaped text is
-        // literal content, not a real separator — no value completions.
-        if crate::tokens::line_is_multiline_content(&text, pos.line as usize) {
-            return Ok(None);
-        }
-
         let lines = crate::lines::split_lines(&text);
-        let line = lines.get(pos.line as usize).copied().unwrap_or("");
-        // `pos.character` is in the negotiated encoding (UTF-8 bytes or
-        // UTF-16 code units) — slice accordingly so non-ASCII lines work.
+        let Some(line) = lines.get(pos.line as usize).copied() else {
+            return Ok(None);
+        };
+        let mut context = DocumentContext::default();
+        for (index, preceding) in lines[..pos.line as usize].iter().enumerate() {
+            let preceding = if index == 0 {
+                preceding.strip_prefix('\u{FEFF}').unwrap_or(preceding)
+            } else {
+                preceding
+            };
+            context.next_line(preceding);
+        }
+        let bom_len = if pos.line == 0 {
+            crate::lines::leading_bom_len(&text)
+        } else {
+            0
+        };
+        // Colon-bearing Array Strings and multiline bodies are not pairs.
+        let LineKind::Pair {
+            marker_start,
+            marker,
+            ..
+        } = context.next_line(&line[bom_len..]).kind
+        else {
+            return Ok(None);
+        };
+        let marker_start = marker_start as usize + bom_len;
         let upto = prefix_by_encoding(line, pos.character, self.encoding());
-
-        // After "key: " or "key:" — offer value-shape completions.
-        if !cursor_is_after_separator(upto) {
+        if !cursor_is_after_separator(&upto[bom_len.min(upto.len())..])
+            || !line[upto.len()..].chars().all(is_ktav_ws)
+        {
             return Ok(None);
         }
+        let marker_end = marker_start + marker.len();
+        let whitespace = &upto[marker_end..];
+        let needs_space = whitespace.is_empty();
+        let remaining_whitespace = &line[upto.len()..];
+        let insertion_whitespace = if needs_space {
+            if remaining_whitespace.is_empty() {
+                " "
+            } else {
+                remaining_whitespace
+            }
+        } else {
+            ""
+        };
+        let value_item = |label, insert, detail| {
+            completion::value_item(label, insert, detail, insertion_whitespace)
+        };
 
-        let items = vec![
+        let mut items = vec![
             value_item("null", "null", "the null keyword"),
             value_item("true", "true", "boolean true"),
             value_item("false", "false", "boolean false"),
@@ -361,12 +397,53 @@ impl LanguageServer for Backend {
             value_item("(", "(", "open multi-line raw block"),
             value_item("((", "((", "open verbatim raw block"),
             value_item("()", "()", "empty raw value"),
-            value_item(
-                ":",
-                ":",
-                "literal-string marker — second `:`, value is a literal string",
-            ),
         ];
+        if needs_space && !remaining_whitespace.is_empty() {
+            // Reuse the existing separator whitespace to the right of the
+            // cursor instead of adding another space before the value.
+            let end_character = match self.encoding() {
+                PositionEncoding::Utf8 => match u32::try_from(line.len()) {
+                    Ok(character) => character,
+                    Err(_) => return Ok(None),
+                },
+                PositionEncoding::Utf16 => crate::tokens::byte_to_utf16(line, line.len()),
+            };
+            for item in &mut items {
+                item.text_edit = item.insert_text.take().map(|new_text| {
+                    CompletionTextEdit::Edit(TextEdit {
+                        range: Range::new(pos, Position::new(pos.line, end_character)),
+                        new_text,
+                    })
+                });
+            }
+        }
+        // The raw marker extends `:` to `::`; it must not become a
+        // colon inside the value, nor create a third colon after `::`.
+        if marker == Marker::Plain {
+            let mut raw = CompletionItem {
+                label: ":".to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                detail: Some("literal-string marker — value is a literal string".to_string()),
+                ..Default::default()
+            };
+            let start_byte = marker_start + 1;
+            let start_character = match self.encoding() {
+                PositionEncoding::Utf8 => match u32::try_from(start_byte) {
+                    Ok(character) => character,
+                    Err(_) => return Ok(None),
+                },
+                PositionEncoding::Utf16 => crate::tokens::byte_to_utf16(line, start_byte),
+            };
+            raw.text_edit = Some(CompletionTextEdit::Edit(TextEdit {
+                range: Range::new(Position::new(pos.line, start_character), pos),
+                new_text: if needs_space && remaining_whitespace.is_empty() {
+                    ": ".to_string()
+                } else {
+                    format!(":{whitespace}")
+                },
+            }));
+            items.push(raw);
+        }
 
         Ok(Some(CompletionResponse::Array(items)))
     }

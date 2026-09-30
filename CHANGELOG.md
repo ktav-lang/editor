@@ -42,7 +42,20 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 ### LSP server (`ktav-lsp`)
 
 - `Cargo.toml`: `ktav = "=0.8.0"` (was `"0.6"`, the version in the last
-  released v0.6.1); `rust-version` raised `1.70` → `1.71`.
+  released v0.6.1); `rust-version` raised `1.70` → `1.88`, matching the
+  locked dependency graph. CI builds all targets on the declared minimum.
+- Value completion preserves required separator whitespace after `:` and
+  `::`, including existing whitespace to the right of the cursor. The raw
+  marker item edits the separator itself; pair completions are not offered
+  inside Array strings, multiline bodies or existing values.
+- The parser corpus checks acceptance and structured error categories,
+  not incidental error/hover wording. Editor-feature checks compare against
+  the pinned parser's tree, including value-preserving formatting; they do
+  not certify independent JSON oracle values or strict body/canonical fields.
+- Document symbols now separate enclosing declaration ranges from precise
+  navigation selections. Object/Array/String ranges include values, children
+  and matching closers without outer whitespace; reopened dotted prefixes
+  enclose every occurrence while retaining their first source-key anchor.
 - **Quoted keys were supported by the `ktav` parser since 0.7.0, but
   not fully by the LSP.** Parser-based diagnostics needed no changes;
   document symbols still needed this release's `decode_symbol_key`
@@ -172,6 +185,13 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 
 ### TextMate grammar (VS Code + shared `grammars/`)
 
+- TextMate retains the first-content Object/Array context across lines and
+  nested compounds; pair-shaped Array strings no longer open false blocks.
+- Bare `#`, multiword keys, trimmed dotted segments and positional quotes
+  keep exact key/value scopes. Theme documentation names the actual Boolean
+  and Null scopes. A dependency-free exporter produces supported XML
+  `.tmLanguage` for Sublime's `source.ktav` syntax.
+
 - Quoted key segments: the dotted-key pattern shared by every
   `pair-*` / `inline-pair` rule now accepts `"..."`, `'...'` or
   `` `...` `` as an alternative to a bare segment at each segment
@@ -217,6 +237,16 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 
 ### IntelliJ plugin
 
+- Incremental lexer states retain exact root/container context without
+  packed-depth limits or hash collisions. Pair-shaped Array items and lone
+  `)`/`))` remain Strings; positional quotes in multiword bare keys stay literal.
+- Folding consumes lexer tokens, leaving raw scalars and multiline bodies
+  opaque instead of opening scopes from bracket-shaped text.
+- Diagnostics belong to each project and exact open client/version/session.
+  Stale, closed or replaced publications cannot overwrite current results;
+  every Editor's highlighters are removed through their actual owning model.
+  Closing one owner preserves the other project's diagnostics and highlights.
+
 - The highlighting lexer follows the spec: exact § 3.6 number grammar
   with the § 5.2 leading-zero exception (ASCII digits only — the old
   check used `Char.isDigit()` and accepted other scripts' digits),
@@ -246,12 +276,40 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   match the fixture's expected value). Three older `KtavLexerTest`
   assertions compared against the platform's `TokenType.BAD_CHARACTER`
   instead of the plugin's own and could never fail — fixed.
+- LSP synchronization now keeps one subscription per project/document
+  session: shared documents update every owner independently, restored
+  tabs use the normal open path, and close/reopen sends current content
+  in a new session. Project disposal removes its listeners and closes
+  its client without publishing an unfinished initialization or leaving
+  a late-started server process alive.
+  Closing the transport also fails pending requests and atomically
+  rejects late request registration instead of waiting for a timeout.
+- Formatting checks document identity, synchronized version/stamp,
+  subscription and client ownership both before sending and during the
+  final editor-thread write. Stale, cancelled and expired results do not
+  overwrite edits or reopened documents; the applied text synchronizes
+  to every owner and has a separate Undo step. Regression coverage uses
+  real IntelliJ Documents and platform formatting callbacks, plus gated
+  stdio child processes for delayed responses and disposal races; an
+  opt-in smoke exercises the actual `ktav-lsp` binary.
 
 ### Spec submodule
 
 - Pinned to `5871254` (`v0.8.0`), up from `04f867f` (`v0.7.0`).
 
 ### Repository and release tooling
+
+- The IntelliJ rebuild helper uses the current checkout and explicitly
+  selected IDE/platform paths. It never kills processes or clears IDE caches,
+  logs, unrelated plugins or archives. Python 3 stages ZIP installation and
+  preserves Unix executable modes.
+- Helix, Zed and Sublime guides now state the actual client prerequisites:
+  tree-sitter highlighting for stock Helix, a registered language/server
+  adapter for Zed, and XML TextMate syntax matching Sublime's `source.ktav`.
+- Shared-grammar, Emacs and Neovim guidance now distinguishes TextMate JSON
+  hosts from separate tree-sitter/font-lock integrations. Collisions with both
+  canonical multiline closer forms cause `BothFormsRequired`, not preservation
+  by string splitting; literal key dots require escaping or quoting.
 
 - The prebuilt `ktav-lsp` binaries are no longer committed: the
   tracked copies had drifted (five platforms embedded `ktav` 0.5.0,

@@ -8,9 +8,9 @@ VS Code 语言配置。
 ## 文件
 
 - `ktav.tmLanguage.json` — TextMate 语法。scope 名为 `source.ktav`,
-  文件扩展名为 `.ktav`。适用于任何兼容 TextMate 的宿主(VS Code、
-  Sublime Text、Atom、GitHub Linguist、消费
-  TextMate 的 `tree-sitter` 周边工具等)。
+  文件扩展名为 `.ktav`。直接加载 JSON 需要接受此格式的宿主,例如
+  VS Code。Sublime Text 需要按[安装指南](../../docs/i18n/editors/zh/sublime.md)
+  导出 XML。这不是 tree-sitter 语法。
 - `language-configuration.json` — VS Code 语言配置:注释、括号、自动
   闭合对、缩进规则、单词模式。
 
@@ -42,9 +42,14 @@ VS Code 语言配置。
 
 ### 其他编辑器
 
-任何支持 TextMate 语法的编辑器都可以直接使用 `ktav.tmLanguage.json`。
-把它放进 TextMate 包(或编辑器的语法目录),并将 `*.ktav` 关联到
-scope `source.ktav`。
+直接使用 `ktav.tmLanguage.json` 需要编辑器接受 JSON 格式的 TextMate
+语法,例如 VS Code;仅支持 TextMate 并不能保证这一点。请按宿主的语法
+注册说明操作,并将 `*.ktav` 关联到 scope `source.ktav`。
+Sublime Text 需要 XML:请使用现有的
+`grammars/scripts/export-tmlanguage.js` 导出器,并遵循
+[Sublime 安装步骤](../../docs/i18n/editors/zh/sublime.md#文件类型关联)。
+Tree-sitter 需要独立的 Ktav 语法和高亮查询;
+共享的 TextMate JSON 不能作为 tree-sitter 语法安装。
 
 ## Token 类别
 
@@ -54,13 +59,18 @@ scope `source.ktav`。
 | Scope                                              | 匹配内容                                   |
 | -------------------------------------------------- | ------------------------------------------ |
 | `comment.line.number-sign.ktav`                    | `## …` 行注释                              |
-| `entity.name.tag.ktav`                             | 键段(`:` 左侧)                           |
+| `entity.name.tag.ktav`                             | 裸键段（`:` 左侧）                         |
+| `string.quoted.double.key.ktav`                    | 双引号键段                                 |
+| `string.quoted.single.key.ktav`                    | 单引号键段                                 |
+| `string.quoted.backtick.key.ktav`                  | 反引号键段                                 |
 | `punctuation.accessor.dot.ktav`                    | 分隔点号键段的 `.`                         |
 | `punctuation.separator.key-value.ktav`             | 普通键值对的 `:`                           |
 | `keyword.operator.marker.raw.ktav`                 | `::`(原始字符串标记)                     |
-| `constant.language.ktav`                           | `null`、`true`、`false` 标量               |
+| `constant.language.boolean.ktav`                   | `true`、`false` 标量                       |
+| `constant.language.null.ktav`                      | `null` 标量                                |
 | `constant.numeric.integer.ktav`                    | 整数字面量(§ 3.6;无冗余前导零)         |
 | `constant.numeric.float.ktav`                      | 浮点字面量(§ 3.6;含 `.` / 指数)        |
+| `constant.numeric.ktav`                            | 整行 Array 元素的数字字面量                |
 | `invalid.illegal.escape.unicode.ktav`              | 孤立代理项或格式错误的 `\uXXXX`           |
 | `string.unquoted.ktav`                             | 普通字符串标量                             |
 | `string.unquoted.raw.ktav`                         | `::` 之后的主体                            |
@@ -96,15 +106,20 @@ scope `source.ktav`。
 ## 已知限制
 
 - 仅提供静态语法高亮。语法不强制语义规则(重复名称检测、路径冲突、
-  超出 regex 形式的类型化标量主体校验、点号键展开、空键检查)。这些属于
+  超出 regex 形式的数字有效性校验、点号键展开、空键检查)。这些属于
   解析器/linter 的职责。
 - 按规范,行内 `#` *不是*注释,语法也遵循这一点。值主体中的 `#` 作为
   字符串的一部分高亮。
-- 在多行字符串内部,形如 `key: value` 的行**不会**被解析为键值对——
-  `contentName` 用一个字符串 scope 覆盖整个区域。这与规范一致,但意味着
-  位置不当的 `)` / `))`(规范实际上不视其为闭合符)可能在视觉上跳出
-  字符串区域。需要在同一个值中同时嵌入 `)` 行和 `))` 行的作者,必须按
-  § 5.6.1 拆分字符串。
-- 语法使用基于 regex 的行分类,而不是真正的解析器。病态输入(例如键段
-  中间含有 `.`,按严格语法它并非分隔符)会被当作每个 `.` 都是分隔符来
-  切分 token。这与现有所有实现一致,也是唯一合理的视觉行为。
+- 多行字符串内容使用一个字符串 scope;形如 `key: value` 的行不是
+  键值对。修剪后恰为 `)` 的行关闭 stripped 形式,恰为 `))` 的行关闭
+  verbatim 形式(§ 5.6.1)。要将一种冲突的闭合符作为内容,需切换形式;
+  其他规范可表示性检查仍然适用。若同一 String 含两种冲突行,
+  规范多行 writer 必须以 `BothFormsRequired` 拒绝它(§ 5.9.7)。
+  相邻块不会拼接成一个 String。这是规范输出的限制,并非禁止所有
+  可解析写法:inline 文档 `{s: ))\n)}` 产生含两种行的一个 String,
+  但不存在规范多行表示。
+- 键中的点遵循 § 4 和 § 5.3.2–5.3.3:引号片段外未转义的 `.`
+  是路径分隔符。裸片段中的字面点需要 `\.`;引号片段中的点则是普通
+  内容。`example.com: 1` 是点分路径;`example\.com: 1` 和
+  `"example.com": 1` 都使用一个字面键。`x.y\.z: v` 的路径片段为
+  `x` 和 `y.z`。Regex 高亮不会验证这些路径的语义效果。

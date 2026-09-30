@@ -8,9 +8,12 @@
 - **Completion** — context-aware after a `:` separator: suggests `null`,
   `true`, `false`, openers (`{`, `[`, `(`, `((`), empty literals (`{}`,
   `[]`, `()`), and the value markers (`:`, `::`).
-- **Document symbols** — outline view reflects the parsed object tree;
+- **Document symbols** — outline view reflects the parsed object/array tree;
   scalars become Property/Number/String, objects become Module, arrays
-  become Array.
+  become Array. Declaration ranges include values, nested children and closing
+  delimiters (also for multiline strings), excluding outer whitespace.
+  Navigation selects only the source key or item anchor. Reopened dotted
+  prefixes enclose all their definitions and keep their first navigation anchor.
 - **Semantic tokens** — token types `comment`, `keyword`, `number`,
   `string`, `property`, `operator`, `null`. Editors can use these instead of (or
   layered over) TextMate grammars for more accurate colouring,
@@ -30,9 +33,12 @@
 - **Автодополнение** — контекстно после разделителя `:`: предлагает
   `null`, `true`, `false`, открывающие скобки (`{`, `[`, `(`, `((`),
   пустые литералы (`{}`, `[]`, `()`) и маркеры значений (`:`, `::`).
-- **Document symbols** — outline отражает дерево распарсенного объекта;
+- **Document symbols** — outline отражает дерево распарсенного объекта/массива;
   скаляры становятся Property/Number/String, объекты — Module, массивы —
-  Array.
+  Array. Диапазоны объявлений включают значения, дочерние символы и закрывающие
+  скобки (в том числе у многострочных строк), но не внешние пробелы.
+  Навигация выделяет только исходный ключ или начало элемента. Повторно открытые
+  точечные префиксы охватывают все определения, сохраняя первую точку навигации.
 - **Semantic tokens** — типы токенов `comment`, `keyword`, `number`,
   `string`, `property`, `operator`, `null`. Редакторы могут использовать их
   вместо (или поверх) TextMate-грамматик для более точной подсветки,
@@ -51,8 +57,11 @@
 - **补全**:在 `:` 分隔符之后上下文感知补全:`null`、`true`、`false`、
   开括号(`{`、`[`、`(`、`((`)、空字面量(`{}`、`[]`、`()`)以及
   值标记(`:`、`::`)。
-- **文档符号**:大纲视图反映已解析的对象树;标量为
-  Property/Number/String,对象为 Module,数组为 Array。
+- **文档符号**:大纲视图反映已解析的对象/数组树;标量为
+  Property/Number/String,对象为 Module,数组为 Array。声明范围包含值、
+  子符号和结束分隔符(多行字符串亦然),但不包含外围空白。
+  导航仅选择源键或数组项的定位部分。重新打开的点状前缀覆盖所有定义,
+  并保留首次出现的导航位置。
 - **Semantic tokens**:token 类型 `comment`、`keyword`、`number`、
   `string`、`property`、`operator`、`null`。编辑器可使用它们替代(或叠加于)
   TextMate 语法,尤其在点状键和 `::` 原始值附近获得更准确的着色。

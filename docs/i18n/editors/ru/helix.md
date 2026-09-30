@@ -18,17 +18,19 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Установите language server:
+Установите language server (для locked-сборки 0.8.0 нужен Rust 1.88+):
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
 Проверьте `:lsp-restart` после открытия файла `.ktav`. Диагностика
 отображается инлайново; hover — `K` (клавиша по умолчанию).
 
-Подсветка обеспечивается semantic-tokens ответом LSP — грамматика
-TextMate / tree-sitter в Helix для косметической подсветки не нужна.
-Если нужна более богатая подсветка без запущенного LSP, можно
-подключить общую грамматику из `editor/grammars/` в отдельную
-конфигурацию tree-sitter, но это уже забота самого Helix.
+Стандартный Helix не поддерживает подсветку semantic tokens от LSP.
+Эта настройка включает LSP-функции, например диагностику и hover,
+но не подсветку синтаксиса. Для неё нужны отдельно реализованные
+tree-sitter-грамматика Ktav и запросы подсветки; в этом репозитории их
+нет. `grammars/ktav.tmLanguage.json` — грамматика TextMate, а не
+tree-sitter, и установить её как tree-sitter-грамматику нельзя.
+См. [настройку языков Helix](https://docs.helix-editor.com/languages.html#tree-sitter-grammar-configuration).

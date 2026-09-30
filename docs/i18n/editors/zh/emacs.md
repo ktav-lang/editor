@@ -31,7 +31,7 @@
 安装服务器:
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
 打开 `.ktav` 文件后用 `M-x eglot` 验证 —— modeline 应显示
@@ -39,7 +39,10 @@ cargo install ktav-lsp
 
 ## 高亮
 
-上面的 `ktav-mode` 有意保持极简(没有 font-lock 关键字)。接入
-eglot 后,LSP 的 semantic-tokens 响应即可提供大部分高亮。若想要更
-丰富的离线高亮,可以将 `editor/grammars/` 中的共享 TextMate 语法通过
-`tree-sitter` 或 `polymode` 处理,但这超出了本骨架的范围。
+上面的 `ktav-mode` 有意保持极简(没有 font-lock 关键字)。
+服务器提供语义令牌,但显示它们取决于已安装的 Emacs LSP 客户端的支持
+和配置;接入 eglot 不会为此 mode 添加 font-lock 规则。
+离线高亮需要另行实现 Ktav font-lock 规则,或 Ktav tree-sitter 语法、
+高亮查询和使用它们的 major mode。本仓库不提供这些高亮集成。
+共享的 TextMate JSON 不是 tree-sitter 语法;
+tree-sitter 和 polymode 都不能将其作为此类语法加载。

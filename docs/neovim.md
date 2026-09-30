@@ -26,14 +26,16 @@ require("lspconfig").ktav.setup({})
 Install the server:
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
 Verify with `:LspInfo` after opening a `.ktav` file — the `ktav`
 client should be listed as `Active`. Diagnostics appear via
 `vim.diagnostic` (default keymap `]d` / `[d`).
 
-For highlighting without the LSP, point Neovim at the shared
-`editor/grammars/ktav.tmLanguage.json` via your preferred TextMate /
-tree-sitter integration plugin — the LSP's semantic tokens already
-cover the common case once it's running.
+LSP semantic highlighting depends on the Neovim client's support and
+configuration. For highlighting without LSP, tree-sitter needs a
+separate Ktav grammar and highlight queries, which this repository
+does not provide. `grammars/ktav.tmLanguage.json` is a TextMate grammar,
+not a tree-sitter grammar; neither the filetype nor the LSP setup above
+installs a syntax-highlighting integration.

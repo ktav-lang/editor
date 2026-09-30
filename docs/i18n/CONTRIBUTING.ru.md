@@ -37,7 +37,7 @@ conventional commits.
 - `grammars/` — чистый JSON; без сборки
 - `vscode/` — Node + `vsce`
 - `intellij/` — JDK 17 + Gradle
-- `lsp/` — Rust 1.71+
+- `lsp/` — Rust 1.88+ (минимум для закреплённого графа зависимостей)
 
 Готовые бинарники `ktav-lsp` (`vscode/bin/`, `intellij/bin/`) в
 репозитории не хранятся. Соберите их через `scripts/build-binaries.sh`

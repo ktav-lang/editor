@@ -26,14 +26,16 @@ require("lspconfig").ktav.setup({})
 Установите сервер:
 
 ```sh
-cargo install ktav-lsp
+cargo install ktav-lsp --version 0.8.0 --locked
 ```
 
 Проверьте `:LspInfo` после открытия файла `.ktav` — клиент `ktav`
 должен отображаться как `Active`. Диагностика приходит через
 `vim.diagnostic` (клавиши по умолчанию `]d` / `[d`).
 
-Для подсветки без LSP направьте Neovim на общую грамматику
-`editor/grammars/ktav.tmLanguage.json` через предпочитаемый плагин
-интеграции TextMate / tree-sitter — semantic tokens LSP и так
-покрывают основной случай, когда он запущен.
+Semantic-подсветка LSP зависит от поддержки и настройки клиента Neovim.
+Для подсветки без LSP через tree-sitter нужны отдельные грамматика Ktav
+и запросы подсветки, которых в этом репозитории нет.
+`grammars/ktav.tmLanguage.json` — TextMate-грамматика, а не tree-sitter.
+Ни назначение filetype, ни настройка LSP выше не устанавливают
+интеграцию синтаксической подсветки.
