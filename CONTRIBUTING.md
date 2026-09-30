@@ -44,6 +44,26 @@ for the Linux and macOS targets); the release workflow builds every
 platform from source. The VS Code project also has a grammar tokenizer
 test: `npm run test:unit` in `vscode/`.
 
+## Installing a local build into your IDEs
+
+`scripts/dev-install.mjs` (Node 20+) builds `ktav-lsp` for this machine,
+the VSIX and the IntelliJ plugin ZIP, and installs them into IDEs you
+name explicitly:
+
+```sh
+node scripts/dev-install.mjs list
+node scripts/dev-install.mjs install --jetbrains WebStorm2025.3 --vscode codium
+node scripts/dev-install.mjs install --jetbrains WebStorm2025.3 --vscode codium --apply
+```
+
+Without `--apply` it only validates the targets and prints the plan. It
+never deletes anything: an existing `ktav-intellij` folder must be the
+`lang.ktav` plugin and is moved to
+`<ide-config>/ktav-dev-backups/<stamp>/previous/`. Symlinks, other
+plugins, settings and caches are left alone, and a running JetBrains IDE
+is refused. VS Code-family editors are updated only through their own
+`--install-extension` CLI.
+
 ## Language policy
 
 This repo participates in the org-wide three-language policy (EN / RU /

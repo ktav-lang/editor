@@ -280,6 +280,7 @@ MINOR 递进视为破坏性变更。
   `intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.md` 与
   `lsp/docs/bench-baseline.md` 已标注为历史文档。
 - IntelliJ 的 `sinceBuild = 231` 现由 Plugin Verifier 验证:CI 检查 2023.1、2024.1、2024.3、2025.1 和 2025.2(231、233、241、243、251 和 252 均为 Compatible)。
+- `scripts/dev-install.mjs` 构建本地插件并安装到显式指定的 IDE:默认试运行,从不删除(原有 `ktav-intellij` 移入备份目录),拒绝正在运行的 JetBrains IDE 和符号链接,VS Code 只通过其 CLI 更新。
 
 ## [0.6.1] — 2026-06-05
 

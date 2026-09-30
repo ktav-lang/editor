@@ -45,6 +45,26 @@ conventional commits.
 собирает все платформы из исходников. У проекта VS Code есть также тест
 токенизатора грамматики: `npm run test:unit` в `vscode/`.
 
+## Установка локальной сборки в IDE
+
+`scripts/dev-install.mjs` (Node 20+) собирает `ktav-lsp` для текущей
+машины, VSIX и ZIP плагина IntelliJ и устанавливает их в явно указанные
+IDE:
+
+```sh
+node scripts/dev-install.mjs list
+node scripts/dev-install.mjs install --jetbrains WebStorm2025.3 --vscode codium
+node scripts/dev-install.mjs install --jetbrains WebStorm2025.3 --vscode codium --apply
+```
+
+Без `--apply` скрипт только проверяет цели и печатает план. Он ничего не
+удаляет: существующая папка `ktav-intellij` должна быть плагином
+`lang.ktav` и переносится в
+`<ide-config>/ktav-dev-backups/<stamp>/previous/`. Symlink-и, другие
+плагины, настройки и кэши не трогаются, запущенная JetBrains IDE
+отклоняется. Редакторы семейства VS Code обновляются только через их
+собственный CLI `--install-extension`.
+
 ## Языковая политика
 
 Репозиторий участвует в трёхъязычной политике организации (EN / RU /

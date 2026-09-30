@@ -78,6 +78,10 @@ jobs:
           bash -n intellij/dev-rebuild.sh
           bash -n scripts/tests/dev-rebuild.sh
           bash scripts/tests/dev-rebuild.sh
+      - name: dev-install safety tests
+        env:
+          TMPDIR: ${{ runner.temp }}
+        run: node --test scripts/tests/dev-install.test.mjs
 
   # ------------------------------------------------------------------
   # lsp/ — Rust LSP server. fmt + clippy + test.

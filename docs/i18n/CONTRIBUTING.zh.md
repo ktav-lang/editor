@@ -40,6 +40,23 @@ Rust crate
 发布 workflow 从源码构建所有平台。VS Code 项目还有语法分词器测试:在
 `vscode/` 中运行 `npm run test:unit`。
 
+## 将本地构建安装到 IDE
+
+`scripts/dev-install.mjs`(Node 20+)为本机构建 `ktav-lsp`、VSIX 和
+IntelliJ 插件 ZIP,并安装到显式指定的 IDE:
+
+```sh
+node scripts/dev-install.mjs list
+node scripts/dev-install.mjs install --jetbrains WebStorm2025.3 --vscode codium
+node scripts/dev-install.mjs install --jetbrains WebStorm2025.3 --vscode codium --apply
+```
+
+不带 `--apply` 时只校验目标并打印计划。它从不删除任何内容:已有的
+`ktav-intellij` 目录必须是 `lang.ktav` 插件,并会被移动到
+`<ide-config>/ktav-dev-backups/<stamp>/previous/`。符号链接、其他插件、
+设置和缓存都不会被改动,正在运行的 JetBrains IDE 会被拒绝。VS Code 系列
+编辑器只通过其自身的 `--install-extension` CLI 更新。
+
 ## 语言政策
 
 本仓库遵循组织级三语政策(EN / RU / ZH)。每份 prose 文档都有三种

@@ -37,6 +37,10 @@
 - IntelliJ `sinceBuild = 231` is now backed by the Plugin Verifier: CI
   verifies 2023.1, 2024.1, 2024.3, 2025.1 and 2025.2 (231, 233, 241, 243,
   251 and 252 were all Compatible).
+- `scripts/dev-install.mjs` builds the local plugins and installs them into
+  explicitly named IDEs: dry run by default, never deletes (a previous
+  `ktav-intellij` is moved to a backup folder), refuses running JetBrains
+  IDEs and symlinks, and updates VS Code only through its CLI.
 
 >>>>> lang=ru
 - Готовые бинарники `ktav-lsp` больше не хранятся в репозитории:
@@ -78,6 +82,10 @@
 - IntelliJ `sinceBuild = 231` теперь подтверждён Plugin Verifier: CI
   проверяет 2023.1, 2024.1, 2024.3, 2025.1 и 2025.2 (231, 233, 241, 243,
   251 и 252 — Compatible).
+- `scripts/dev-install.mjs` собирает локальные плагины и ставит их в явно
+  указанные IDE: по умолчанию пробный прогон, ничего не удаляет (прежний
+  `ktav-intellij` переносится в папку бэкапа), отклоняет запущенные
+  JetBrains IDE и symlink-и, VS Code обновляет только через его CLI.
 
 >>>>> lang=zh
 - 预构建的 `ktav-lsp` 二进制不再提交到仓库:已跟踪的副本早已过时
@@ -102,4 +110,5 @@
   `intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.md` 与
   `lsp/docs/bench-baseline.md` 已标注为历史文档。
 - IntelliJ 的 `sinceBuild = 231` 现由 Plugin Verifier 验证:CI 检查 2023.1、2024.1、2024.3、2025.1 和 2025.2(231、233、241、243、251 和 252 均为 Compatible)。
+- `scripts/dev-install.mjs` 构建本地插件并安装到显式指定的 IDE:默认试运行,从不删除(原有 `ktav-intellij` 移入备份目录),拒绝正在运行的 JetBrains IDE 和符号链接,VS Code 只通过其 CLI 更新。
 

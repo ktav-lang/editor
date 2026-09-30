@@ -5,6 +5,7 @@ export default [
   "rule-2",
   "rule-3",
   "dev-setup",
+  "dev-install",
   "language-policy",
   "license-of-contributions"
 ]

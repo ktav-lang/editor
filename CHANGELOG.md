@@ -351,6 +351,10 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 - IntelliJ `sinceBuild = 231` is now backed by the Plugin Verifier: CI
   verifies 2023.1, 2024.1, 2024.3, 2025.1 and 2025.2 (231, 233, 241, 243,
   251 and 252 were all Compatible).
+- `scripts/dev-install.mjs` builds the local plugins and installs them into
+  explicitly named IDEs: dry run by default, never deletes (a previous
+  `ktav-intellij` is moved to a backup folder), refuses running JetBrains
+  IDEs and symlinks, and updates VS Code only through its CLI.
 
 ## [0.6.1] — 2026-06-05
 
