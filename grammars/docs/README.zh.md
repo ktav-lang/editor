@@ -63,6 +63,8 @@ Tree-sitter 需要独立的 Ktav 语法和高亮查询;
 | `string.quoted.double.key.ktav`                    | 双引号键段                                 |
 | `string.quoted.single.key.ktav`                    | 单引号键段                                 |
 | `string.quoted.backtick.key.ktav`                  | 反引号键段                                 |
+| `punctuation.definition.string.begin.ktav`         | 带引号键段的开引号 |
+| `punctuation.definition.string.end.ktav`           | 带引号键段的闭引号 |
 | `punctuation.accessor.dot.ktav`                    | 分隔点号键段的 `.`                         |
 | `punctuation.separator.key-value.ktav`             | 普通键值对的 `:`                           |
 | `keyword.operator.marker.raw.ktav`                 | `::`(原始字符串标记)                     |

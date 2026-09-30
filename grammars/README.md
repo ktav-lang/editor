@@ -70,6 +70,8 @@ these scopes will style Ktav consistently.
 | `string.quoted.double.key.ktav`                    | Double-quoted key segments                 |
 | `string.quoted.single.key.ktav`                    | Single-quoted key segments                 |
 | `string.quoted.backtick.key.ktav`                  | Backtick-quoted key segments               |
+| `punctuation.definition.string.begin.ktav`         | Opening quote of a quoted key segment |
+| `punctuation.definition.string.end.ktav`           | Closing quote of a quoted key segment |
 | `punctuation.accessor.dot.ktav`                    | `.` separating dotted key segments         |
 | `punctuation.separator.key-value.ktav`             | The `:` of a plain pair                    |
 | `keyword.operator.marker.raw.ktav`                 | `::` (raw-string marker)                   |

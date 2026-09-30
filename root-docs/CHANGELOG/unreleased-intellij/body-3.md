@@ -44,6 +44,9 @@
   real IntelliJ Documents and platform formatting callbacks, plus gated
   stdio child processes for delayed responses and disposal races; an
   opt-in smoke exercises the actual `ktav-lsp` binary.
+- Keys are green with a soft underline; a quoted key segment is bold with its
+  paired quotes in magenta, and the paired quote is highlighted like a
+  matching brace when the caret touches either quote.
 
 >>>>> lang=ru
 - Лексер подсветки следует спецификации: точная грамматика чисел § 3.6
@@ -95,6 +98,9 @@
   callback-и платформенного форматирования, а также дочерние stdio-процессы
   с управляемой задержкой для гонок ответа и закрытия; отдельный smoke
   запускается с настоящим бинарником `ktav-lsp`.
+- Ключи зелёные с мягким подчёркиванием; сегмент ключа в кавычках — жирный, его
+  парные кавычки пурпурные, а парная кавычка подсвечивается как парная
+  скобка, когда каретка стоит у любой из кавычек.
 
 >>>>> lang=zh
 - 高亮词法分析器遵循规范:严格的 § 3.6 数字语法并加入 § 5.2 前导零例外
@@ -132,4 +138,5 @@
   回归覆盖使用真实 IntelliJ Documents 和平台格式化回调,以及可控制响应
   延迟的 stdio 子进程来验证响应和关闭竞态;可选的 smoke 使用真实
   `ktav-lsp` 二进制文件。
+- 键为绿色并带柔和下划线;带引号的键段为粗体,配对引号为品红色,插入符位于任一引号旁时,配对引号会像匹配括号一样高亮。
 

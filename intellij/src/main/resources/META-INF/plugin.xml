@@ -97,6 +97,15 @@
       language="ktav"
       implementationClass="lang.ktav.highlighting.KtavUnicodeAnnotator" />
 
+    <!-- Quoted key segments: paired quotes and content coloured apart. -->
+    <annotator
+      language="ktav"
+      implementationClass="lang.ktav.highlighting.KtavQuotedKeyAnnotator" />
+
+    <!-- Paired quote of a quoted key highlighted like a matching brace. -->
+    <editorFactoryListener
+      implementation="lang.ktav.editor.KtavQuoteMatcher" />
+
     <!-- Format service: hooks Ctrl+Alt+L (Reformat Code) into LSP
          textDocument/formatting for .ktav files. AsyncDocumentFormattingService
          is the standard extension point — it lets the platform's standard

@@ -1,5 +1,5 @@
 >>>>> lang=en
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 Tracks `ktav` Rust crate `0.8.0` and `ktav-lang/spec` `0.8.0`. The
 universal breaking change is that **leading-zero decimal integers remain
@@ -26,7 +26,7 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 ### LSP server (`ktav-lsp`)
 
 >>>>> lang=ru
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 Синхронизация с крейтом `ktav` и `ktav-lang/spec` версии `0.8.0`.
 Единственное универсальное ломающее изменение спецификации:
@@ -56,7 +56,7 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 ### LSP server (`ktav-lsp`)
 
 >>>>> lang=zh
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 同步至 `ktav` crate 与 `ktav-lang/spec` `0.8.0`。唯一普遍适用的破坏性
 变更是**带前导零的十进制整数保留为字符串**(§ 5.2，`01234` 保留前导零)。

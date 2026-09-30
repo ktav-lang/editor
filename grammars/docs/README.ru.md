@@ -70,6 +70,8 @@ Tree-sitter нужны отдельные грамматика Ktav и запр�
 | `string.quoted.double.key.ktav`                    | Сегменты ключа в двойных кавычках          |
 | `string.quoted.single.key.ktav`                    | Сегменты ключа в одинарных кавычках        |
 | `string.quoted.backtick.key.ktav`                  | Сегменты ключа в обратных кавычках         |
+| `punctuation.definition.string.begin.ktav`         | Открывающая кавычка сегмента ключа |
+| `punctuation.definition.string.end.ktav`           | Закрывающая кавычка сегмента ключа |
 | `punctuation.accessor.dot.ktav`                    | `.`, разделяющая сегменты точечного ключа  |
 | `punctuation.separator.key-value.ktav`             | `:` обычной пары                           |
 | `keyword.operator.marker.raw.ktav`                 | `::` (маркер raw-строки)                   |

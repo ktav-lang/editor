@@ -12,7 +12,7 @@ twenty lines are forwarded by the build (see `build.gradle.kts`
 `changeNotes` mapping), so keep recent releases at the top and prefer
 short bullet points.
 
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
 plugin) move to 0.8.0 in step with the `ktav` crate and the
@@ -34,6 +34,7 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   toggle (it's `##`) or claim LSP4IJ / a non-bundled binary are
   needed — the plugin has its own built-in LSP client and bundles a
   per-platform `ktav-lsp` binary.
+
 - Lexer: multi-line `(` / `((` block bodies are opaque and CRLF no longer
   breaks value typing; a corpus-wide lexer test covers every valid
   fixture.
@@ -48,6 +49,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   disposal, cancellation and expired responses cannot overwrite current
   text. Application is atomic with the final check and has a separate
   Undo step; the applied text is sent to every subscribed project.
+- Keys are green with a soft underline in both colour schemes; quoted
+  key content is bold between magenta quotes, and the paired quote is
+  highlighted like a matching brace when the caret touches either quote.
 
 ## 0.5.1
 

@@ -4,7 +4,7 @@
 //!
 //! Token type indices MUST match the order returned by [`token_types`].
 
-use tower_lsp::lsp_types::{SemanticToken, SemanticTokenType};
+use tower_lsp::lsp_types::{SemanticToken, SemanticTokenModifier, SemanticTokenType};
 
 use crate::tokens::{
     classify_value, is_ktav_ws, split_dotted, DocumentContext, LineKind, Marker, ValueKind,
@@ -24,6 +24,45 @@ pub fn token_types() -> Vec<SemanticTokenType> {
     ]
 }
 
+/// Token modifiers, in bit order. `quoted` marks a key segment written
+/// in quoted form (§ 5.3.3) so clients can colour it apart from bare keys.
+pub fn token_modifiers() -> Vec<SemanticTokenModifier> {
+    vec![SemanticTokenModifier::new("quoted")]
+}
+
+const MOD_QUOTED: u32 = 1 << 0;
+
+/// Push the token for one key segment. A bare segment is one PROPERTY; a
+/// quoted segment (§ 5.3.3) emits only its content, with the `quoted`
+/// modifier, so the paired delimiters keep the grammar's punctuation colour.
+fn push_key_segment(out: &mut Vec<AbsToken>, line: u32, col: u32, seg: &str) {
+    let lead = seg.len() - seg.trim_start_matches(is_ktav_ws).len();
+    let body = seg[lead..].trim_end_matches(is_ktav_ws);
+    if let Some(q @ ('"' | '\'' | '`')) = body.chars().next() {
+        if body.len() >= 2 && body.ends_with(q) {
+            if body.len() > 2 {
+                out.push(AbsToken {
+                    line,
+                    start: col + lead as u32 + 1,
+                    length: (body.len() - 2) as u32,
+                    token_type: TOK_PROPERTY,
+                    modifiers: MOD_QUOTED,
+                });
+            }
+            return;
+        }
+    }
+    if !seg.is_empty() {
+        out.push(AbsToken {
+            line,
+            start: col,
+            length: seg.len() as u32,
+            token_type: TOK_PROPERTY,
+            modifiers: 0,
+        });
+    }
+}
+
 const TOK_COMMENT: u32 = 0;
 const TOK_KEYWORD: u32 = 1;
 const TOK_NUMBER: u32 = 2;
@@ -38,6 +77,7 @@ struct AbsToken {
     start: u32,
     length: u32,
     token_type: u32,
+    modifiers: u32,
 }
 
 /// Produce semantic tokens for `text`. Output is encoded in the
@@ -61,6 +101,7 @@ pub fn semantic_tokens(text: &str) -> Vec<SemanticToken> {
                     start,
                     length,
                     token_type: TOK_STRING,
+                    modifiers: 0,
                 });
             }
         } else {
@@ -85,6 +126,7 @@ fn emit_line(line: u32, raw: &str, kind: LineKind<'_>, out: &mut Vec<AbsToken>) 
                 start,
                 length,
                 token_type: TOK_COMMENT,
+                modifiers: 0,
             });
         }
         LineKind::CloseBrace { start } => {
@@ -93,6 +135,7 @@ fn emit_line(line: u32, raw: &str, kind: LineKind<'_>, out: &mut Vec<AbsToken>) 
                 start,
                 length: 1,
                 token_type: TOK_OPERATOR,
+                modifiers: 0,
             });
         }
         LineKind::RawArrayItem {
@@ -105,6 +148,7 @@ fn emit_line(line: u32, raw: &str, kind: LineKind<'_>, out: &mut Vec<AbsToken>) 
                 start: marker_start,
                 length: 2,
                 token_type: TOK_OPERATOR,
+                modifiers: 0,
             });
             if value_length > 0 {
                 out.push(AbsToken {
@@ -112,6 +156,7 @@ fn emit_line(line: u32, raw: &str, kind: LineKind<'_>, out: &mut Vec<AbsToken>) 
                     start: value_start,
                     length: value_length,
                     token_type: TOK_STRING,
+                    modifiers: 0,
                 });
             }
         }
@@ -134,20 +179,14 @@ fn emit_line(line: u32, raw: &str, kind: LineKind<'_>, out: &mut Vec<AbsToken>) 
             let key_hi = key_lo + key_length as usize;
             let raw_key = &raw[key_lo..key_hi];
             for (col, seg) in split_dotted(key_start, raw_key) {
-                if !seg.is_empty() {
-                    out.push(AbsToken {
-                        line,
-                        start: col,
-                        length: seg.len() as u32,
-                        token_type: TOK_PROPERTY,
-                    });
-                }
+                push_key_segment(out, line, col, seg);
             }
             out.push(AbsToken {
                 line,
                 start: marker_start,
                 length: marker.len() as u32,
                 token_type: TOK_OPERATOR,
+                modifiers: 0,
             });
             if value_length == 0 {
                 return;
@@ -176,6 +215,7 @@ fn emit_line(line: u32, raw: &str, kind: LineKind<'_>, out: &mut Vec<AbsToken>) 
                 start: value_start,
                 length: value_length,
                 token_type: tt,
+                modifiers: 0,
             });
         }
         LineKind::ArrayItem {
@@ -200,6 +240,7 @@ fn emit_line(line: u32, raw: &str, kind: LineKind<'_>, out: &mut Vec<AbsToken>) 
                 start,
                 length,
                 token_type: tt,
+                modifiers: 0,
             });
         }
     }
@@ -402,22 +443,27 @@ pub(crate) fn walk_inline<'a>(text: &'a str, mut emit: impl FnMut(InlineEvent<'a
 /// folding the whole value into one opaque string. Object keys become
 /// PROPERTY; scalar values are classified (STRING / NUMBER / KEYWORD).
 fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
-    let push = |out: &mut Vec<AbsToken>, start: usize, len: usize, tt: u32| {
+    let push = |out: &mut Vec<AbsToken>, start: usize, len: usize, tt: u32, mods: u32| {
         if len > 0 {
             out.push(AbsToken {
                 line,
                 start: base + start as u32,
                 length: len as u32,
                 token_type: tt,
+                modifiers: mods,
             });
         }
     };
     walk_inline(text, |ev| match ev {
-        InlineEvent::Open { pos } => push(out, pos, 1, TOK_OPERATOR),
-        InlineEvent::Close { pos } => push(out, pos, 1, TOK_OPERATOR),
-        InlineEvent::Comma { pos } => push(out, pos, 1, TOK_OPERATOR),
-        InlineEvent::Sep { pos, raw } => push(out, pos, if raw { 2 } else { 1 }, TOK_OPERATOR),
-        InlineEvent::Key { start, text } => push(out, start, text.len(), TOK_PROPERTY),
+        InlineEvent::Open { pos } => push(out, pos, 1, TOK_OPERATOR, 0),
+        InlineEvent::Close { pos } => push(out, pos, 1, TOK_OPERATOR, 0),
+        InlineEvent::Comma { pos } => push(out, pos, 1, TOK_OPERATOR, 0),
+        InlineEvent::Sep { pos, raw } => push(out, pos, if raw { 2 } else { 1 }, TOK_OPERATOR, 0),
+        InlineEvent::Key { start, text } => {
+            for (col, seg) in split_dotted(base + start as u32, text) {
+                push_key_segment(out, line, col, seg);
+            }
+        }
         InlineEvent::Value {
             start,
             text,
@@ -433,7 +479,7 @@ fn emit_inline(line: u32, base: u32, text: &str, out: &mut Vec<AbsToken>) {
                     _ => TOK_STRING,
                 }
             };
-            push(out, start, text.len(), tt);
+            push(out, start, text.len(), tt, 0);
         }
     });
 }
@@ -454,7 +500,7 @@ fn encode_deltas(toks: &[AbsToken]) -> Vec<SemanticToken> {
             delta_start,
             length: t.length,
             token_type: t.token_type,
-            token_modifiers_bitset: 0,
+            token_modifiers_bitset: t.modifiers,
         });
         prev_line = t.line;
         prev_start = t.start;
@@ -509,17 +555,17 @@ mod tests {
     #[test]
     fn quoted_inline_keys_are_opaque_to_structural_bytes() {
         // The `,` inside `"a,b"` and the `:` inside `'x:y'` must not
-        // split the key (§ 5.3.3) — each quoted segment is one PROPERTY
-        // token with an exact range.
+        // split the key (§ 5.3.3) — each quoted segment's content is one
+        // PROPERTY token; the paired quotes are left to the grammar.
         let text = "line: {\"a,b\": 1, 'x:y': 2}";
         let t = toks(text);
         assert!(
-            t.contains(&(0, 7, 5, TOK_PROPERTY)),
-            "\"a,b\" should be one PROPERTY token: {t:?}"
+            t.contains(&(0, 8, 3, TOK_PROPERTY)),
+            "\"a,b\" content should be one PROPERTY token: {t:?}"
         );
         assert!(
-            t.contains(&(0, 17, 5, TOK_PROPERTY)),
-            "'x:y' should be one PROPERTY token: {t:?}"
+            t.contains(&(0, 18, 3, TOK_PROPERTY)),
+            "'x:y' content should be one PROPERTY token: {t:?}"
         );
         // Exactly 3 PROPERTY tokens on the line: the outer `line` key plus
         // the two quoted inline keys — no spurious split (e.g. just `"a`).
@@ -531,17 +577,47 @@ mod tests {
     }
 
     #[test]
+    fn quoted_key_content_carries_the_quoted_modifier() {
+        let mods = |text: &str| -> Vec<(u32, u32, u32)> {
+            let mut col = 0u32;
+            semantic_tokens(text)
+                .into_iter()
+                .map(|t| {
+                    col = if t.delta_line == 0 {
+                        col + t.delta_start
+                    } else {
+                        t.delta_start
+                    };
+                    (col, t)
+                })
+                .filter(|(_, t)| t.token_type == TOK_PROPERTY)
+                .map(|(col, t)| (col, t.length, t.token_modifiers_bitset))
+                .collect()
+        };
+        // Bare segment: whole segment, no modifier. Quoted: content only.
+        assert_eq!(
+            mods("a.\"b.c\".`d`: 1"),
+            vec![(0, 1, 0), (3, 3, MOD_QUOTED), (9, 1, MOD_QUOTED)]
+        );
+        assert_eq!(
+            mods("'k': {\"x\": 1, y: 2}"),
+            vec![(1, 1, MOD_QUOTED), (7, 1, MOD_QUOTED), (14, 1, 0)]
+        );
+        assert_eq!(token_modifiers().len(), 1);
+    }
+
+    #[test]
     fn spaced_quoted_dotted_keys_keep_highlight_ranges() {
         let t = toks("root . \"a.b\": 1\nroot . \"a:b\": 2");
         assert_eq!(
             t,
             vec![
                 (0, 0, 5, TOK_PROPERTY),
-                (0, 6, 6, TOK_PROPERTY),
+                (0, 8, 3, TOK_PROPERTY),
                 (0, 12, 1, TOK_OPERATOR),
                 (0, 14, 1, TOK_NUMBER),
                 (1, 0, 5, TOK_PROPERTY),
-                (1, 6, 6, TOK_PROPERTY),
+                (1, 8, 3, TOK_PROPERTY),
                 (1, 12, 1, TOK_OPERATOR),
                 (1, 14, 1, TOK_NUMBER),
             ]
@@ -557,7 +633,8 @@ mod tests {
                 (0, 0, 3, TOK_PROPERTY),
                 (0, 3, 1, TOK_OPERATOR),
                 (0, 5, 1, TOK_OPERATOR),
-                (0, 6, 7, TOK_PROPERTY),
+                (0, 6, 1, TOK_PROPERTY),
+                (0, 9, 3, TOK_PROPERTY),
                 (0, 13, 1, TOK_OPERATOR),
                 (0, 15, 1, TOK_NUMBER),
                 (0, 16, 1, TOK_OPERATOR),
@@ -569,7 +646,11 @@ mod tests {
         );
 
         let t = toks("cfg: {a. \"b,c\": 1, tail: 2}");
-        assert!(t.contains(&(0, 6, 8, TOK_PROPERTY)), "spaced key: {t:?}");
+        assert!(t.contains(&(0, 6, 1, TOK_PROPERTY)), "bare segment: {t:?}");
+        assert!(
+            t.contains(&(0, 10, 3, TOK_PROPERTY)),
+            "quoted content: {t:?}"
+        );
         assert!(
             t.contains(&(0, 14, 1, TOK_OPERATOR)),
             "pair separator: {t:?}"

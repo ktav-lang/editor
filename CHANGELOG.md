@@ -15,7 +15,7 @@ This changelog tracks **editor/IDE support releases**, not changes to
 the Ktav format itself — for the latter see
 [`ktav-lang/spec`](https://github.com/ktav-lang/spec/blob/main/CHANGELOG.md).
 
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 Tracks `ktav` Rust crate `0.8.0` and `ktav-lang/spec` `0.8.0`. The
 universal breaking change is that **leading-zero decimal integers remain
@@ -235,6 +235,26 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   over every valid fixture: no `invalid.*` scope, and the number, boolean
   and null scope counts match the fixture's expected value.
 
+- Quoted key segments are now three tokens: the opening and closing quote
+  (`punctuation.definition.string.begin/end.ktav`) around the content, so
+  the paired quotes can be coloured. `ktav-lsp` marks quoted key content
+  with a new `quoted` semantic-token modifier and leaves the quotes to the
+  grammar.
+- VS Code: the extension works in Restricted Mode (`ktav.server.path` from
+  an untrusted workspace is ignored), Ktav files no longer box non-ASCII
+  text such as Cyrillic keys or `§`, and the default palette makes bare
+  keys, quoted keys, their quotes and `##` comments (gray) distinct.
+- Word selection and occurrence highlighting stop at quote characters, so
+  double-clicking a quoted key selects its text without the quotes.
+- VS Code: keys are green with a soft underline (theme colour
+  `ktav.keyUnderline`) so they never read as values, and
+  the paired quote of a quoted key is highlighted like a matching bracket
+  when the cursor touches either quote.
+- VS Code: a Ktav editor restored at window start in Restricted Mode no
+  longer keeps the non-ASCII boxes VS Code drew before the extension's
+  defaults applied; the extension re-opens it in place once, as switching
+  tabs would.
+
 ### IntelliJ plugin
 
 - Incremental lexer states retain exact root/container context without
@@ -292,6 +312,9 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   real IntelliJ Documents and platform formatting callbacks, plus gated
   stdio child processes for delayed responses and disposal races; an
   opt-in smoke exercises the actual `ktav-lsp` binary.
+- Keys are green with a soft underline; a quoted key segment is bold with its
+  paired quotes in magenta, and the paired quote is highlighted like a
+  matching brace when the caret touches either quote.
 
 ### Spec submodule
 

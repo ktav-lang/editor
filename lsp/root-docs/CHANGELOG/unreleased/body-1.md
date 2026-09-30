@@ -1,5 +1,5 @@
 >>>>> lang=en
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
 plugin) move to 0.8.0 in step with the `ktav` crate and the
@@ -31,9 +31,12 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   block opener; a leading BOM is ignored; symbols get ranges for inline
   keys. Corpus tests now also cover symbols, hover, tokens and
   formatting — see the root [`CHANGELOG.md`](../CHANGELOG.md).
+- Semantic tokens: a quoted key segment covers only its content and
+  carries the new `quoted` modifier, so editors colour the quotes
+  separately.
 
 >>>>> lang=ru
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 Все три компонента (`ktav-lsp`, расширение VS Code, плагин IntelliJ)
 переходят на 0.8.0 синхронно с crate `ktav` и спецификацией — полный
@@ -67,9 +70,12 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   диапазоны для inline-ключей. Тесты корпуса теперь покрывают и symbols,
   hover, токены и форматирование — см. корневой
   [`CHANGELOG.md`](../../CHANGELOG.md).
+- Semantic tokens: сегмент ключа в кавычках покрывает только содержимое
+  и несёт новый модификатор `quoted`, чтобы редакторы красили кавычки
+  отдельно.
 
 >>>>> lang=zh
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 全部三个组件(`ktav-lsp`、VS Code 扩展、IntelliJ 插件)随 `ktav` crate 与
 规范同步升至 0.8.0 —— 完整列表见根目录的
@@ -93,4 +99,6 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   当作注释,也不再把 `key:: ((` 当作块起始行;行首 BOM 被忽略;符号对
   内联键有了范围。语料库测试现在还覆盖符号、hover、token 和格式化——见
   根目录 [`CHANGELOG.md`](../../CHANGELOG.md)。
+- Semantic tokens:带引号的键段只覆盖其内容并带有新的 `quoted` 修饰符,
+  以便编辑器单独为引号着色。
 

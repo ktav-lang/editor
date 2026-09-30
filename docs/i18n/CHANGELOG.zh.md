@@ -15,7 +15,7 @@ MINOR 递进视为破坏性变更。
 后者请见
 [`ktav-lang/spec`](https://github.com/ktav-lang/spec/blob/main/CHANGELOG.md)。
 
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 同步至 `ktav` crate 与 `ktav-lang/spec` `0.8.0`。唯一普遍适用的破坏性
 变更是**带前导零的十进制整数保留为字符串**(§ 5.2，`01234` 保留前导零)。
@@ -193,6 +193,12 @@ MINOR 递进视为破坏性变更。
   (`corpus-coverage.test.ts`),对每个 valid 样例运行该语法:不出现
   `invalid.*` scope,数字、布尔和 null 的 scope 数量与样例的期望值一致。
 
+- 带引号的键段现在是三个 token:内容两侧的开引号和闭引号(`punctuation.definition.string.begin/end.ktav`),以便为成对的引号着色。`ktav-lsp` 用新的 `quoted` 语义 token 修饰符标记带引号键的内容,引号交给语法处理。
+- VS Code:扩展可在受限模式下工作(忽略来自不受信任工作区的 `ktav.server.path`),Ktav 文件不再为西里尔字母键或 `§` 等非 ASCII 文本加框,默认配色区分裸键、带引号的键及其引号和 `##` 注释(灰色)。
+- 单词选择和出现位置高亮在引号处停止,双击带引号的键只选中其文本、不含引号。
+- VS Code:键为绿色并带柔和下划线(主题颜色 `ktav.keyUnderline`),不会被误认为值;光标位于带引号键的任一引号旁时,其配对引号会像匹配括号一样高亮。
+- VS Code:受限模式下窗口启动时恢复的 Ktav 编辑器不再保留 VS Code 在扩展默认设置生效前绘制的非 ASCII 方框;扩展会像切换标签页一样就地重新打开它一次。
+
 ### IntelliJ 插件
 
 - 增量词法状态保留精确的根/容器上下文，无 packed-depth 上限或哈希碰撞。
@@ -239,6 +245,7 @@ MINOR 递进视为破坏性变更。
   回归覆盖使用真实 IntelliJ Documents 和平台格式化回调,以及可控制响应
   延迟的 stdio 子进程来验证响应和关闭竞态;可选的 smoke 使用真实
   `ktav-lsp` 二进制文件。
+- 键为绿色并带柔和下划线;带引号的键段为粗体,配对引号为品红色,插入符位于任一引号旁时,配对引号会像匹配括号一样高亮。
 
 ### Spec submodule
 

@@ -11,7 +11,7 @@ use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 
 use crate::diagnostics::parse_for_diagnostics;
-use crate::semantic::{semantic_tokens, token_types};
+use crate::semantic::{semantic_tokens, token_modifiers, token_types};
 use crate::symbols::build_symbols;
 use crate::tokens::{
     classify_line, cursor_is_after_separator, is_ktav_ws, prefix_by_encoding, DocumentContext,
@@ -159,7 +159,7 @@ impl LanguageServer for Backend {
 
         let semantic_legend = SemanticTokensLegend {
             token_types: token_types(),
-            token_modifiers: vec![],
+            token_modifiers: token_modifiers(),
         };
 
         let position_encoding = match chosen {

@@ -131,9 +131,30 @@
 
     "key-name": {
       "patterns": [
-        { "match": "\"(?:\\\\.|[^\"\\\\])*\"", "name": "string.quoted.double.key.ktav" },
-        { "match": "'(?:\\\\.|[^'\\\\])*'", "name": "string.quoted.single.key.ktav" },
-        { "match": "`(?:\\\\.|[^`\\\\])*`", "name": "string.quoted.backtick.key.ktav" },
+        {
+          "match": "(\")(?:\\\\.|[^\"\\\\])*(\")",
+          "name": "string.quoted.double.key.ktav",
+          "captures": {
+            "1": { "name": "punctuation.definition.string.begin.ktav" },
+            "2": { "name": "punctuation.definition.string.end.ktav" }
+          }
+        },
+        {
+          "match": "(')(?:\\\\.|[^'\\\\])*(')",
+          "name": "string.quoted.single.key.ktav",
+          "captures": {
+            "1": { "name": "punctuation.definition.string.begin.ktav" },
+            "2": { "name": "punctuation.definition.string.end.ktav" }
+          }
+        },
+        {
+          "match": "(`)(?:\\\\.|[^`\\\\])*(`)",
+          "name": "string.quoted.backtick.key.ktav",
+          "captures": {
+            "1": { "name": "punctuation.definition.string.begin.ktav" },
+            "2": { "name": "punctuation.definition.string.end.ktav" }
+          }
+        },
         { "match": "\\.", "name": "punctuation.accessor.dot.ktav" },
         {
           "match": "(?:[^\\s\\[\\]{}():,.\\\\\"'`]|\\\\.)(?:[^\\r\\n\\[\\]{}():,.\\\\]|\\\\.)*?(?=\\s*(?:\\.|$))",

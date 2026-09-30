@@ -21,7 +21,6 @@ fn tokens(text: &str) -> Vec<(u32, u32, u32, u32)> {
             } else {
                 token.delta_start
             };
-            assert_eq!(token.token_modifiers_bitset, 0);
             (line, column, token.length, token.token_type)
         })
         .collect()
@@ -233,7 +232,7 @@ fn first_content_dispatch_respects_sep_end_quotes_escapes_and_raw_marker() {
     );
     assert_eq!(
         tokens("\"a:b\": true\n"),
-        vec![(0, 0, 5, PROPERTY), (0, 5, 1, OPERATOR), (0, 7, 4, KEYWORD)]
+        vec![(0, 1, 3, PROPERTY), (0, 5, 1, OPERATOR), (0, 7, 4, KEYWORD)]
     );
 }
 

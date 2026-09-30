@@ -11,6 +11,8 @@ these scopes will style Ktav consistently.
 | `string.quoted.double.key.ktav`                    | Double-quoted key segments                 |
 | `string.quoted.single.key.ktav`                    | Single-quoted key segments                 |
 | `string.quoted.backtick.key.ktav`                  | Backtick-quoted key segments               |
+| `punctuation.definition.string.begin.ktav`         | Opening quote of a quoted key segment |
+| `punctuation.definition.string.end.ktav`           | Closing quote of a quoted key segment |
 | `punctuation.accessor.dot.ktav`                    | `.` separating dotted key segments         |
 | `punctuation.separator.key-value.ktav`             | The `:` of a plain pair                    |
 | `keyword.operator.marker.raw.ktav`                 | `::` (raw-string marker)                   |
@@ -44,6 +46,8 @@ these scopes will style Ktav consistently.
 | `string.quoted.double.key.ktav`                    | Сегменты ключа в двойных кавычках          |
 | `string.quoted.single.key.ktav`                    | Сегменты ключа в одинарных кавычках        |
 | `string.quoted.backtick.key.ktav`                  | Сегменты ключа в обратных кавычках         |
+| `punctuation.definition.string.begin.ktav`         | Открывающая кавычка сегмента ключа |
+| `punctuation.definition.string.end.ktav`           | Закрывающая кавычка сегмента ключа |
 | `punctuation.accessor.dot.ktav`                    | `.`, разделяющая сегменты точечного ключа  |
 | `punctuation.separator.key-value.ktav`             | `:` обычной пары                           |
 | `keyword.operator.marker.raw.ktav`                 | `::` (маркер raw-строки)                   |
@@ -77,6 +81,8 @@ these scopes will style Ktav consistently.
 | `string.quoted.double.key.ktav`                    | 双引号键段                                 |
 | `string.quoted.single.key.ktav`                    | 单引号键段                                 |
 | `string.quoted.backtick.key.ktav`                  | 反引号键段                                 |
+| `punctuation.definition.string.begin.ktav`         | 带引号键段的开引号 |
+| `punctuation.definition.string.end.ktav`           | 带引号键段的闭引号 |
 | `punctuation.accessor.dot.ktav`                    | 分隔点号键段的 `.`                         |
 | `punctuation.separator.key-value.ktav`             | 普通键值对的 `:`                           |
 | `keyword.operator.marker.raw.ktav`                 | `::`(原始字符串标记)                     |

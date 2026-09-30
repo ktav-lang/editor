@@ -31,7 +31,40 @@
   "activationEvents": [
     "onLanguage:ktav"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Highlighting and the bundled ktav-lsp work in Restricted Mode; a server path from workspace settings is ignored until the workspace is trusted.",
+      "restrictedConfigurations": ["ktav.server.path"]
+    }
+  },
   "contributes": {
+    "colors": [
+      {
+        "id": "ktav.keyUnderline",
+        "description": "Soft underline drawn under Ktav keys.",
+        "defaults": {
+          "light": "#15803D4D",
+          "dark": "#6CC27F4D",
+          "highContrast": "#15803D",
+          "highContrastLight": "#15803D"
+        }
+      }
+    ],
+    "semanticTokenModifiers": [
+      {
+        "id": "quoted",
+        "description": "A key segment written in quoted form (§ 5.3.3)."
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "ktav",
+        "scopes": {
+          "property.quoted": ["string.quoted.double.key.ktav"]
+        }
+      }
+    ],
     "languages": [
       {
         "id": "ktav",
@@ -86,7 +119,9 @@
         "editor.insertSpaces": true,
         "editor.detectIndentation": false,
         "editor.formatOnSave": false,
-        "editor.defaultFormatter": "ktav-lang.ktav"
+        "editor.defaultFormatter": "ktav-lang.ktav",
+        "editor.unicodeHighlight.nonBasicASCII": false,
+        "editor.unicodeHighlight.ambiguousCharacters": false
       },
       "editor.tokenColorCustomizations": {
         "textMateRules": [
@@ -117,7 +152,26 @@
           },
           {
             "scope": ["entity.name.tag.ktav"],
-            "settings": { "foreground": "#333333" }
+            "settings": { "foreground": "#15803D" }
+          },
+          {
+            "scope": [
+              "string.quoted.double.key.ktav",
+              "string.quoted.single.key.ktav",
+              "string.quoted.backtick.key.ktav"
+            ],
+            "settings": { "foreground": "#15803D", "fontStyle": "bold" }
+          },
+          {
+            "scope": [
+              "punctuation.definition.string.begin.ktav",
+              "punctuation.definition.string.end.ktav"
+            ],
+            "settings": { "foreground": "#C026D3", "fontStyle": "bold" }
+          },
+          {
+            "scope": ["comment.line.number-sign.ktav"],
+            "settings": { "foreground": "#8A8A8A", "fontStyle": "italic" }
           }
         ]
       },
@@ -128,7 +182,9 @@
           "number:ktav": "#2563EB",
           "keyword:ktav": "#C26A12",
           "null:ktav": "#B11A1A",
-          "property:ktav": "#333333"
+          "property:ktav": "#15803D",
+          "property.quoted:ktav": { "foreground": "#15803D", "bold": true },
+          "comment:ktav": { "foreground": "#8A8A8A", "italic": true }
         }
       }
     }

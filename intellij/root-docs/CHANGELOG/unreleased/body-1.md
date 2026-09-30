@@ -1,5 +1,5 @@
 >>>>> lang=en
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
 plugin) move to 0.8.0 in step with the `ktav` crate and the
@@ -21,23 +21,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   toggle (it's `##`) or claim LSP4IJ / a non-bundled binary are
   needed — the plugin has its own built-in LSP client and bundles a
   per-platform `ktav-lsp` binary.
-- Lexer: multi-line `(` / `((` block bodies are opaque and CRLF no longer
-  breaks value typing; a corpus-wide lexer test covers every valid
-  fixture.
-- LSP document subscriptions are owned per project, including shared
-  documents, restored tabs and close/reopen. Disposal removes only that
-  project's listeners; initialization publishes only a ready client
-  and safely stops a server process created during disposal.
-  Transport closure fails pending requests and immediately rejects
-  requests racing with disposal.
-- Formatting checks the synchronized document/version/session and client
-  again when applying the result, so intervening edits, close/reopen,
-  disposal, cancellation and expired responses cannot overwrite current
-  text. Application is atomic with the final check and has a separate
-  Undo step; the applied text is sent to every subscribed project.
 
 >>>>> lang=ru
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 Все три компонента (`ktav-lsp`, расширение VS Code, плагин IntelliJ)
 переходят на 0.8.0 синхронно с crate `ktav` и спецификацией — полный
@@ -59,25 +45,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   переключения комментария (это `##`) и не утверждается, что нужен
   LSP4IJ или что бинарник не вложен — у плагина свой встроенный
   LSP-клиент, а бинарник `ktav-lsp` вложен под каждую платформу.
-- Лексер: тела многострочных блоков `(` / `((` непрозрачны, а CRLF больше
-  не ломает типизацию значений; тест лексера по всему корпусу покрывает
-  каждую valid-фикстуру.
-- LSP-подписки документов принадлежат конкретному проекту, включая общие
-  документы, восстановленные вкладки и закрытие/повторное открытие.
-  Закрытие удаляет только слушателей этого проекта; инициализация
-  публикует только готовый клиент и безопасно останавливает процесс
-  сервера, созданный во время закрытия проекта.
-  Закрытие транспорта завершает ожидающие запросы с ошибкой и сразу
-  отклоняет запросы, конкурирующие с закрытием.
-- Форматирование повторно проверяет синхронизированный документ, версию,
-  сессию и клиент при применении результата: правки, закрытие/повторное
-  открытие, закрытие проекта/клиента, отмена и просроченные ответы не
-  могут затереть текущий текст. Применение атомарно с итоговой проверкой,
-  имеет отдельный шаг Undo, а новый текст отправляется каждому проекту
-  с активной подпиской.
 
 >>>>> lang=zh
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 全部三个组件(`ktav-lsp`、VS Code 扩展、IntelliJ 插件)随 `ktav` crate 与
 规范同步升至 0.8.0 —— 完整列表见根目录的
@@ -95,14 +65,4 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 - Marketplace/Settings 文案不再将注释切换写成 `#`(应为 `##`),也不再
   声称需要 LSP4IJ 或未内置二进制文件 —— 插件拥有自己内置的 LSP 客户端,
   并为每个平台内置了 `ktav-lsp` 二进制文件。
-- 词法分析器:多行 `(` / `((` 块的正文是不透明的,CRLF 不再破坏值的
-  类型判断;覆盖整个语料库的词法分析器测试涵盖每个 valid 样例。
-- LSP 文档订阅按项目管理,涵盖共享文档、恢复的标签页和关闭/重新打开。
-  项目关闭只移除本项目的监听器;初始化只发布就绪的客户端,并安全终止
-  在项目关闭期间创建的服务器进程。
-  传输关闭时会使等待中的请求失败,并立即拒绝与关闭操作竞争的新请求。
-- 格式化在应用结果时再次检查已同步的文档、版本、会话和客户端,避免
-  中间发生的编辑、关闭/重新打开、项目/客户端关闭、取消或过期响应
-  覆盖当前文本。应用与最终检查是原子的,并有独立的 Undo 步骤;新文本
-  会发送到每个订阅该文档的项目。
 

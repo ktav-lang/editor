@@ -7,6 +7,8 @@ import {
   TransportKind,
 } from "vscode-languageclient/node";
 import { resolveServerPath as resolveServerPathPure } from "./discovery";
+import { registerKeyDecorations } from "./key-decorations";
+import { reattachRestoredEditors } from "./restored-editors";
 
 let shutdownClient: (() => Promise<void>) | undefined;
 
@@ -50,6 +52,10 @@ function buildClient(command: string, outputChannel: vscode.OutputChannel): Lang
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  reattachRestoredEditors(
+    { window: vscode.window, workspace: vscode.workspace, commands: vscode.commands, TabInputText: vscode.TabInputText },
+    process.uptime(),
+  );
   const outputChannel = vscode.window.createOutputChannel(
     "Ktav Language Server",
   );
@@ -107,6 +113,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         client = buildClient(resolveServerPath(context), outputChannel);
         await client.start();
         outputChannel.appendLine("[ktav] language server started");
+        refreshDecorations();
       } catch (err) {
         outputChannel.appendLine(`[ktav] restart failed: ${(err as Error)?.message ?? err}`);
         if (!closing) {
@@ -172,6 +179,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     ),
   );
 
+  const refreshDecorations = registerKeyDecorations(context, () => client);
+
   // Restart command — surfaces in the Command Palette as
   // "Ktav: Restart Language Server".
   context.subscriptions.push(
@@ -206,6 +215,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       client = buildClient(command, outputChannel);
       await client.start();
       outputChannel.appendLine("[ktav] language server started");
+      refreshDecorations();
     } catch (err) {
       const msg =
         `Ktav: failed to start language server "${command}". ` +

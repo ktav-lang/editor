@@ -7,7 +7,7 @@
 
 **Languages:** [English](../CHANGELOG.md) · [Русский](CHANGELOG.ru.md) · **简体中文**
 
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 全部三个组件(`ktav-lsp`、VS Code 扩展、IntelliJ 插件)随 `ktav` crate 与
 规范同步升至 0.8.0 —— 完整列表见根目录的
@@ -31,6 +31,8 @@
   当作注释,也不再把 `key:: ((` 当作块起始行;行首 BOM 被忽略;符号对
   内联键有了范围。语料库测试现在还覆盖符号、hover、token 和格式化——见
   根目录 [`CHANGELOG.md`](../../CHANGELOG.md)。
+- Semantic tokens:带引号的键段只覆盖其内容并带有新的 `quoted` 修饰符,
+  以便编辑器单独为引号着色。
 
 ## [0.5.0] — 2026-05-27
 

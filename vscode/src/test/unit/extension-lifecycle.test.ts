@@ -178,6 +178,9 @@ function harness() {
       if (name === "vscode-languageclient/node") {
         return { LanguageClient: FakeClient, TransportKind: { stdio: 0 } };
       }
+      // Editor decorations are not part of the client lifecycle.
+      if (name === "./key-decorations") { return { registerKeyDecorations: () => () => {} }; }
+      if (name === "./restored-editors") { return { reattachRestoredEditors: () => {} }; }
       return realRequire(name);
     },
   }, { filename });

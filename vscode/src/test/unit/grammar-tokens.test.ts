@@ -73,6 +73,8 @@ function getGrammar(): Promise<IGrammar> {
   return grammarPromise;
 }
 
+const DQ_KEY = "string.quoted.double.key.ktav";
+
 function tokenizeLine(grammar: IGrammar, line: string): Tok[] {
   const result = grammar.tokenizeLine(line, INITIAL);
   return result.tokens.map((t) => ({
@@ -85,6 +87,23 @@ function tokenizeLine(grammar: IGrammar, line: string): Tok[] {
 
 function tokensInRange(toks: Tok[], start: number, end: number): Tok[] {
   return toks.filter((t) => t.startIndex < end && t.endIndex > start);
+}
+
+// A quoted key segment is one unit: it starts and ends exactly at its
+// delimiters, carries the key scope throughout, and its paired quotes get
+// the begin/end punctuation scopes.
+function assertQuotedKey(toks: Tok[], line: string, quoted: string, scope: string): void {
+  const idx = line.indexOf(quoted);
+  const span = tokensInRange(toks, idx, idx + quoted.length);
+  assert.ok(span.length === 3, `expected open quote, content, close quote for ${quoted} in ${JSON.stringify(line)}, got ${JSON.stringify(span)}`);
+  assert.strictEqual(span[0].startIndex, idx);
+  assert.strictEqual(span[2].endIndex, idx + quoted.length);
+  assert.ok(span.every((t) => t.scopes.includes(scope)), JSON.stringify(span));
+  assert.strictEqual(span[0].text, quoted[0]);
+  assert.ok(span[0].scopes.includes("punctuation.definition.string.begin.ktav"));
+  assert.strictEqual(span[1].text, quoted.slice(1, -1));
+  assert.strictEqual(span[2].text, quoted[0]);
+  assert.ok(span[2].scopes.includes("punctuation.definition.string.end.ktav"));
 }
 
 // Threads ruleStack across lines, the way a real editor tokenizes a document
@@ -383,23 +402,13 @@ suite("grammar: quoted key segments (§ 5.3.3)", () => {
 
   test("comma inside a double-quoted key segment does not split the key, inside an inline object", () => {
     const line = 'a: {"a,b": 1, \'x:y\': 2}';
-    const toks = tokenizeLine(grammar, line);
-    const idx = line.indexOf('"a,b"');
-    const span = tokensInRange(toks, idx, idx + '"a,b"'.length);
-    // The whole quoted segment must be ONE key token, not split at the comma.
-    const spanningToken = span.find((t) => t.startIndex === idx && t.endIndex === idx + '"a,b"'.length);
-    assert.ok(spanningToken, `expected a single token spanning "a,b" in ${JSON.stringify(line)}, got ${JSON.stringify(span)}`);
-    assert.ok(spanningToken!.scopes.includes("string.quoted.double.key.ktav"));
+    // The whole quoted segment must stay one key, not split at the comma.
+    assertQuotedKey(tokenizeLine(grammar, line), line, '"a,b"', "string.quoted.double.key.ktav");
   });
 
   test("colon inside a single-quoted key segment does not act as the pair separator, inside an inline object", () => {
     const line = 'a: {"a,b": 1, \'x:y\': 2}';
-    const toks = tokenizeLine(grammar, line);
-    const idx = line.indexOf("'x:y'");
-    const span = tokensInRange(toks, idx, idx + "'x:y'".length);
-    const spanningToken = span.find((t) => t.startIndex === idx && t.endIndex === idx + "'x:y'".length);
-    assert.ok(spanningToken, `expected a single token spanning 'x:y' in ${JSON.stringify(line)}, got ${JSON.stringify(span)}`);
-    assert.ok(spanningToken!.scopes.includes("string.quoted.single.key.ktav"));
+    assertQuotedKey(tokenizeLine(grammar, line), line, "'x:y'", "string.quoted.single.key.ktav");
     // The value 2 must still be recognised as a number (i.e. the pair after
     // 'x:y' was correctly parsed as key/value, not swallowed by the quote).
     assertScope(grammar, line, "2", "constant.numeric.integer.ktav");
@@ -407,13 +416,7 @@ suite("grammar: quoted key segments (§ 5.3.3)", () => {
 
   test("dotted key with a quoted middle segment: a.\"b.c\".d", () => {
     const line = 'a."b.c".d: 1';
-    const toks = tokenizeLine(grammar, line);
-    const quoted = '"b.c"';
-    const idx = line.indexOf(quoted);
-    const span = tokensInRange(toks, idx, idx + quoted.length);
-    const spanningToken = span.find((t) => t.startIndex === idx && t.endIndex === idx + quoted.length);
-    assert.ok(spanningToken, `expected a single token spanning "b.c" in ${JSON.stringify(line)}, got ${JSON.stringify(span)}`);
-    assert.ok(spanningToken!.scopes.includes("string.quoted.double.key.ktav"));
+    assertQuotedKey(tokenizeLine(grammar, line), line, '"b.c"', "string.quoted.double.key.ktav");
     assertScope(grammar, line, "1", "constant.numeric.integer.ktav");
   });
 });
@@ -554,7 +557,7 @@ suite("grammar: first-content dispatch and legal key spans", () => {
         [["#child", key], [":", sep], [" "], ["true", bool]],
         [["a ## b", key], [":", sep], [" "], ["null", nil]],
         [["  "], ["first name", key], [" \t"], [".", dot], ["  "],
-          ['"last.part"', "string.quoted.double.key.ktav"], ["  "], [".", dot], ["\t"],
+          ['"', DQ_KEY, "punctuation.definition.string.begin.ktav"], ["last.part", DQ_KEY], ['"', DQ_KEY, "punctuation.definition.string.end.ktav"], ["  "], [".", dot], ["\t"],
           ["#leaf", key], ["  "], [":", sep], [" "], ["false", bool]],
       ]);
   });
@@ -601,7 +604,7 @@ suite("grammar: first-content dispatch and legal key spans", () => {
         [",", "punctuation.separator.comma.ktav"], [" "], ["#child", key], [":", sep], [" "], ["true", bool],
         [",", "punctuation.separator.comma.ktav"], [" "], ['first "name', key], [":", sep], [" "], ["null", nil],
         [",", "punctuation.separator.comma.ktav"], [" "], ["a", key], [" "], [".", dot], [" "],
-        ['"b.c"', "string.quoted.double.key.ktav"], [" "], [":", sep], [" "], ["false", bool], ["}", closeObject]],
+        ['"', DQ_KEY, "punctuation.definition.string.begin.ktav"], ["b.c", DQ_KEY], ['"', DQ_KEY, "punctuation.definition.string.end.ktav"], [" "], [":", sep], [" "], ["false", bool], ["}", closeObject]],
     ]);
   });
 

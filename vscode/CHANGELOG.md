@@ -2,7 +2,7 @@
 
 **Languages:** **English** · [Русский](docs/CHANGELOG.ru.md) · [简体中文](docs/CHANGELOG.zh.md)
 
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
 plugin) move to 0.8.0 in step with the `ktav` crate and the
@@ -21,6 +21,13 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
 - TextMate keeps implicit root Array context after scalar items and nested
   compounds. Legal hash/multiword keys and positional quotes retain exact
   key/value spans, covered by stateful tokenizer regressions.
+- Works in Restricted Mode (`ktav.server.path` from an untrusted
+  workspace is ignored), and Ktav files no longer box non-ASCII text
+  such as Cyrillic keys or `§`, including a tab restored at window start.
+- New default palette: green keys with a soft underline (theme colour
+  `ktav.keyUnderline`), bold quoted-key content between magenta quotes,
+  gray `##` comments; the paired quote of a quoted key is highlighted
+  like a matching bracket.
 
 ## 0.5.0
 

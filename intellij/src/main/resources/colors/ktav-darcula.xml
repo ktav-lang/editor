@@ -1,7 +1,7 @@
 <scheme name="Darcula" version="142" parent_scheme="Darcula">
   <!-- Ktav value-type palette (parity with the VS Code extension). Same hues
-       as the light scheme; only the key colour differs — a near-black key is
-       unreadable on a dark background, so keys use a neutral light gray. -->
+       as the light scheme, with lighter key and quote colours for a dark
+       background. -->
   <attributes>
     <!-- strings — bright blue -->
     <option name="KTAV_STRING_VALUE">
@@ -22,9 +22,29 @@
     <option name="KTAV_NULL">
       <value><option name="FOREGROUND" value="b11a1a" /></value>
     </option>
-    <!-- keys — neutral light gray (near-black is unreadable on dark) -->
+    <!-- keys — light green, with a soft underline so they never read as values -->
     <option name="KTAV_KEY">
-      <value><option name="FOREGROUND" value="a9b7c6" /></value>
+      <value>
+        <option name="FOREGROUND" value="6cc27f" />
+        <option name="EFFECT_COLOR" value="3f6e4c" />
+        <option name="EFFECT_TYPE" value="1" />
+      </value>
+    </option>
+    <!-- quoted key content — same hue, bold -->
+    <option name="KTAV_QUOTED_KEY">
+      <value>
+        <option name="FOREGROUND" value="6cc27f" />
+        <option name="FONT_TYPE" value="1" />
+        <option name="EFFECT_COLOR" value="3f6e4c" />
+        <option name="EFFECT_TYPE" value="1" />
+      </value>
+    </option>
+    <!-- paired quotes of a quoted key — magenta, bold -->
+    <option name="KTAV_KEY_QUOTE">
+      <value>
+        <option name="FOREGROUND" value="e879f9" />
+        <option name="FONT_TYPE" value="1" />
+      </value>
     </option>
   </attributes>
 </scheme>

@@ -35,5 +35,5 @@
       "action": { "indent": "indent" }
     }
   ],
-  "wordPattern": "[^\\s{}\\[\\]():#.,]+"
+  "wordPattern": "[^\\s{}\\[\\]():#.,\"'`]+"
 }

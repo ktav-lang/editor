@@ -7,7 +7,7 @@ the Cargo convention that a minor bump is breaking while pre-1.0.
 
 **Languages:** **English** · [Русский](docs/CHANGELOG.ru.md) · [简体中文](docs/CHANGELOG.zh.md)
 
-## [0.8.0] — 2026-09-28
+## [0.8.0] — 2026-09-30
 
 All three components (`ktav-lsp`, the VS Code extension, the IntelliJ
 plugin) move to 0.8.0 in step with the `ktav` crate and the
@@ -39,6 +39,9 @@ specification — see the root [`CHANGELOG.md`](../CHANGELOG.md)
   block opener; a leading BOM is ignored; symbols get ranges for inline
   keys. Corpus tests now also cover symbols, hover, tokens and
   formatting — see the root [`CHANGELOG.md`](../CHANGELOG.md).
+- Semantic tokens: a quoted key segment covers only its content and
+  carries the new `quoted` modifier, so editors colour the quotes
+  separately.
 
 ## [0.5.0] — 2026-05-27
 
