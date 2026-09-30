@@ -13,9 +13,8 @@
 //! `:: value` array literal-string item, lone `}` / `]` / `)` closers,
 //! compound openers `{` `[` `(` `((` `{}` `[]` `()`).
 //!
-//! Spec 0.5.0: typed markers `:i` and `:f` are removed; type is inferred
-//! from the lexical form of the scalar. Comments now require `##` (two `#`
-//! bytes); a single `#` is an ordinary character.
+//! The type of a scalar is inferred from its lexical form. Comments require
+//! `##` (two `#` bytes); a single `#` is an ordinary character.
 //!
 //! Spec 0.6.0: keys process the full §3.7 escape set. `\.` keeps a literal
 //! dot inside a key segment (does NOT split a dotted path), `\:` keeps a
@@ -44,20 +43,18 @@
 
 mod classify;
 mod context;
-mod encoding;
-mod key_paths;
 mod kinds;
 pub mod lines;
+mod scan;
 
 pub(crate) use classify::is_ktav_ws;
 #[cfg(test)]
 pub(crate) use classify::looks_numeric;
 pub use classify::{classify_line, classify_value, line_is_multiline_content};
 pub(crate) use context::DocumentContext;
-pub use encoding::{byte_to_utf16, prefix_by_encoding};
-pub(crate) use key_paths::find_key_separator;
-pub use key_paths::{cursor_is_after_separator, split_dotted};
 pub use kinds::{LineKind, Marker, ValueKind};
+pub(crate) use scan::find_key_separator;
+pub use scan::{byte_to_utf16, cursor_is_after_separator, prefix_by_encoding, split_dotted};
 
 #[cfg(test)]
 mod tests;

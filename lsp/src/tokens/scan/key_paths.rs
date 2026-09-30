@@ -2,7 +2,7 @@
 //! split dotted key paths into segments, and detect whether a cursor
 //! sits after the separator. Quote-aware per spec 0.8 § 5.3.3.
 
-use super::classify::is_ktav_ws;
+use crate::tokens::is_ktav_ws;
 
 /// Find the byte index of the key/value separator `:` on `trimmed`,
 /// treating a `<quoted-segment>` (§ 5.3.3) as opaque — a `:` inside
@@ -146,7 +146,7 @@ pub fn split_dotted(key_start: u32, key: &str) -> impl Iterator<Item = (u32, &st
 /// AFTER the separator (used by completion to switch from key-mode to
 /// value-mode). `upto` is the line text up to the cursor column.
 ///
-/// Spec 0.5.0: only `::` and `:` are markers; `:i`/`:f` are gone.
+/// Only `::` and `:` are markers.
 pub fn cursor_is_after_separator(upto: &str) -> bool {
     let trimmed = upto.trim_start();
     // Spec 0.6.0: only an UNESCAPED `:` is the separator (`\:` is a

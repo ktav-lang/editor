@@ -35,7 +35,7 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
             "KTAV_KEY_DOT", DefaultLanguageHighlighterColors.DOT
         )
 
-        // Type markers (`:i`, `:f`, `::`) — keyword-style colour
+        // `::` literal-string marker — keyword-style colour
         private val MARKER_ATTR = TextAttributesKey.createTextAttributesKey(
             "KTAV_MARKER", DefaultLanguageHighlighterColors.METADATA
         )
@@ -99,8 +99,6 @@ class KtavSyntaxHighlighter : SyntaxHighlighter {
             Tokens.KEY_DOT to arrayOf(KEY_DOT_ATTR),
 
             // Markers + separator
-            Tokens.MARKER_INT to arrayOf(MARKER_ATTR),
-            Tokens.MARKER_FLOAT to arrayOf(MARKER_ATTR),
             Tokens.DOUBLE_COLON to arrayOf(MARKER_ATTR),
             Tokens.COLON to arrayOf(COLON_ATTR),
 

@@ -127,8 +127,7 @@ fn canonicalise_paren_scalar(trimmed: &str) -> std::borrow::Cow<'_, str> {
     // quoted key (`"a:b": (x)`) as the separator, splicing `::` into the
     // middle of the quoted text instead of right after it. We accept
     // `:` and `::` as markers; only the plain `:` is the case we
-    // rewrite (`::` already means "raw" and isn't ambiguous). Typed
-    // markers `:i` / `:f` were removed in spec 0.5.0 and no longer exist.
+    // rewrite (`::` already means "raw" and isn't ambiguous).
     let bytes = trimmed.as_bytes();
     let colon = match find_key_separator(trimmed) {
         Some(p) => p,

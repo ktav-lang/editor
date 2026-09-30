@@ -272,10 +272,14 @@ MINOR 递进视为破坏性变更。
   `node_modules`,因此打包后的扩展无法加载语言客户端;现在会打包生产
   依赖(不含 devDependencies)。
 - CI:docs job 使用 `actions/setup-node@v6`。
+- 发布 workflow 试运行:手动 `workflow_dispatch` 且 `publish: false`(现为默认值)会构建并验证所有产物,检查该版本的 CHANGELOG 小节非空,且不创建 GitHub Release。`tag` 可留空以构建分支;`publish: true` 仍需要 `v*` 标签。发布说明通过按字面比较标题中的版本来截取,而不再使用由标签拼出的正则表达式。
+- 结构:LSP 端到端测试合并为一个 `tests/e2e` 目标,位置/键扫描器位于 `lsp/src/tokens/scan/`,VSIX 冒烟与归档检查位于 `vscode/src/test/vsix/`,IntelliJ 的 LSP 测试与 main 包对应(`client`、`settings`、`formatting`),词法分析器测试按主题拆分。行为不变;测试数量相同。
+- IntelliJ:移除未使用的 `MARKER_INT`/`MARKER_FLOAT` 词法类型(带类型的标记已在 0.5.0 中移除)。
 - 文档:VS Code 与 LSP 的 README 现在一致说明,Marketplace 与 Open VSX
   上的扩展已为六个平台捆绑 `ktav-lsp`(仅其他情况才需要单独安装);
   `intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.md` 与
   `lsp/docs/bench-baseline.md` 已标注为历史文档。
+- IntelliJ 的 `sinceBuild = 231` 现由 Plugin Verifier 验证:CI 检查 2023.1、2024.1、2024.3、2025.1 和 2025.2(231、233、241、243、251 和 252 均为 Compatible)。
 
 ## [0.6.1] — 2026-06-05
 

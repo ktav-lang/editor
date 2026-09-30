@@ -1,8 +1,8 @@
 //! The line classifier: [`classify_line`] turns one raw line into a
 //! [`LineKind`], mirroring `ktav::parser`'s line-shape rules.
 
-use super::key_paths::find_key_separator;
 use super::kinds::{LineKind, Marker, ValueKind};
+use super::scan::find_key_separator;
 
 /// § 3.3 whitespace — the exact twenty-five-code-point closed set. Never
 /// delegate to `char::is_whitespace`, even though the two happen to agree

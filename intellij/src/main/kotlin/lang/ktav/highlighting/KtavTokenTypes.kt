@@ -12,16 +12,14 @@ object KtavTokenTypes {
     val KEY = IElementType("KTAV_KEY", KtavLanguage)
     val KEY_DOT = IElementType("KTAV_KEY_DOT", KtavLanguage)  // dot in dotted key paths
 
-    // Type markers (act like keywords for the type system)
-    val MARKER_INT = IElementType("KTAV_MARKER_INT", KtavLanguage)      // :i
-    val MARKER_FLOAT = IElementType("KTAV_MARKER_FLOAT", KtavLanguage)  // :f
+    // Separators
     val COLON = IElementType("KTAV_COLON", KtavLanguage)                // :  (string value)
     val DOUBLE_COLON = IElementType("KTAV_DOUBLE_COLON", KtavLanguage)  // :: (raw string)
 
     // Values
     val STRING_VALUE = IElementType("KTAV_STRING_VALUE", KtavLanguage)  // value after `:` or `::`
-    val INT_VALUE = IElementType("KTAV_INT_VALUE", KtavLanguage)        // value after `:i`
-    val FLOAT_VALUE = IElementType("KTAV_FLOAT_VALUE", KtavLanguage)    // value after `:f`
+    val INT_VALUE = IElementType("KTAV_INT_VALUE", KtavLanguage)        // integer literal (§ 3.6)
+    val FLOAT_VALUE = IElementType("KTAV_FLOAT_VALUE", KtavLanguage)    // float literal (§ 3.6)
     val BOOLEAN = IElementType("KTAV_BOOLEAN", KtavLanguage)
     val NULL = IElementType("KTAV_NULL", KtavLanguage)
 

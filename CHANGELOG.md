@@ -330,11 +330,27 @@ and the `\uXXXX` escape were introduced in 0.7.0.
   packed extension could not load its language client; production
   dependencies are now packed (devDependencies are not).
 - CI: the docs job uses `actions/setup-node@v6`.
+- Release workflow dry run: a manual `workflow_dispatch` with `publish: false`
+  (now the default) builds and verifies every artifact, checks that the
+  CHANGELOG section for the version is non-empty and creates no GitHub
+  Release. `tag` may be left empty to build a branch; `publish: true` still
+  requires a `v*` tag. Release notes are cut by comparing the heading's
+  version literally instead of through a regex built from the tag.
+- Layout: the LSP end-to-end suites share one `tests/e2e` target, the
+  position/key scanners live in `lsp/src/tokens/scan/`, the VSIX smoke and
+  archive checks in `vscode/src/test/vsix/`, the IntelliJ LSP tests mirror
+  the main packages (`client`, `settings`, `formatting`) and the lexer
+  tests are split by topic. No behaviour change; the test counts are the same.
+- IntelliJ: the unused `MARKER_INT`/`MARKER_FLOAT` token types (typed
+  markers were removed in 0.5.0) are gone.
 - Documentation: the VS Code and LSP READMEs now agree that the
   Marketplace and Open VSX extension bundles `ktav-lsp` for six
   platforms (a separate install is only needed elsewhere);
   `intellij/docs/TEXTMATE_REGISTRATION_PROBLEM.md` and
   `lsp/docs/bench-baseline.md` are marked as historical.
+- IntelliJ `sinceBuild = 231` is now backed by the Plugin Verifier: CI
+  verifies 2023.1, 2024.1, 2024.3, 2025.1 and 2025.2 (231, 233, 241, 243,
+  251 and 252 were all Compatible).
 
 ## [0.6.1] — 2026-06-05
 

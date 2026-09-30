@@ -18,6 +18,12 @@ name: Release
 # only window, or a pending JetBrains first-upload moderation never
 # blocks the run or the artifact upload.
 #
+# Dry run: a manual `workflow_dispatch` with `publish: false` (the default)
+# builds and verifies everything exactly like a release but never publishes
+# and never creates a GitHub Release. `tag` may then be left empty (the
+# selected branch is built) or name any branch/tag; the three component
+# versions must then agree with each other instead of with a tag.
+#
 # Optional secrets (set per subproject's environment). Absent → that
 # registry publish is skipped, artifacts still ship to the GH Release:
 #   • crates-io  → CARGO_REGISTRY_TOKEN
@@ -31,12 +37,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to build/publish (e.g. v0.1.0). Must already exist."
-        required: true
+        description: "Tag to build/publish (e.g. v0.1.0, must already exist). Empty = build the selected branch (dry run only)."
+        required: false
       publish:
-        description: "Publish to registries (crates.io / Marketplace / Open VSX / JetBrains). Tag pushes NEVER publish — they only build artifacts."
+        description: "Publish to registries (crates.io / Marketplace / Open VSX / JetBrains) and create the GitHub Release. Requires a v* tag. false = dry run. Tag pushes NEVER publish — they only build artifacts."
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
@@ -62,10 +68,20 @@ jobs:
         shell: bash
         run: |
           ref="${{ inputs.tag || github.ref_name }}"
-          tag="${ref#v}"
+          lsp_ver=$(awk -F'"' '/^version *= *"/ { print $2; exit }' lsp/Cargo.toml)
+          case "$ref" in
+            v[0-9]*) tag="${ref#v}" ;;
+            *)
+              if [ "${{ inputs.publish }}" = "true" ]; then
+                echo "::error::publish requires a v* tag, got '$ref'"
+                exit 1
+              fi
+              echo "Dry run on '$ref': components must agree with each other"
+              tag="$lsp_ver"
+              ;;
+          esac
           echo "Tag version: $tag"
 
-          lsp_ver=$(awk -F'"' '/^version *= *"/ { print $2; exit }' lsp/Cargo.toml)
           vscode_ver=$(node -p "require('./vscode/package.json').version")
           intellij_ver=$(awk -F'=' '/^pluginVersion *=/ { gsub(/[ \t]/,"",$2); print $2; exit }' intellij/gradle.properties)
 
@@ -290,15 +306,15 @@ jobs:
         shell: bash
         run: |
           version=$(node -p "require('./package.json').version")
-          python3 src/test/vsix_archive.py "$VSIX" "$version"
-          python3 -m unittest discover -s src/test -p test_vsix_archive.py
+          python3 src/test/vsix/vsix_archive.py "$VSIX" "$version"
+          python3 -m unittest discover -s src/test/vsix -p test_vsix_archive.py
           sha256sum "$VSIX" > "$VSIX.sha256"
       - name: Smoke installed VSIX
         timeout-minutes: 10
         shell: bash
         run: |
           sha256sum --check "$VSIX.sha256"
-          xvfb-run -a node out/test/runVsixSmoke.js "$PWD/$VSIX"
+          xvfb-run -a node out/test/vsix/runVsixSmoke.js "$PWD/$VSIX"
           sha256sum --check "$VSIX.sha256"
       - name: Publish to VS Code Marketplace
         # Publishes only on a manual dispatch with publish=true; tag pushes
@@ -432,19 +448,37 @@ jobs:
         shell: bash
         run: |
           ref="${{ inputs.tag || github.ref_name }}"
-          ver="${ref#v}"
+          case "$ref" in
+            v[0-9]*) ver="${ref#v}" ;;
+            *) ver=$(awk -F'"' '/^version *= *"/ { print $2; exit }' lsp/Cargo.toml) ;;
+          esac
+          # Compare the heading's version token literally (no regex built from
+          # $ver), so a missing section is empty instead of matching anything.
           notes=$(awk -v v="$ver" '
-            $0 ~ "^## \\[?" v "\\]?" { in_section = 1; next }
-            in_section && /^## / { exit }
+            /^## / {
+              if (in_section) exit
+              h = $0; sub(/^## \[?/, "", h); split(h, a, /[] \t]/)
+              if (a[1] == v) in_section = 1
+              next
+            }
             in_section { print }
           ' CHANGELOG.md)
+          if [ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
+            echo "::error::CHANGELOG.md has no non-empty section for $ver"
+            exit 1
+          fi
           {
             echo "body<<__END_NOTES__"
             echo "$notes"
             echo "__END_NOTES__"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Dry run summary
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
+        run: echo "Dry run OK - no GitHub Release created, nothing published."
       - uses: softprops/action-gh-release@v3
+        # Tag pushes attach artifacts; a dispatch does so only with publish=true.
+        if: ${{ github.event_name == 'push' || inputs.publish }}
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: ${{ inputs.tag || github.ref_name }}

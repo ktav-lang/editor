@@ -3,8 +3,8 @@
 
 /// Marker shape on a `key:` line, matching `ktav`'s `Separator` enum.
 ///
-/// Spec 0.5.0: `:i` and `:f` typed markers are removed. Only `Plain` (`:`)
-/// and `Raw` (`::`) remain.
+/// Only `Plain` (`:`) and `Raw` (`::`) exist; the type of a plain value is
+/// inferred from its lexical form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Marker {
     /// Plain `:`.
@@ -66,7 +66,7 @@ pub enum LineKind<'a> {
         value_start: u32,
         value_length: u32,
     },
-    /// `key{:|::|:i|:f} value` — the workhorse line.
+    /// `key{:|::} value` — the workhorse line.
     Pair {
         /// Column of the first byte of `key`.
         key_start: u32,
@@ -81,8 +81,7 @@ pub enum LineKind<'a> {
         value_start: u32,
         value_length: u32,
         /// Pre-computed kind. For `Raw` markers this is always
-        /// [`ValueKind::String`]; for typed markers always
-        /// [`ValueKind::Number`]; for plain markers it is the result of
+        /// [`ValueKind::String`]; for plain markers it is the result of
         /// [`crate::tokens::classify_value`] applied to the value slice.
         value_kind: ValueKind,
         /// Borrowed slice of the value text (already trimmed).

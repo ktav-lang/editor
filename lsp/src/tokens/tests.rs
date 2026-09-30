@@ -45,8 +45,8 @@ fn plain_pair() {
 
 #[test]
 fn typed_int_removed_spec050() {
-    // Spec 0.5.0: `:i` is no longer a typed marker — it is treated as a
-    // Plain marker whose value starts with `i`.
+    // `:i` is not a typed marker — it is a Plain marker whose value
+    // starts with `i`.
     match pair("port:i 8080") {
         LineKind::Pair { marker, .. } => {
             assert_eq!(marker, Marker::Plain);

@@ -13,7 +13,7 @@ import {
 async function main(): Promise<void> {
   const vsix = process.argv[2];
   assert.ok(vsix && path.isAbsolute(vsix), "pass absolute validated VSIX path");
-  const root = path.resolve(__dirname, "..", "..");
+  const root = path.resolve(__dirname, "..", "..", "..");
   const manifest = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const fixture = path.resolve(
     root, "..", "spec", "versions", "0.8", "tests", "invalid",
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
     delete env.NODE_PATH;
     await runTests({
       vscodeExecutablePath: executable,
-      extensionDevelopmentPath: path.join(root, "src", "test", "vsix-driver"),
+      extensionDevelopmentPath: path.join(root, "src", "test", "vsix", "driver"),
       extensionTestsPath: path.join(__dirname, "vsixSmokeSuite.js"),
       extensionTestsEnv: {
         ...env,

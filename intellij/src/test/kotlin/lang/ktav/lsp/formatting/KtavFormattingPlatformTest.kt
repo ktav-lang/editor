@@ -1,16 +1,20 @@
-package lang.ktav.lsp
+package lang.ktav.lsp.formatting
 
+import com.intellij.application.options.CodeStyle
 import com.intellij.formatting.FormattingContext
 import com.intellij.formatting.service.AsyncFormattingRequest
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.command.undo.UndoManager
 import com.intellij.openapi.fileEditor.impl.text.TextEditorProvider
 import com.intellij.openapi.util.TextRange
-import com.intellij.application.options.CodeStyle
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.runInEdtAndWait
 import com.intellij.util.ui.UIUtil
 import lang.ktav.KtavFileType
+import lang.ktav.lsp.KtavFormattingService
+import lang.ktav.lsp.LocalPlatformTestCase
+import lang.ktav.lsp.TestLspProcess
+import lang.ktav.lsp.UriUtil
 import lang.ktav.lsp.client.KtavLspClient
 import lang.ktav.lsp.lifecycle.ChangeTracker
 import lang.ktav.lsp.lifecycle.ProjectClientLifecycle

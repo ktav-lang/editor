@@ -1,4 +1,4 @@
-package lang.ktav.lsp
+package lang.ktav.lsp.formatting
 
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
@@ -10,13 +10,14 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.util.TextRange
 import com.intellij.testFramework.TestApplicationManager
+import lang.ktav.lsp.KtavFormattingService
 import lang.ktav.lsp.lifecycle.RecordingSyncClient
 import lang.ktav.lsp.lifecycle.TestProject
 import lang.ktav.lsp.lifecycle.edit
 import lang.ktav.lsp.lifecycle.withCurrentOnEdt
 import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource

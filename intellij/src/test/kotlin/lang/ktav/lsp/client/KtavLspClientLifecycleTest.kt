@@ -1,7 +1,8 @@
-package lang.ktav.lsp
+package lang.ktav.lsp.client
 
 import com.google.gson.JsonObject
 import com.intellij.testFramework.TestApplicationManager
+import lang.ktav.lsp.TestLspProcess
 import lang.ktav.lsp.client.LspTransport
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeAll

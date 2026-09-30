@@ -1,4 +1,4 @@
-package lang.ktav.lsp
+package lang.ktav.lsp.client
 
 import lang.ktav.lsp.client.KtavServerDiscovery
 import org.junit.jupiter.api.Assertions.assertEquals

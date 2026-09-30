@@ -82,7 +82,7 @@ class ArchiveValidationTest(unittest.TestCase):
 
     def test_test_code_is_excluded(self) -> None:
         files = sample()
-        files["out/test/runVsixSmoke.js"] = (b"test", 0o644)
+        files["out/test/vsix/runVsixSmoke.js"] = (b"test", 0o644)
         self.check(files, False)
 
 

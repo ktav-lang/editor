@@ -144,8 +144,11 @@ intellijPlatform {
             // The latter follows JetBrains metadata which sometimes lists
             // the upcoming release before its artefact is uploaded — that
             // breaks the verifier with `Could not find idea:ideaIC:X.Y`.
-            // The pinned set covers our since-build floor (2024.3 / 243)
-            // through the latest published stable.
+            // The pinned set covers the since-build floor (2023.1 / 231), a
+            // mid-range build (2024.1) and 2024.3 through the latest stable.
+            // 231, 233, 241, 243, 251 and 252 all verified Compatible.
+            ide("IC-2023.1.7")
+            ide("IC-2024.1.7")
             ide("IC-2024.3")
             ide("IC-2025.1")
             ide("IC-2025.2")

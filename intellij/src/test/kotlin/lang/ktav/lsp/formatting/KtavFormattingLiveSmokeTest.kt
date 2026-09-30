@@ -1,11 +1,14 @@
-package lang.ktav.lsp
+package lang.ktav.lsp.formatting
 
+import com.intellij.application.options.CodeStyle
 import com.intellij.formatting.FormattingContext
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.application.options.CodeStyle
 import com.intellij.testFramework.runInEdtAndWait
 import com.intellij.util.ui.UIUtil
 import lang.ktav.KtavFileType
+import lang.ktav.lsp.KtavFormattingService
+import lang.ktav.lsp.LocalPlatformTestCase
+import lang.ktav.lsp.UriUtil
 import lang.ktav.lsp.lifecycle.ChangeTracker
 import lang.ktav.lsp.lifecycle.getLspService
 import lang.ktav.lsp.settings.KtavSettings
