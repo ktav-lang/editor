@@ -1,6 +1,7 @@
 package lang.ktav.lsp
 
 import com.intellij.openapi.util.Disposer
+import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.util.registry.Registry
 import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.testFramework.TestApplicationManager
@@ -16,9 +17,10 @@ abstract class LocalPlatformTestCase : BasePlatformTestCase() {
 
     override fun setUp() {
         TestApplicationManager.getInstance()
-        // IJPL-178929: the WSL test service class is not shipped in the external SDK.
-        // These fixtures exercise local documents only; disable the unrelated WSL route before project startup.
-        Registry.get("wsl.use.remote.agent.for.nio.filesystem").setValue(false, localFilesystem)
+        // IJPL-178929: the external Windows SDK omits the WSL test service.
+        if (SystemInfo.isWindows) {
+            Registry.get("wsl.use.remote.agent.for.nio.filesystem").setValue(false, localFilesystem)
+        }
         try {
             super.setUp()
         } catch (failure: Throwable) {
