@@ -10,7 +10,9 @@ async function main(): Promise<void> {
     await runTests({
       extensionDevelopmentPath,
       extensionTestsPath,
-      launchArgs: ["--disable-extensions"],
+      // No GPU under xvfb: software rendering can stall the window long
+      // enough for VS Code to report it unresponsive and abort the run.
+      launchArgs: ["--disable-extensions", "--disable-gpu", "--disable-dev-shm-usage"],
     });
   } catch (err) {
     console.error("Failed to run tests:", err);

@@ -56,6 +56,9 @@ async function main(): Promise<void> {
         fixtureCopy,
         `--extensions-dir=${extensionsDir}`,
         `--user-data-dir=${userDataDir}`,
+        // Same xvfb stall guard as runTest.ts.
+        "--disable-gpu",
+        "--disable-dev-shm-usage",
       ],
     });
   } finally {
