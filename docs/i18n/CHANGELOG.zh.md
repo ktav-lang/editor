@@ -246,8 +246,8 @@ MINOR 递进视为破坏性变更。
 
 ### 仓库与发布工具
 
-- IntelliJ 本地文件 fixture 仅在 Windows 应用 WSL registry 覆盖；
-  Linux 不访问该平台专用 SDK 键。
+- IntelliJ CI 构建锁定的 `ktav-lsp` 以运行真实格式化 smoke；
+  本地文件 fixture 仅在 Windows 应用平台专用 WSL registry 覆盖。
 - IntelliJ 重建 helper 使用当前 checkout 及显式选择的 IDE/平台路径，
   不终止进程或清理 IDE 缓存、日志、其他插件及归档。Python 3 通过 staging
   安装 ZIP 并保留 Unix 可执行权限。

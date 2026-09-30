@@ -294,6 +294,9 @@ tasks {
     }
     test {
         useJUnitPlatform()
+        if (providers.environmentVariable("KTAV_LSP_SMOKE_BINARY").orNull.isNullOrBlank()) {
+            exclude("**/KtavFormattingLiveSmokeTest.class")
+        }
     }
 
 }

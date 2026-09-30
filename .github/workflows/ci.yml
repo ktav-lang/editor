@@ -189,9 +189,17 @@ jobs:
           # (the ktav-lang/spec submodule). Other jobs don't read the
           # submodule directly but recursive checkout costs little.
           submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: lsp
+      - name: Build current ktav-lsp for the live platform smoke
+        run: cargo build --locked --release --manifest-path "$GITHUB_WORKSPACE/lsp/Cargo.toml"
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew test verifyPlugin --no-daemon
+        env:
+          KTAV_LSP_SMOKE_BINARY: ${{ github.workspace }}/lsp/target/release/ktav-lsp

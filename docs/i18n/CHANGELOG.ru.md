@@ -323,8 +323,8 @@ VS Code, плагин IntelliJ, LSP-сервер, общая TextMate-грамм
 
 ### Репозиторий и релизная оснастка
 
-- IntelliJ fixtures локальных файлов применяют WSL registry override только
-  в Windows; Linux не обращается к платформенному ключу SDK.
+- IntelliJ CI собирает закреплённый `ktav-lsp` для живого smoke форматирования;
+  fixtures локальных файлов применяют WSL registry override только в Windows.
 - IntelliJ rebuild-helper использует текущий checkout и явно выбранные пути
   IDE/платформы. Он не завершает процессы и не удаляет кэши, логи, чужие
   плагины или архивы. Python 3 устанавливает ZIP через staging с сохранением

@@ -299,8 +299,8 @@ and the `\uXXXX` escape were introduced in 0.7.0.
 
 ### Repository and release tooling
 
-- IntelliJ local-file fixtures apply the WSL registry override only on Windows;
-  Linux does not access that platform-specific SDK key.
+- IntelliJ CI builds the locked `ktav-lsp` for live formatting smoke; local-file
+  fixtures apply the platform-specific WSL registry override only on Windows.
 - The IntelliJ rebuild helper uses the current checkout and explicitly
   selected IDE/platform paths. It never kills processes or clears IDE caches,
   logs, unrelated plugins or archives. Python 3 stages ZIP installation and

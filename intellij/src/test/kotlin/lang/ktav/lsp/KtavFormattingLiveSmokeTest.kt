@@ -9,7 +9,6 @@ import lang.ktav.KtavFileType
 import lang.ktav.lsp.lifecycle.ChangeTracker
 import lang.ktav.lsp.lifecycle.getLspService
 import lang.ktav.lsp.settings.KtavSettings
-import org.junit.Assume.assumeTrue
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -17,9 +16,10 @@ import java.util.concurrent.TimeUnit
 /** Opt-in smoke against the actual ktav-lsp binary, including discovery and platform callbacks. */
 class KtavFormattingLiveSmokeTest : LocalPlatformTestCase() {
     fun testLiveServerFormattingUsesChangesAndReopenedDocument() {
-        val binary = System.getenv("KTAV_LSP_SMOKE_BINARY")
-        assumeTrue("Set KTAV_LSP_SMOKE_BINARY to run the live IntelliJ/LSP smoke", !binary.isNullOrBlank())
-        check(File(binary!!).isFile) { "KTAV_LSP_SMOKE_BINARY is not a file" }
+        val binary = checkNotNull(System.getenv("KTAV_LSP_SMOKE_BINARY")?.takeIf { it.isNotBlank() }) {
+            "Set KTAV_LSP_SMOKE_BINARY to run the live IntelliJ/LSP smoke"
+        }
+        check(File(binary).isFile) { "KTAV_LSP_SMOKE_BINARY is not a file" }
         val settings = KtavSettings.getInstance().state
         val previousPath = settings.serverPath
         settings.serverPath = binary
