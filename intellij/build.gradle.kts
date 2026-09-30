@@ -18,9 +18,11 @@ plugins {
 
 group = "lang.ktav"
 // Version + build timestamp so users can see in IDE whether the installed
-// build is fresh. Format: "0.1.5+20260507-1638"
-version = providers.gradleProperty("pluginVersion").get() +
-    "+" + SimpleDateFormat("yyyyMMdd-HHmm").format(Date())
+// build is fresh. Format: "0.1.5+20260507-1638". KTAV_BUILD_STAMP pins the
+// stamp so every Gradle run of one release builds the same version.
+version = providers.gradleProperty("pluginVersion").get() + "+" +
+    (providers.environmentVariable("KTAV_BUILD_STAMP").orNull?.takeIf { it.isNotBlank() }
+        ?: SimpleDateFormat("yyyyMMdd-HHmm").format(Date()))
 
 repositories {
     mavenCentral()
@@ -280,14 +282,17 @@ tasks.register<Zip>("_repackageWithBinaries") {
 }
 
 // Make buildPlugin task run the repackaging automatically.
-// verifyPlugin reads the same ZIP path our `_repackageWithBinaries`
-// rewrites — declare an explicit dependency so Gradle knows the
-// repackage task must run first (otherwise: "uses this output without
-// declaring dependency" validation error).
+// verifyPlugin and publishPlugin read the same ZIP path our
+// `_repackageWithBinaries` rewrites — declare an explicit dependency so
+// Gradle knows the repackage task must run first (otherwise: "uses this
+// output without declaring dependency" validation error).
 tasks.named("buildPlugin") {
     finalizedBy("_repackageWithBinaries")
 }
 tasks.named("verifyPlugin") {
+    dependsOn("_repackageWithBinaries")
+}
+tasks.named("publishPlugin") {
     dependsOn("_repackageWithBinaries")
 }
 

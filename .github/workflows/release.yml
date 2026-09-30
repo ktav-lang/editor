@@ -398,6 +398,12 @@ jobs:
           chmod +x "$D/linux-x64/ktav-lsp" "$D/linux-arm64/ktav-lsp" "$D/darwin-x64/ktav-lsp" "$D/darwin-arm64/ktav-lsp"
           ls -lhR "$D"
 
+      # The plugin version carries a build stamp. Take it from the commit so
+      # both Gradle runs below, and any re-run of this tag, build one version
+      # and one zip name instead of a new one per run.
+      - name: Pin build stamp to the commit
+        shell: bash
+        run: echo "KTAV_BUILD_STAMP=$(TZ=UTC git log -1 --format=%cd --date=format-local:%Y%m%d-%H%M)" >> "$GITHUB_ENV"
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
