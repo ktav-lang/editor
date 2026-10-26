@@ -32,7 +32,7 @@ Drop this into your `init.el` (or a file on `load-path`):
 Install the server:
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Verify with `M-x eglot` after opening a `.ktav` file — the

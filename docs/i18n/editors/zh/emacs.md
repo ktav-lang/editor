@@ -31,7 +31,7 @@
 安装服务器:
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 打开 `.ktav` 文件后用 `M-x eglot` 验证 —— modeline 应显示

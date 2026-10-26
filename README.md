@@ -105,7 +105,7 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Then `cargo install ktav-lsp --version 0.8.0 --locked`.
+Then `cargo install ktav-lsp --version 0.8.1 --locked`.
 
 ### Neovim
 
@@ -124,7 +124,7 @@ require("lspconfig.configs").ktav = {
 require("lspconfig").ktav.setup({})
 ```
 
-Then `cargo install ktav-lsp --version 0.8.0 --locked`.
+Then `cargo install ktav-lsp --version 0.8.1 --locked`.
 
 ### Other editors
 

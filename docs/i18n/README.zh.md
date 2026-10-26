@@ -101,7 +101,7 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-然后执行 `cargo install ktav-lsp --version 0.8.0 --locked`。
+然后执行 `cargo install ktav-lsp --version 0.8.1 --locked`。
 
 ### Neovim
 
@@ -120,7 +120,7 @@ require("lspconfig.configs").ktav = {
 require("lspconfig").ktav.setup({})
 ```
 
-然后执行 `cargo install ktav-lsp --version 0.8.0 --locked`。
+然后执行 `cargo install ktav-lsp --version 0.8.1 --locked`。
 
 ### 其他编辑器
 

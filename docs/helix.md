@@ -18,10 +18,10 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Install the language server (Rust 1.88+ for the locked 0.8.0 build):
+Install the language server (Rust 1.88+ for the locked 0.8.1 build):
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Verify with `:lsp-restart` after opening a `.ktav` file. Diagnostics

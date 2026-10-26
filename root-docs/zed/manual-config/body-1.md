@@ -24,10 +24,10 @@ can be configured in `.zed/settings.json`, for example:
 }
 ```
 
-Install the server (Rust 1.88+ for the locked 0.8.0 build):
+Install the server (Rust 1.88+ for the locked 0.8.1 build):
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Use the language and adapter names registered by your extension.
@@ -62,10 +62,10 @@ language server `ktav-lsp`. Этот репозиторий такое расш�
 }
 ```
 
-Установите сервер (для locked-сборки 0.8.0 нужен Rust 1.88+):
+Установите сервер (для locked-сборки 0.8.1 нужен Rust 1.88+):
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Используйте имена языка и адаптера, зарегистрированные расширением.
@@ -98,10 +98,10 @@ cargo install ktav-lsp --version 0.8.0 --locked
 }
 ```
 
-安装服务器(锁定的 0.8.0 构建需要 Rust 1.88+):
+安装服务器(锁定的 0.8.1 构建需要 Rust 1.88+):
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 请使用扩展注册的语言和适配器名称。语法高亮还需要 Ktav

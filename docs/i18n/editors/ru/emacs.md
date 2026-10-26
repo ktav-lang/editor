@@ -32,7 +32,7 @@ Emacs 29).
 Установите сервер:
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Проверьте `M-x eglot` после открытия файла `.ktav` — в modeline

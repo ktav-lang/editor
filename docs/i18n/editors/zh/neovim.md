@@ -26,7 +26,7 @@ require("lspconfig").ktav.setup({})
 安装服务器:
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 打开 `.ktav` 文件后用 `:LspInfo` 验证 —— `ktav` 客户端应显示为

@@ -31,11 +31,11 @@ cargo install ktav-lsp
 This drops a `ktav-lsp` binary into `~/.cargo/bin/`. No configuration file
 required.
 
-An ordinary install may resolve newer transitive dependencies. Once 0.8.0 is
+An ordinary install may resolve newer transitive dependencies. Once 0.8.1 is
 published, reproduce that release's dependency graph with:
 
 ```bash
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 ## Editor setup

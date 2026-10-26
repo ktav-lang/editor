@@ -23,7 +23,7 @@ require("lspconfig").ktav.setup({})
 Install the server:
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Verify with `:LspInfo` after opening a `.ktav` file — the `ktav`
@@ -61,7 +61,7 @@ require("lspconfig").ktav.setup({})
 Установите сервер:
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Проверьте `:LspInfo` после открытия файла `.ktav` — клиент `ktav`
@@ -99,7 +99,7 @@ require("lspconfig").ktav.setup({})
 安装服务器:
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 打开 `.ktav` 文件后用 `:LspInfo` 验证 —— `ktav` 客户端应显示为

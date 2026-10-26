@@ -4,6 +4,10 @@
 # `git status` from Windows clients.
 * text=auto eol=lf
 
+# Polydoc сохраняет пустую строку после абзаца source unit.
+root-docs/**/body-*.md whitespace=-blank-at-eof
+*/root-docs/**/body-*.md whitespace=-blank-at-eof
+
 # Gradle wrapper script must stay LF for Linux/macOS builds; gradle.bat
 # stays CRLF for Windows.
 intellij/gradlew text eol=lf

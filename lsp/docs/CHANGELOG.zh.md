@@ -7,6 +7,13 @@
 
 **Languages:** [English](../CHANGELOG.md) · [Русский](CHANGELOG.ru.md) · **简体中文**
 
+## [0.8.1] — 未发布
+
+固定 `ktav = "=0.8.1"` 和 spec `v0.8.1`，一致性语料从 319 增至
+340 个样例。到 EOF 仍未闭合的显式根现在产生 LSP 错误；回归测试
+固定从起始符到 EOF 的范围，覆盖 LF、CRLF 和单独 CR。
+大写进制前缀仍为字符串。不包含 0.9 API。
+
 ## [0.8.0] — 2026-09-30
 
 全部三个组件(`ktav-lsp`、VS Code 扩展、IntelliJ 插件)随 `ktav` crate 与

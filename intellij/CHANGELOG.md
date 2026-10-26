@@ -12,6 +12,13 @@ twenty lines are forwarded by the build (see `build.gradle.kts`
 `changeNotes` mapping), so keep recent releases at the top and prefer
 short bullet points.
 
+## [0.8.1] — Unreleased
+
+Align the plugin and bundled LSP version on 0.8.1. The Kotlin lexer corpus
+guard now requires all 228 valid spec fixtures; regression vectors cover
+uppercase octal/binary and signed base prefixes as Strings. The LSP
+supplies the explicit-root EOF diagnostic fix. Update EN/RU/ZH docs.
+
 ## [0.8.0] — 2026-09-30
 
 All three components (`ktav-lsp`, the VS Code extension, the IntelliJ

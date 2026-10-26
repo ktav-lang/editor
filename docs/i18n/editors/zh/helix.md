@@ -18,10 +18,10 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-安装 language server(锁定的 0.8.0 构建需要 Rust 1.88+):
+安装 language server(锁定的 0.8.1 构建需要 Rust 1.88+):
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 打开 `.ktav` 文件后用 `:lsp-restart` 验证。诊断信息内联显示;

@@ -27,10 +27,10 @@ cargo install ktav-lsp
 
 这会将 `ktav-lsp` 二进制安装到 `~/.cargo/bin/`。无需配置文件。
 
-普通安装可能解析到更新的传递依赖。0.8.0 发布后，可用以下命令复现该版本的依赖图：
+普通安装可能解析到更新的传递依赖。0.8.1 发布后，可用以下命令复现该版本的依赖图：
 
 ```bash
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 ## 编辑器配置

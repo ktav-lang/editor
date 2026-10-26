@@ -15,6 +15,22 @@ MINOR 递进视为破坏性变更。
 后者请见
 [`ktav-lang/spec`](https://github.com/ktav-lang/spec/blob/main/CHANGELOG.md)。
 
+## [0.8.1] — 未发布
+
+- LSP、VS Code 和 IntelliJ 版本同步至 0.8.1。服务器固定
+  `ktav = "=0.8.1"`，spec 子模块固定在 `v0.8.1`，不引入 0.9 的工作。
+- 参考解析器拒绝到 EOF 仍未闭合的显式根容器。LSP 回归测试固定从
+  起始符到 EOF 的诊断范围，覆盖 LF、CRLF、单独 CR，以及已闭合的嵌套值。
+- 只有小写 `0x`/`0o`/`0b` 前缀是数值：`0x1A` 是 Integer，
+  `0X1A`、`0O17`、`0B101` 及带符号的大写前缀形式仍为 String。
+  TextMate 和 IntelliJ 回归向量保持这一区别。
+- 一致性检查覆盖五类共 340 个规范样例：228 valid、90 invalid、
+  5 unrepresentable、4 parseable-unrepresentable、13 strict-lossy。
+  IDE 词法测试覆盖全部 228 个有效样例；无效 UTF-8 在语料边界检查，
+  不作为 LSP 文本发送。
+- 安装指南和组件变更日志同步更新英语、俄语和中文。
+  Source-edit 和 0.9 错误模型不属于 0.8.1。
+
 ## [0.8.0] — 2026-09-30
 
 同步至 `ktav` crate 与 `ktav-lang/spec` `0.8.0`。唯一普遍适用的破坏性

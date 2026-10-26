@@ -31,10 +31,10 @@ language server `ktav-lsp`. Этот репозиторий такое расш�
 }
 ```
 
-Установите сервер (для locked-сборки 0.8.0 нужен Rust 1.88+):
+Установите сервер (для locked-сборки 0.8.1 нужен Rust 1.88+):
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Используйте имена языка и адаптера, зарегистрированные расширением.
