@@ -1,5 +1,5 @@
 // Cross-cutting coverage test: runs the shared TextMate grammar
-// (../../../../grammars/ktav.tmLanguage.json) over the FULL Ktav 0.8.0
+// (../../../../grammars/ktav.tmLanguage.json) over the FULL Ktav 0.8.1
 // conformance corpus (spec/versions/0.8/tests), not just the hand-picked
 // vectors in grammar-tokens.test.ts. Two properties are checked for every
 // `valid/**/<name>.ktav` fixture:
@@ -44,7 +44,7 @@ const CORPUS_ROOT = path.join(
   "tests",
 );
 const MANIFEST_PATH = path.join(CORPUS_ROOT, "manifest.json");
-const EXPECTED_VALID_FIXTURE_COUNT = 223;
+const EXPECTED_VALID_FIXTURE_COUNT = 228;
 const VALID_ROOT = path.join(CORPUS_ROOT, "valid");
 const INVALID_ROOT = path.join(CORPUS_ROOT, "invalid");
 

@@ -1,5 +1,6 @@
 export default [
   "preamble",
+  "v0-8-1",
   "unreleased-intro",
   "unreleased-lsp",
   "unreleased-grammar",

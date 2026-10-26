@@ -73,7 +73,7 @@ class KtavCorpusCoverageTest {
     private fun assertValidFixtureCount(fixtures: List<File>) {
         val manifest = JsonParser.parseString(manifestFile.readText(Charsets.UTF_8)).asJsonObject
         val expected = manifest.getAsJsonObject("categories").getAsJsonObject("valid").get("count").asInt
-        assertEquals("manifest must lock the valid corpus at 223 fixtures", 223, expected)
+        assertEquals("manifest must lock the valid corpus at 228 fixtures", 228, expected)
         assertEquals("valid corpus fixture count under $validRoot", expected, fixtures.size)
     }
 

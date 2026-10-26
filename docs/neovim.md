@@ -26,7 +26,7 @@ require("lspconfig").ktav.setup({})
 Install the server:
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Verify with `:LspInfo` after opening a `.ktav` file — the `ktav`

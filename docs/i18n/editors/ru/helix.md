@@ -18,10 +18,10 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Установите language server (для locked-сборки 0.8.0 нужен Rust 1.88+):
+Установите language server (для locked-сборки 0.8.1 нужен Rust 1.88+):
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Проверьте `:lsp-restart` после открытия файла `.ktav`. Диагностика

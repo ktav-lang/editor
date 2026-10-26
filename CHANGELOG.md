@@ -15,6 +15,23 @@ This changelog tracks **editor/IDE support releases**, not changes to
 the Ktav format itself — for the latter see
 [`ktav-lang/spec`](https://github.com/ktav-lang/spec/blob/main/CHANGELOG.md).
 
+## [0.8.1] — 2026-10-26
+
+- Align the LSP, VS Code and IntelliJ versions on 0.8.1. The server pins
+  `ktav = "=0.8.1"`; the spec submodule pins `v0.8.1`, not the 0.9 work.
+- The reference parser now rejects explicit roots left open at EOF.
+  LSP regressions pin the diagnostic range from the opener through EOF
+  for LF, CRLF and lone CR, including a root with a closed nested value.
+- Only lowercase `0x`/`0o`/`0b` prefixes are numeric: `0x1A` is an Integer,
+  while `0X1A`, `0O17`, `0B101` and signed uppercase forms remain Strings.
+  TextMate and IntelliJ regression vectors preserve that distinction.
+- Conformance guards track all 340 spec fixtures across five categories:
+  228 valid, 90 invalid, 5 unrepresentable, 4 parseable-unrepresentable
+  and 13 strict-lossy. IDE lexer suites cover all 228 valid fixtures;
+  raw invalid UTF-8 is checked at the corpus boundary, not sent as LSP text.
+- Update installation guides and component changelogs in English, Russian
+  and Chinese. Source-edit and the 0.9 error model are not part of 0.8.1.
+
 ## [0.8.0] — 2026-09-30
 
 Tracks `ktav` Rust crate `0.8.0` and `ktav-lang/spec` `0.8.0`. The

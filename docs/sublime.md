@@ -8,7 +8,7 @@ package.
 ## Install
 
 1. Package Control → Install Package → **LSP**
-2. `cargo install ktav-lsp --version 0.8.0 --locked`
+2. `cargo install ktav-lsp --version 0.8.1 --locked`
 
 ## Configure
 

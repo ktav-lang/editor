@@ -7,7 +7,7 @@ Sublime Text 4 с пакетом [`LSP`](https://packagecontrol.io/packages/LSP)
 ## Установка
 
 1. Package Control → Install Package → **LSP**
-2. `cargo install ktav-lsp --version 0.8.0 --locked`
+2. `cargo install ktav-lsp --version 0.8.1 --locked`
 
 ## Настройка
 

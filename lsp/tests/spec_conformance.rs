@@ -2,7 +2,7 @@
 //! `<repo>/spec/versions/0.8/tests/` (a git submodule of `ktav-lang/spec`)
 //! and exercise the `ktav` reference crate (`ktav::parse` /
 //! `ktav::parse_strict`) plus the LSP's `parse_for_diagnostics` wrapper
-//! against every fixture. Pinned to spec 0.8.0 / `ktav = "0.8"`.
+//! against every fixture. Pinned to spec 0.8.1 / `ktav = "0.8"`.
 //!
 //! Per-category contract:
 //!
@@ -56,8 +56,8 @@ const SUPPORTED_MANIFEST_SCHEMA: u64 = 1;
 /// fewer cases than the corpus defines (or more, from a category that
 /// grew without anyone noticing).
 const EXPECTED_CATEGORIES: [(&str, u64); 5] = [
-    ("valid", 223),
-    ("invalid", 74),
+    ("valid", 228),
+    ("invalid", 90),
     ("unrepresentable", 5),
     ("parseable-unrepresentable", 4),
     ("strict-lossy", 13),
@@ -70,14 +70,14 @@ const EXPECTED_CATEGORIES: [(&str, u64); 5] = [
 /// assumed — see `read_valid_fixture_texts`.
 const EXPECTED_NON_UTF8_VALID_FIXTURES: usize = 0;
 
-/// Locate the pinned spec 0.8.0 conformance corpus and validate its
+/// Locate the pinned spec 0.8.1 conformance corpus and validate its
 /// manifest. Panics with a clear message if the `spec` submodule was
 /// not checked out, instead of the old behaviour of every test quietly
 /// `return`ing early (green locally on a shallow clone, and — had CI
 /// ever lost `submodules: recursive` — silently green there too).
 fn spec_tests_dir() -> PathBuf {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    // Spec 0.8.0 conformance corpus, matching the `ktav = "0.8"` floor.
+    // Spec 0.8.1 conformance corpus, matching the `ktav = "0.8"` floor.
     let root = Path::new(manifest_dir).join("../spec/versions/0.8/tests");
     assert!(
         root.join("valid").is_dir() && root.join("invalid").is_dir(),

@@ -84,7 +84,7 @@ Platform 插件的形式封装。
 2. 打包在插件分发包中的二进制
    `lib/bin/<platform>-<arch>/ktav-lsp`,每个受支持平台各一份。
 3. 通过 shell `PATH` 解析的 `ktav-lsp` —— 用
-   `cargo install ktav-lsp --version 0.8.0 --locked` 安装(与 VS Code 扩展的查找顺序一致)。
+   `cargo install ktav-lsp --version 0.8.1 --locked` 安装(与 VS Code 扩展的查找顺序一致)。
 
 ## 本地构建
 

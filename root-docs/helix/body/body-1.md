@@ -15,10 +15,10 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Install the language server (Rust 1.88+ for the locked 0.8.0 build):
+Install the language server (Rust 1.88+ for the locked 0.8.1 build):
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Verify with `:lsp-restart` after opening a `.ktav` file. Diagnostics
@@ -48,10 +48,10 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-Установите language server (для locked-сборки 0.8.0 нужен Rust 1.88+):
+Установите language server (для locked-сборки 0.8.1 нужен Rust 1.88+):
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 Проверьте `:lsp-restart` после открытия файла `.ktav`. Диагностика
@@ -81,10 +81,10 @@ language-servers = ["ktav-lsp"]
 command = "ktav-lsp"
 ```
 
-安装 language server(锁定的 0.8.0 构建需要 Rust 1.88+):
+安装 language server(锁定的 0.8.1 构建需要 Rust 1.88+):
 
 ```sh
-cargo install ktav-lsp --version 0.8.0 --locked
+cargo install ktav-lsp --version 0.8.1 --locked
 ```
 
 打开 `.ktav` 文件后用 `:lsp-restart` 验证。诊断信息内联显示;

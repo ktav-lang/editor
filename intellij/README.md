@@ -93,7 +93,7 @@ The server binary is discovered in this order:
 2. The binary bundled inside the plugin distribution at
    `lib/bin/<platform>-<arch>/ktav-lsp`, one per supported platform.
 3. `ktav-lsp` resolved via your shell `PATH` — install it with
-   `cargo install ktav-lsp --version 0.8.0 --locked` (matches the VS Code extension's
+   `cargo install ktav-lsp --version 0.8.1 --locked` (matches the VS Code extension's
    discovery order).
 
 ## Building locally

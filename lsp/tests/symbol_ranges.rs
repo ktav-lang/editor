@@ -448,7 +448,7 @@ fn pinned_parseable_symbol_corpus_has_source_boundaries_and_containing_parents()
     }
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../spec/versions/0.8/tests");
     for (category, expected) in [
-        ("valid", 446),
+        ("valid", 456),
         ("parseable-unrepresentable", 4),
         ("strict-lossy", 13),
     ] {

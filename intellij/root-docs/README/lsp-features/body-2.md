@@ -12,7 +12,7 @@ The server binary is discovered in this order:
 2. The binary bundled inside the plugin distribution at
    `lib/bin/<platform>-<arch>/ktav-lsp`, one per supported platform.
 3. `ktav-lsp` resolved via your shell `PATH` — install it with
-   `cargo install ktav-lsp --version 0.8.0 --locked` (matches the VS Code extension's
+   `cargo install ktav-lsp --version 0.8.1 --locked` (matches the VS Code extension's
    discovery order).
 
 >>>>> lang=ru
@@ -31,7 +31,7 @@ Undo), закрытие/повторное открытие, закрытие п
    `lib/bin/<platform>-<arch>/ktav-lsp` — по одному на каждую
    поддерживаемую платформу.
 3. `ktav-lsp`, найденный через `PATH` вашей оболочки — установите
-   его командой `cargo install ktav-lsp --version 0.8.0 --locked` (совпадает с порядком
+   его командой `cargo install ktav-lsp --version 0.8.1 --locked` (совпадает с порядком
    поиска в расширении VS Code).
 
 >>>>> lang=zh
@@ -46,5 +46,5 @@ Undo), закрытие/повторное открытие, закрытие п
 2. 打包在插件分发包中的二进制
    `lib/bin/<platform>-<arch>/ktav-lsp`,每个受支持平台各一份。
 3. 通过 shell `PATH` 解析的 `ktav-lsp` —— 用
-   `cargo install ktav-lsp --version 0.8.0 --locked` 安装(与 VS Code 扩展的查找顺序一致)。
+   `cargo install ktav-lsp --version 0.8.1 --locked` 安装(与 VS Code 扩展的查找顺序一致)。
 
