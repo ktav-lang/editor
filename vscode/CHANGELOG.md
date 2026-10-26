@@ -2,7 +2,7 @@
 
 **Languages:** **English** · [Русский](docs/CHANGELOG.ru.md) · [简体中文](docs/CHANGELOG.zh.md)
 
-## [0.8.1] — Unreleased
+## [0.8.1] — 2026-10-26
 
 Align with `ktav-lsp` 0.8.1. TextMate corpus coverage grows to all 228
 valid spec 0.8.1 fixtures; explicit vectors keep `0O17`, `0B101` and

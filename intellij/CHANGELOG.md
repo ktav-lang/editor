@@ -12,7 +12,7 @@ twenty lines are forwarded by the build (see `build.gradle.kts`
 `changeNotes` mapping), so keep recent releases at the top and prefer
 short bullet points.
 
-## [0.8.1] — Unreleased
+## [0.8.1] — 2026-10-26
 
 Align the plugin and bundled LSP version on 0.8.1. The Kotlin lexer corpus
 guard now requires all 228 valid spec fixtures; regression vectors cover

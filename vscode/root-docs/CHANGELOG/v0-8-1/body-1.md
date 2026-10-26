@@ -1,5 +1,5 @@
 >>>>> lang=en
-## [0.8.1] — Unreleased
+## [0.8.1] — 2026-10-26
 
 Align with `ktav-lsp` 0.8.1. TextMate corpus coverage grows to all 228
 valid spec 0.8.1 fixtures; explicit vectors keep `0O17`, `0B101` and
@@ -7,7 +7,7 @@ signed uppercase prefixes as Strings in pair, array and inline contexts.
 LSP diagnostics inherit the explicit-root EOF fix. Update EN/RU/ZH docs.
 
 >>>>> lang=ru
-## [0.8.1] — Не выпущено
+## [0.8.1] — 2026-10-26
 
 Синхронизация с `ktav-lsp` 0.8.1. Corpus-проверка TextMate охватывает все
 228 valid-фикстур spec 0.8.1; отдельные векторы сохраняют `0O17`, `0B101`
@@ -16,7 +16,7 @@ LSP diagnostics inherit the explicit-root EOF fix. Update EN/RU/ZH docs.
 обновлена на EN/RU/ZH.
 
 >>>>> lang=zh
-## [0.8.1] — 未发布
+## [0.8.1] — 2026-10-26
 
 与 `ktav-lsp` 0.8.1 同步。TextMate 语料检查覆盖规范 0.8.1 的全部
 228 个有效样例；独立向量确保 `0O17`、`0B101` 及带符号的大写前缀

@@ -15,7 +15,7 @@ MINOR 递进视为破坏性变更。
 后者请见
 [`ktav-lang/spec`](https://github.com/ktav-lang/spec/blob/main/CHANGELOG.md)。
 
-## [0.8.1] — 未发布
+## [0.8.1] — 2026-10-26
 
 - LSP、VS Code 和 IntelliJ 版本同步至 0.8.1。服务器固定
   `ktav = "=0.8.1"`，spec 子模块固定在 `v0.8.1`，不引入 0.9 的工作。

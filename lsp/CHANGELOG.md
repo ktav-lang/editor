@@ -7,7 +7,7 @@ the Cargo convention that a minor bump is breaking while pre-1.0.
 
 **Languages:** **English** · [Русский](docs/CHANGELOG.ru.md) · [简体中文](docs/CHANGELOG.zh.md)
 
-## [0.8.1] — Unreleased
+## [0.8.1] — 2026-10-26
 
 Pin `ktav = "=0.8.1"` and spec `v0.8.1`; update the conformance inventory
 from 319 to 340 fixtures. Explicit roots left open at EOF now produce

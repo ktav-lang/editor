@@ -15,7 +15,7 @@ This changelog tracks **editor/IDE support releases**, not changes to
 the Ktav format itself — for the latter see
 [`ktav-lang/spec`](https://github.com/ktav-lang/spec/blob/main/CHANGELOG.md).
 
-## [0.8.1] — Unreleased
+## [0.8.1] — 2026-10-26
 
 - Align the LSP, VS Code and IntelliJ versions on 0.8.1. The server pins
   `ktav = "=0.8.1"`; the spec submodule pins `v0.8.1`, not the 0.9 work.

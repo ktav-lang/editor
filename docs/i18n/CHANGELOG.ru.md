@@ -16,7 +16,7 @@ VS Code, плагин IntelliJ, LSP-сервер, общая TextMate-грамм
 изменения самого формата Ktav — для последних см.
 [`ktav-lang/spec`](https://github.com/ktav-lang/spec/blob/main/CHANGELOG.md).
 
-## [0.8.1] — Не выпущено
+## [0.8.1] — 2026-10-26
 
 - Версии LSP, VS Code и IntelliJ синхронизированы на 0.8.1. Сервер закрепляет
   `ktav = "=0.8.1"`, подмодуль spec — `v0.8.1`, а не наработки 0.9.

@@ -1,5 +1,5 @@
 >>>>> lang=en
-## [0.8.1] — Unreleased
+## [0.8.1] — 2026-10-26
 
 - Align the LSP, VS Code and IntelliJ versions on 0.8.1. The server pins
   `ktav = "=0.8.1"`; the spec submodule pins `v0.8.1`, not the 0.9 work.
@@ -17,7 +17,7 @@
   and Chinese. Source-edit and the 0.9 error model are not part of 0.8.1.
 
 >>>>> lang=ru
-## [0.8.1] — Не выпущено
+## [0.8.1] — 2026-10-26
 
 - Версии LSP, VS Code и IntelliJ синхронизированы на 0.8.1. Сервер закрепляет
   `ktav = "=0.8.1"`, подмодуль spec — `v0.8.1`, а не наработки 0.9.
@@ -35,7 +35,7 @@
   Source-edit и модель ошибок 0.9 не входят в 0.8.1.
 
 >>>>> lang=zh
-## [0.8.1] — 未发布
+## [0.8.1] — 2026-10-26
 
 - LSP、VS Code 和 IntelliJ 版本同步至 0.8.1。服务器固定
   `ktav = "=0.8.1"`，spec 子模块固定在 `v0.8.1`，不引入 0.9 的工作。
