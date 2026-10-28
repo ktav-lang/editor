@@ -54,7 +54,7 @@ gradle.projectsEvaluated {
         doLast {
             def seen = [:]
             root.allprojects.each { project ->
-                project.configurations.findAll { it.canBeResolved }.each { configuration ->
+                project.configurations.findAll { it.canBeResolved && it.name != "testDependencySources" }.each { configuration ->
                     configuration.resolvedConfiguration.resolvedArtifacts.each { artifact ->
                         def id = artifact.moduleVersion.id
                         def key = "${id.group}:${id.name}:${id.version}:${artifact.file.name}"
