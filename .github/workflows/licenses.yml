@@ -17,6 +17,7 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@b66acf5e9fe20f8aba065be86778a8a4c846f902
         with:
           manifest-path: ./lsp/Cargo.toml
+          arguments: --all-features --locked
           command: check licenses
 
   vscode-licenses:
@@ -50,3 +51,9 @@ jobs:
       - name: Check Gradle configurations and buildscript dependencies
         working-directory: intellij
         run: ./gradlew --no-daemon --no-parallel --no-configure-on-demand -I ../ci/license-init.gradle checkLicense
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: intellij-license-report
+          path: intellij/build/reports/dependency-license
+          if-no-files-found: warn

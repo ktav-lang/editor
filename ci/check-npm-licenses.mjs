@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const require = createRequire(new URL('../vscode/package.json', import.meta.url));
@@ -52,16 +52,47 @@ export function inspectLock(lock) {
   return { failures, restricted };
 }
 
+export function dependencyFreeManifest(pkg) {
+  const fields = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'bundledDependencies', 'bundleDependencies', 'workspaces'];
+  return fields.every((field) => pkg[field] == null || (typeof pkg[field] === 'object' && Object.keys(pkg[field]).length === 0));
+}
+
 export function verifySigningBytes(pkg, archive, licenseText) {
   if (typeof pkg.integrity !== 'string' || !pkg.integrity.startsWith('sha512-')) return false;
   const digest = createHash('sha512').update(archive).digest('base64');
   return pkg.integrity === `sha512-${digest}` && createHash('sha256').update(licenseText).digest('hex') === reviewedSigningLicense;
 }
 
+async function checkManifests(dir = '.') {
+  const known = new Set([
+    'lsp/Cargo.toml', 'lsp/Cargo.lock', 'intellij/build.gradle.kts', 'intellij/settings.gradle.kts',
+    'polydoc/package.json', 'polydoc/package-lock.json', 'vscode/package.json', 'vscode/package-lock.json',
+    'vscode/src/test/vsix/driver/package.json',
+  ]);
+  const pattern = /^(package(-lock)?\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.(toml|lock)|go\.(mod|sum)|pyproject\.toml|requirements[^/]*\.txt|composer\.(json|lock)|pom\.xml|[^/]+\.csproj|build\.gradle(\.kts)?|settings\.gradle(\.kts)?|libs\.versions\.toml|Gemfile(\.lock)?)$/;
+  async function walk(path) {
+    for (const entry of await readdir(path, { withFileTypes: true })) {
+      if ((path === '.' && entry.name === '.git') || entry.name === 'node_modules') continue;
+      const child = join(path, entry.name);
+      if (entry.isSymbolicLink()) throw new Error(`Symlink requires review: ${child}`);
+      if (entry.isDirectory()) await walk(child);
+      else if (pattern.test(entry.name) && !known.has(child)) throw new Error(`New manifest requires review: ${child}`);
+    }
+  }
+  await walk(dir);
+  const settings = await readFile('intellij/settings.gradle.kts');
+  if (createHash('sha256').update(settings).digest('hex') !== 'd904d2c8d153196a43a6ad8000df204372db81837cf0187e832eb4dfa55e661e') {
+    throw new Error('Gradle settings changed; review settings-level dependencies');
+  }
+}
+
 async function main() {
   if (!allowedExpression('CC0-1.0', true) || allowedExpression('CC0-1.0', false)) throw new Error('CC0 development-only policy failed');
+  await checkManifests();
   const vscode = JSON.parse(await readFile('vscode/package-lock.json', 'utf8'));
   const docs = JSON.parse(await readFile('polydoc/package-lock.json', 'utf8'));
+  const driver = JSON.parse(await readFile('vscode/src/test/vsix/driver/package.json', 'utf8'));
+  if (!dependencyFreeManifest(driver)) throw new Error('VSIX driver dependencies require license review');
   const parser = vscode.packages?.['node_modules/spdx-expression-parse'];
   if (parser?.version !== '3.0.1' || parser?.license !== 'MIT') throw new Error('SPDX parser changed; review it first');
   const failures = [];

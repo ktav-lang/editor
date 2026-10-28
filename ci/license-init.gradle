@@ -19,17 +19,26 @@ gradle.projectsEvaluated {
 
     def guard = root.tasks.register("licenseDependencyBoundaries") {
         doLast {
-            def testConfigurations = ["testCompileClasspath", "testRuntimeClasspath", "testAnnotationProcessor"] as Set
+            def testConfigurations = ["testCompileClasspath", "testRuntimeClasspath", "testAnnotationProcessor", "testDependencySources"] as Set
             def forbidden = { group, configuration ->
                 !testConfigurations.contains(configuration) && (group == "junit" || group == "org.junit" || group.startsWith("org.junit."))
             }
             assert forbidden("org.junit.jupiter", "runtimeClasspath")
             assert forbidden("org.junit.jupiter", "contestRuntimeClasspath")
             assert !forbidden("org.junit.jupiter", "testRuntimeClasspath")
+            def inTestGraph = { id, ids -> ids.contains(id) }
+            assert inTestGraph("junit", ["junit"])
+            assert !inTestGraph("junit", ["other"])
             root.allprojects.each { project ->
                 project.configurations.findAll { it.canBeResolved }.each { configuration ->
                     configuration.incoming.resolutionResult.allComponents.each { component ->
                         def id = component.id
+                        if (id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier && configuration.name == "testDependencySources" && (id.group == "junit" || id.group == "org.junit" || id.group.startsWith("org.junit."))) {
+                            def testGraphs = ["testCompileClasspath", "testRuntimeClasspath"].collect { project.configurations.findByName(it) }.findAll { it != null }
+                            if (!testGraphs.any { graph -> inTestGraph(id, graph.incoming.resolutionResult.allComponents.collect { it.id }) }) {
+                                throw new GradleException("Test source dependency ${id} not present in a test graph")
+                            }
+                        }
                         if (id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier && forbidden(id.group, configuration.name)) {
                             throw new GradleException("Unexpected non-test dependency ${id} in ${project.path}:${configuration.name}")
                         }

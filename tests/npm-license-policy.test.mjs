@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
-import { allowedExpression, inspectLock, isReviewedSigningPackage, verifySigningBytes } from '../ci/check-npm-licenses.mjs';
+import { allowedExpression, dependencyFreeManifest, inspectLock, isReviewedSigningPackage, verifySigningBytes } from '../ci/check-npm-licenses.mjs';
 
 const signingPath = 'node_modules/@vscode/vsce-sign';
 const signing = { dev: true, version: '2.0.9', license: 'SEE LICENSE IN LICENSE.txt' };
@@ -23,6 +23,12 @@ test('limits signing-tool exception to the reviewed development packages', () =>
   assert.equal(isReviewedSigningPackage(`${signingPath}-fake`, { ...signing, version: '2.0.6' }), false);
   assert.equal(inspectLock(lock({ [signingPath]: { ...signing, license: 'MIT' } })).failures.length, 1);
   assert.equal(inspectLock(lock({ [signingPath]: signing })).restricted.length, 1);
+});
+
+test('rejects unreviewed VSIX driver dependencies', () => {
+  assert.equal(dependencyFreeManifest({}), true);
+  assert.equal(dependencyFreeManifest({ dependencies: { x: '1' } }), false);
+  assert.equal(dependencyFreeManifest({ workspaces: ['packages/*'] }), false);
 });
 
 test('does not accept unknown, substituted, or unverified data', () => {
