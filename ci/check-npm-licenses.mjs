@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 const require = createRequire(new URL('../vscode/package.json', import.meta.url));
 const parse = require('spdx-expression-parse');
 const unrestricted = new Set(['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', '0BSD', 'Zlib']);
-const developmentOnly = new Set(['BlueOak-1.0.0', 'Artistic-2.0', 'CC-BY-3.0', 'EPL-2.0', 'Python-2.0', 'WTFPL']);
+const developmentOnly = new Set(['BlueOak-1.0.0', 'Artistic-2.0', 'CC-BY-3.0', 'CC0-1.0', 'EPL-2.0', 'Python-2.0', 'WTFPL']);
 const reviewedSigningLicense = '80780388a077c74609a5fc7ee1cc3d382740a5e48d87f7aac5a20cbddef3e91c';
 const platformNames = new Set(['alpine-arm64', 'alpine-x64', 'darwin-arm64', 'darwin-x64', 'linux-arm', 'linux-arm64', 'linux-x64', 'win32-arm64', 'win32-x64']);
 
@@ -59,6 +59,7 @@ export function verifySigningBytes(pkg, archive, licenseText) {
 }
 
 async function main() {
+  if (!allowedExpression('CC0-1.0', true) || allowedExpression('CC0-1.0', false)) throw new Error('CC0 development-only policy failed');
   const vscode = JSON.parse(await readFile('vscode/package-lock.json', 'utf8'));
   const docs = JSON.parse(await readFile('polydoc/package-lock.json', 'utf8'));
   const parser = vscode.packages?.['node_modules/spdx-expression-parse'];

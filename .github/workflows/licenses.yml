@@ -49,4 +49,4 @@ jobs:
           java-version: '17'
       - name: Check Gradle configurations and buildscript dependencies
         working-directory: intellij
-        run: ./gradlew --no-daemon --no-parallel -I ../ci/license-init.gradle checkLicense
+        run: ./gradlew --no-daemon --no-parallel --no-configure-on-demand -I ../ci/license-init.gradle checkLicense
