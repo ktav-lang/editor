@@ -50,5 +50,36 @@ gradle.projectsEvaluated {
             if (!violations.isEmpty()) throw new GradleException(violations.unique().sort().join("\n"))
         }
     }
+    root.tasks.register("licenseArtifactInventory") {
+        doLast {
+            def seen = [:]
+            root.allprojects.each { project ->
+                project.configurations.findAll { it.canBeResolved }.each { configuration ->
+                    configuration.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+                        def id = artifact.moduleVersion.id
+                        def key = "${id.group}:${id.name}:${id.version}:${artifact.file.name}"
+                        if (!seen.containsKey(key)) {
+                            def file = artifact.file
+                            def digest = null
+                            if (file.isFile()) {
+                                def md = java.security.MessageDigest.getInstance("SHA-256")
+                                file.withInputStream { stream ->
+                                    byte[] buffer = new byte[65536]
+                                    int count
+                                    while ((count = stream.read(buffer)) != -1) md.update(buffer, 0, count)
+                                }
+                                digest = md.digest().encodeHex().toString()
+                            }
+                            seen[key] = [group: id.group, name: id.name, version: id.version, file: file.name, sha256: digest, configurations: [] as Set]
+                        }
+                        seen[key].configurations.add("${project.path}:${configuration.name}")
+                    }
+                }
+            }
+            def output = new File(report.absoluteOutputDir, "artifact-fingerprints.json")
+            output.parentFile.mkdirs()
+            output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(seen.values()))
+        }
+    }
     root.tasks.named("checkLicense") { dependsOn(guard) }
 }
