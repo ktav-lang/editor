@@ -1,0 +1,52 @@
+name: License checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lsp-licenses:
+    name: LSP Cargo dependency licenses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@b66acf5e9fe20f8aba065be86778a8a4c846f902
+        with:
+          manifest-path: ./lsp/Cargo.toml
+          command: check licenses
+
+  vscode-licenses:
+    name: VS Code and docs dependency licenses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install without lifecycle scripts
+        working-directory: vscode
+        run: npm ci --ignore-scripts
+      - run: node --test tests/npm-license-policy.test.mjs
+      - run: node ci/check-npm-licenses.mjs
+      - name: Build VSIX without publishing or signing
+        working-directory: vscode
+        run: npx --no-install vsce package --out "$RUNNER_TEMP/ktav.vsix"
+      - name: Check VSIX dependencies and notices
+        run: python ci/check-vsix-licenses.py "$RUNNER_TEMP/ktav.vsix"
+
+  intellij-licenses:
+    name: IntelliJ Gradle dependency licenses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Check Gradle configurations and buildscript dependencies
+        working-directory: intellij
+        run: ./gradlew --no-daemon --no-parallel -I ../ci/license-init.gradle checkLicense
