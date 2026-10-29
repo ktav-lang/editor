@@ -41,7 +41,6 @@ dependencies {
 
         pluginVerifier()
         zipSigner()
-        instrumentationTools()
 
         // Test framework for `BasePlatformTestCase` — required by the
         // commenter-toggle / file-type assertions in `KtavPlatformTest`.
@@ -58,10 +57,7 @@ dependencies {
 }
 
 intellijPlatform {
-    // LOCAL-ONLY (do not commit): skip bytecode instrumentation so the build
-    // doesn't need `java-compiler-ant-tasks` from cache-redirector.jetbrains.com,
-    // which this machine's network can't reach. Instrumentation only adds
-    // runtime @NotNull assertions — no functional impact for a Kotlin plugin.
+    // Инструментация отключена; её зависимости не нужны.
     instrumentCode = false
 
     pluginConfiguration {
