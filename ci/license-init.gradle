@@ -81,5 +81,15 @@ gradle.projectsEvaluated {
             output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(seen.values()))
         }
     }
-    root.tasks.named("checkLicense") { dependsOn(guard) }
+    def sdkGuard = root.tasks.register("checkReviewedSdkLicenses") {
+        dependsOn("licenseArtifactInventory")
+        doLast {
+            root.exec {
+                commandLine("python3", "-I", root.file("../ci/check-sdk-license-evidence.py"),
+                    new File(root.layout.buildDirectory.get().asFile, "license-inventory/artifact-fingerprints.json"),
+                    root.file("../ci/reviewed-intellij-test-licenses.json"), root.file("../ci/allowed-licenses.json"))
+            }
+        }
+    }
+    root.tasks.named("checkLicense") { dependsOn(guard, sdkGuard) }
 }
