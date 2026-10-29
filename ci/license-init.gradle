@@ -70,9 +70,57 @@ gradle.projectsEvaluated {
                                 }
                                 digest = md.digest().encodeHex().toString()
                             }
-                            seen[key] = [group: id.group, name: id.name, version: id.version, file: file.name, sha256: digest, configurations: [] as Set]
+                            def directoryNotices = []
+                            if (file.isDirectory() && id.group == "idea" && id.name == "ideaIC") {
+                                long total = 0
+                                root.fileTree(file).matching {
+                                    include("LICENSE*", "NOTICE*", "license/**", "jbr/legal/**")
+                                }.files.findAll { it.isFile() }.sort { it.path }.each { notice ->
+                                    if (notice.name ==~ /(?i)(.*\.(txt|html|md|license)|LICENSE.*|NOTICE.*|COPYING.*|COPYRIGHT|ASSEMBLY_EXCEPTION|ADDITIONAL_LICENSE_INFO)/) {
+                                        if (!notice.canonicalFile.toPath().startsWith(file.canonicalFile.toPath())) throw new GradleException("SDK notice escapes artifact")
+                                        if (notice.length() > 2 * 1024 * 1024) throw new GradleException("SDK notice exceeds size limit")
+                                        byte[] bytes = notice.bytes
+                                        total += bytes.length
+                                        if (total > 8 * 1024 * 1024 || directoryNotices.size() >= 1000) throw new GradleException("SDK notice inventory exceeds limit")
+                                        def decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                                        def text = decoder.decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+                                        def relative = file.toPath().relativize(notice.toPath()).toString().replace(File.separator, "/")
+                                        directoryNotices << [path: relative, sha256: java.security.MessageDigest.getInstance("SHA-256").digest(bytes).encodeHex().toString(), text: text]
+                                    }
+                                }
+                                if (directoryNotices.isEmpty()) throw new GradleException("SDK directory contains no license evidence")
+                            }
+                            seen[key] = [group: id.group, name: id.name, version: id.version, file: file.name, sha256: digest, directory_notices: directoryNotices, configurations: [] as Set]
                         }
                         seen[key].configurations.add("${project.path}:${configuration.name}")
+                    }
+                }
+            }
+            root.allprojects.each { project ->
+                project.buildscript.configurations.findAll { it.canBeResolved }.each { configuration ->
+                    configuration.incoming.resolutionResult.allComponents.each { component ->
+                        def id = component.id
+                        if (id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier && id.module.endsWith(".gradle.plugin")) {
+                            def cache = new File(gradle.gradleUserHomeDir, "caches/modules-2/files-2.1").canonicalFile
+                            def directory = new File(cache, "${id.group}/${id.module}/${id.version}")
+                            if (!directory.canonicalFile.toPath().startsWith(cache.toPath())) throw new GradleException("Marker metadata escapes cache")
+                            def poms = root.fileTree(directory).matching { include("**/*.pom") }.files
+                            if (poms.isEmpty()) throw new GradleException("Resolved plugin marker has no cached POM: ${id}")
+                            poms.sort { it.path }.each { pom ->
+                                if (!pom.canonicalFile.toPath().startsWith(cache.toPath())) throw new GradleException("Marker POM escapes cache")
+                                if (pom.length() > 65536) throw new GradleException("Marker POM exceeds size limit")
+                                byte[] bytes = pom.bytes
+                                def hash = java.security.MessageDigest.getInstance("SHA-256").digest(bytes).encodeHex().toString()
+                                def key = "${id.group}:${id.module}:${id.version}:${pom.name}"
+                                if (seen.containsKey(key) && seen[key].sha256 != hash) throw new GradleException("Ambiguous cached marker metadata: ${id}")
+                                if (!seen.containsKey(key)) {
+                                    def decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                                    seen[key] = [group: id.group, name: id.module, version: id.version, file: pom.name, sha256: hash,
+                                        metadata_text: decoder.decode(java.nio.ByteBuffer.wrap(bytes)).toString(), artifact_type: "plugin-marker-pom", configurations: [] as Set]
+                                }
+                                seen[key].configurations.add("${project.path}:buildscript:${configuration.name}")
+                            }
+                        }
                     }
                 }
             }
