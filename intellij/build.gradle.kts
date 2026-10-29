@@ -288,6 +288,24 @@ tasks.register<Zip>("_repackageWithBinaries") {
     }
 }
 
+// Лицензии Ktav входят во все JAR проекта.
+tasks.withType<org.gradle.jvm.tasks.Jar>().configureEach {
+    from(layout.projectDirectory.file("../LICENSE-MIT")) { into("META-INF") }
+    from(layout.projectDirectory.file("../LICENSE-APACHE")) { into("META-INF") }
+}
+
+val checkIntellijDistribution = tasks.register("checkIntellijDistribution") {
+    group = "verification"
+    dependsOn("_repackageWithBinaries")
+    doLast {
+        project.exec {
+            commandLine("python3", "-I", layout.projectDirectory.file("../ci/check-intellij-distribution.py").asFile,
+                layout.buildDirectory.dir("distributions").get().asFile, layout.projectDirectory.dir("..").asFile,
+                layout.buildDirectory.file("license-inventory/plugin-distribution.json").get().asFile)
+        }
+    }
+}
+
 // Make buildPlugin task run the repackaging automatically.
 // verifyPlugin and publishPlugin read the same ZIP path our
 // `_repackageWithBinaries` rewrites — declare an explicit dependency so
@@ -297,10 +315,10 @@ tasks.named("buildPlugin") {
     finalizedBy("_repackageWithBinaries")
 }
 tasks.named("verifyPlugin") {
-    dependsOn("_repackageWithBinaries")
+    dependsOn(checkIntellijDistribution)
 }
 tasks.named("publishPlugin") {
-    dependsOn("_repackageWithBinaries")
+    dependsOn(checkIntellijDistribution)
 }
 
 tasks {

@@ -48,6 +48,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Check IntelliJ distribution guard regressions
+        run: python3 -I -m unittest discover -s ci -p test_intellij_distribution.py -v
       - name: Check SDK evidence guard regressions
         run: python3 -I -m unittest discover -s ci -p test_sdk_license_evidence.py -v
       - name: Check Gradle configurations and buildscript dependencies

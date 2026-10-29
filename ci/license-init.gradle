@@ -139,5 +139,5 @@ gradle.projectsEvaluated {
             }
         }
     }
-    root.tasks.named("checkLicense") { dependsOn(guard, sdkGuard) }
+    root.tasks.named("checkLicense") { dependsOn(guard, sdkGuard, root.tasks.named("checkIntellijDistribution")) }
 }
