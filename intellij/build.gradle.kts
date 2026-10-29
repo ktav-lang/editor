@@ -159,6 +159,17 @@ intellijPlatform {
     }
 }
 
+// Plugin добавляет compiler по умолчанию даже при отключённой инструментации.
+configurations.named("intellijPlatformJavaCompiler") {
+    withDependencies {
+        val platform = project.extensions.getByType(
+            org.jetbrains.intellij.platform.gradle.extensions.IntelliJPlatformExtension::class.java
+        )
+        check(!platform.instrumentCode.get()) { "Review compiler dependencies before enabling instrumentation" }
+        clear()
+    }
+}
+
 kotlin {
     jvmToolchain(17)
 }
