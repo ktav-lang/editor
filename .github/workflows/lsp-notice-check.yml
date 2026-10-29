@@ -1,0 +1,150 @@
+name: LSP native notice evidence
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_REF: 2618bf1232f95da464a5cd407cc247ebb76acddd
+
+jobs:
+  lsp-notice-prototype:
+    name: LSP notice / ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve source-backed notice tools and build hook
+        shell: python
+        run: |
+          import os
+          import shutil
+          from pathlib import Path
+          stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
+          stage.mkdir()
+          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py']:
+              target = stage / name
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(name, target)
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Apply notice-only LSP source overlay
+        shell: python
+        run: |
+          import hashlib
+          import json
+          import os
+          import shutil
+          import subprocess
+          from pathlib import Path
+          source_ref = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if source_ref != os.environ['SOURCE_REF']:
+              raise SystemExit('unexpected LSP release source')
+          stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
+          for name in stage.rglob('*'):
+              if not name.is_file():
+                  continue
+              target = Path(name.relative_to(stage))
+              if target.as_posix() == 'lsp/build.rs' and target.exists() and target.read_bytes() != name.read_bytes():
+                  raise SystemExit('existing LSP build hook requires review')
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(name, target)
+          subprocess.run(['git', 'diff', '--exit-code', '--', 'lsp/Cargo.toml', 'lsp/Cargo.lock', 'lsp/src/lib.rs', 'lsp/tests', 'root-docs'], check=True)
+          main = Path('lsp/src/main.rs')
+          original = main.read_bytes()
+          anchor = b'async fn main() {'
+          if original.count(anchor) != 1:
+              raise SystemExit('LSP entry point requires source review')
+          hook = b'include!(concat!(env!("OUT_DIR"), "/native_notices.rs"));'
+          packaged = hook + bytes([10, 10]) + original.replace(anchor, anchor + bytes([10]) + b'    let _ = std::hint::black_box(KTAV_NATIVE_NOTICES);', 1)
+          main.write_bytes(packaged)
+          record = {'source_ref': source_ref, 'tooling_ref': os.environ['GITHUB_SHA'], 'original_main_sha256': hashlib.sha256(original).hexdigest(), 'packaged_main_sha256': hashlib.sha256(packaged).hexdigest(), 'coverage': 'Audit-only Cargo/std prototype; executable non-Cargo runtime coverage is pending map review.'}
+          with (Path(os.environ['RUNNER_TEMP']) / 'lsp-source-provenance.json').open('x', encoding='utf-8') as output:
+              json.dump(record, output, sort_keys=True, indent=2)
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: ${{ matrix.target }}
+          components: rust-docs
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: '0.14.0'
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild,cargo-about@0.9.3
+      - name: Verify registry core and prepare existing locked notices
+        shell: python
+        run: |
+          import json
+          import os
+          import shutil
+          import subprocess
+          import sys
+          import tomllib
+          from pathlib import Path
+          lock = tomllib.loads(Path('lsp/Cargo.lock').read_text())
+          core = [item for item in lock['package'] if item['name'] == 'ktav']
+          if len(core) != 1 or core[0].get('version') != '0.8.1' or core[0].get('source') != 'registry+https://github.com/rust-lang/crates.io-index' or core[0].get('checksum') != '7140dfe2fa6c320e74768cd6a637828c2d26f81746254f4fcd805f3993bd3fd5':
+              raise SystemExit('unexpected LSP core provenance')
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'lsp-notices'
+          subprocess.run([sys.executable, '../scripts/prepare_lsp_notices.py', str(evidence)], cwd='lsp', check=True)
+          shutil.copy2(Path(os.environ['RUNNER_TEMP']) / 'lsp-source-provenance.json', evidence / 'source-provenance.json')
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
+              output.write('KTAV_NATIVE_NOTICES=' + (evidence / 'NOTICE.json.gz').as_posix() + chr(10))
+      - name: Verify resource and linker-capture guards
+        run: |
+          python3 -I -m unittest discover -s ci -p test_embedded_notices.py -v
+          python3 -I -m unittest discover -s ci -p test_zig_link_capture.py -v
+      - name: Full host LSP tests with the metadata hook
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        working-directory: lsp
+        run: cargo test --locked --release
+      - name: Build executable and capture actual runtime inputs
+        shell: bash
+        working-directory: lsp
+        run: |
+          set -euo pipefail
+          export KTAV_REAL_ZIG="$(command -v zig)"
+          export KTAV_LINK_MAP="$RUNNER_TEMP/lsp-notices/native-link.map"
+          export CARGO_ZIGBUILD_ZIG_COMMAND="$GITHUB_WORKSPACE/scripts/capture-zig-link.sh"
+          unset CARGO_ZIGBUILD_ZIG_COMMAND_ARGS
+          chmod +x "$CARGO_ZIGBUILD_ZIG_COMMAND"
+          zig version > "$RUNNER_TEMP/lsp-notices/zig-version.txt"
+          RUSTFLAGS="-C link-arg=-Wl,--print-map" cargo zigbuild --locked --release --target ${{ matrix.target }}.2.17
+          test -s "$KTAV_LINK_MAP"
+          python3 -c 'import gzip, os; from pathlib import Path; p = Path(os.environ["KTAV_NATIVE_NOTICES"]); before = p.read_bytes(); after = gzip.compress(p.with_name("NOTICE.json").read_bytes(), compresslevel=1, mtime=0); assert before != after; p.write_bytes(after)'
+          RUSTFLAGS="-C link-arg=-Wl,--print-map" cargo zigbuild --locked --release --target ${{ matrix.target }}.2.17
+      - name: Verify actual executable resource and incremental input tracking
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp'
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'lsp-notices'
+          report = subprocess.check_output([sys.executable, '-I', 'scripts/check_embedded_notices.py', str(binary), str(evidence / 'NOTICE.json')])
+          payload = (evidence / 'NOTICE.json.gz').read_bytes()
+          resource = b'KTAV-NOTICES-GZIP-v1\0' + len(payload).to_bytes(8, 'little') + payload
+          if binary.read_bytes().count(resource) != 1:
+              raise SystemExit('LSP did not retain the updated exact resource after incremental rebuild')
+          (evidence / 'native-resource-verification.json').write_bytes(report)
+          with (evidence / 'incremental-resource.json').open('x', encoding='utf-8') as output:
+              json.dump({'exact_resource_sha256': hashlib.sha256(resource).hexdigest(), 'incremental_input_rebuilt': True}, output, sort_keys=True, indent=2)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lsp-license-prototype-${{ matrix.target }}
+          path: ${{ runner.temp }}/lsp-notices/
+          if-no-files-found: warn
