@@ -9,6 +9,12 @@ import sys
 REVISION = '9ae2edc879df5e9e189483752c4c4ae01650a566'
 LICENSE_SHA256 = 'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30'
 VERSION = '243.21565.193'
+OTHER_MISSING_METADATA = {
+    ('com.jetbrains:jbr-api', '1.0.0'),
+    ('idea:ideaIC', '2025.2'),
+    ('org.jetbrains.kotlin.jvm:org.jetbrains.kotlin.jvm.gradle.plugin', '2.0.0'),
+    ('org.jetbrains.intellij.platform:org.jetbrains.intellij.platform.gradle.plugin', '2.2.0'),
+}
 MODULES = {
     'com.jetbrains.intellij.platform:test-framework',
     'com.jetbrains.intellij.platform:test-framework-common',
@@ -29,7 +35,7 @@ def verify(inventory, review, policy):
     dependencies = review.get('dependencies', [])
     if len(dependencies) != len(MODULES) or {item.get('module_name') for item in dependencies} != MODULES:
         raise ValueError('SDK review module set changed')
-    expected_rules = {(re.escape(name), re.escape(VERSION)) for name in MODULES}
+    expected_rules = {(re.escape(name), re.escape(VERSION)) for name in MODULES} | {(re.escape(name), re.escape(version)) for name, version in OTHER_MISSING_METADATA}
     actual_rules = [item for item in policy['allowedLicenses'] if not item.get('moduleLicense')]
     if len(actual_rules) != len(expected_rules) or {(item.get('moduleName'), item.get('moduleVersion')) for item in actual_rules} != expected_rules:
         raise ValueError('unbound missing-metadata license allowance')
@@ -41,6 +47,8 @@ def verify(inventory, review, policy):
         if not re.fullmatch(r'[0-9a-f]{64}', source.get('sha256', '')) or not dependency.get('source_files'):
             raise ValueError('SDK source evidence missing')
         group, module = name.split(':')
+        if any(item.get('version') != VERSION for item in inventory if item.get('group') == group and item.get('name') == module):
+            raise ValueError(f'SDK artifact version changed: {name}')
         matches = [item for item in inventory if item.get('group') == group and item.get('name') == module and item.get('version') == VERSION and item.get('file') == dependency['file_name']]
         if len(matches) != 1:
             raise ValueError(f'SDK artifact missing or duplicated: {name}')

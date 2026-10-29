@@ -45,7 +45,14 @@ class SdkLicenseEvidenceTest(unittest.TestCase):
 
     def test_version_change_rejected(self):
         self.inventory[0]['version'] = '243.99999.1'
-        with self.assertRaisesRegex(ValueError, 'missing or duplicated'):
+        with self.assertRaisesRegex(ValueError, 'version changed'):
+            checker.verify(self.inventory, self.review, self.policy)
+
+    def test_additional_version_rejected(self):
+        other = copy.deepcopy(self.inventory[0])
+        other['version'] = '243.99999.1'
+        self.inventory.append(other)
+        with self.assertRaisesRegex(ValueError, 'version changed'):
             checker.verify(self.inventory, self.review, self.policy)
 
     def test_missing_artifact_rejected(self):

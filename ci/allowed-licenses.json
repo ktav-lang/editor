@@ -65,6 +65,27 @@
     {
       "moduleName": "com\\.jetbrains\\.intellij\\.tools:tests\\-bootstrap",
       "moduleVersion": "243\\.21565\\.193"
+    },
+    {
+      "moduleName": "com\\.jetbrains:jbr\\-api",
+      "moduleVersion": "1\\.0\\.0"
+    },
+    {
+      "moduleName": "org\\.jetbrains\\.intellij\\.deps:trove4j",
+      "moduleVersion": "1\\.0\\.20200330",
+      "moduleLicense": "GNU LESSER GENERAL PUBLIC LICENSE 2[.]1"
+    },
+    {
+      "moduleName": "org\\.jetbrains\\.kotlin\\.jvm:org\\.jetbrains\\.kotlin\\.jvm\\.gradle\\.plugin",
+      "moduleVersion": "2\\.0\\.0"
+    },
+    {
+      "moduleName": "org\\.jetbrains\\.intellij\\.platform:org\\.jetbrains\\.intellij\\.platform\\.gradle\\.plugin",
+      "moduleVersion": "2\\.2\\.0"
+    },
+    {
+      "moduleName": "idea:ideaIC",
+      "moduleVersion": "2025\\.2"
     }
   ]
 }

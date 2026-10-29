@@ -409,7 +409,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew test verifyPlugin buildPlugin --no-daemon
+      - run: ./gradlew -I ../ci/license-init.gradle checkLicense test verifyPlugin buildPlugin --no-daemon
       - name: Publish to JetBrains Marketplace
         # Publishes only on a manual dispatch with publish=true; tag pushes
         # build only. The FIRST version must be uploaded manually via
@@ -420,7 +420,9 @@ jobs:
         # for that manual first upload.
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && env.INTELLIJ_PUBLISH_TOKEN != '' }}
         continue-on-error: true
-        run: ./gradlew publishPlugin --no-daemon
+        run: ./gradlew -I ../ci/license-init.gradle publishPlugin --no-daemon
+      - name: Recheck license and distribution gates before upload
+        run: ./gradlew -I ../ci/license-init.gradle checkLicense --no-daemon
       # The universal plugin zip (loads on all JetBrains IDEs / all OSes,
       # bundling every platform LSP binary) always ships.
       - uses: actions/upload-artifact@v5

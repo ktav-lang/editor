@@ -98,6 +98,10 @@ gradle.projectsEvaluated {
             }
             root.allprojects.each { project ->
                 project.buildscript.configurations.findAll { it.canBeResolved }.each { configuration ->
+                    def markerCode = configuration.resolvedConfiguration.resolvedArtifacts.findAll {
+                        it.moduleVersion.id.name.endsWith(".gradle.plugin") && !it.file.name.endsWith(".pom")
+                    }
+                    if (!markerCode.isEmpty()) throw new GradleException("Plugin marker resolves code; license review required")
                     configuration.incoming.resolutionResult.allComponents.each { component ->
                         def id = component.id
                         if (id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier && id.module.endsWith(".gradle.plugin")) {
@@ -116,7 +120,7 @@ gradle.projectsEvaluated {
                                 if (!seen.containsKey(key)) {
                                     def decoder = java.nio.charset.StandardCharsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
                                     seen[key] = [group: id.group, name: id.module, version: id.version, file: pom.name, sha256: hash,
-                                        metadata_text: decoder.decode(java.nio.ByteBuffer.wrap(bytes)).toString(), artifact_type: "plugin-marker-pom", configurations: [] as Set]
+                                        metadata_text: decoder.decode(java.nio.ByteBuffer.wrap(bytes)).toString(), artifact_type: "plugin-marker-pom", marker_code_artifacts: 0, configurations: [] as Set]
                                 }
                                 seen[key].configurations.add("${project.path}:buildscript:${configuration.name}")
                             }
@@ -139,5 +143,17 @@ gradle.projectsEvaluated {
             }
         }
     }
-    root.tasks.named("checkLicense") { dependsOn(guard, sdkGuard, root.tasks.named("checkIntellijDistribution")) }
+    def toolingGuard = root.tasks.register("checkReviewedToolingLicenses") {
+        dependsOn("licenseArtifactInventory", root.tasks.named("checkIntellijDistribution"))
+        doLast {
+            root.exec {
+                commandLine("python3", "-I", root.file("../ci/check-tooling-license-evidence.py"),
+                    new File(root.layout.buildDirectory.get().asFile, "license-inventory/artifact-fingerprints.json"),
+                    root.file("../ci/reviewed-intellij-tooling-licenses.json"), root.file("../ci/allowed-licenses.json"),
+                    new File(root.layout.buildDirectory.get().asFile, "license-inventory/plugin-distribution.json"))
+            }
+        }
+    }
+    root.tasks.named("checkLicense") { dependsOn(guard, sdkGuard, toolingGuard) }
+    root.tasks.named("publishPlugin") { dependsOn(root.tasks.named("checkLicense")) }
 }
