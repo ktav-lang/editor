@@ -55,5 +55,7 @@ jobs:
         if: always()
         with:
           name: intellij-license-report
-          path: intellij/build/reports/dependency-license
+          path: |
+            intellij/build/reports/dependency-license
+            intellij/build/license-inventory
           if-no-files-found: warn

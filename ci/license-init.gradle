@@ -76,7 +76,7 @@ gradle.projectsEvaluated {
                     }
                 }
             }
-            def output = new File(report.absoluteOutputDir, "artifact-fingerprints.json")
+            def output = new File(root.layout.buildDirectory.get().asFile, "license-inventory/artifact-fingerprints.json")
             output.parentFile.mkdirs()
             output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(seen.values()))
         }
