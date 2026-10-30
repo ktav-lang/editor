@@ -87,7 +87,7 @@ jobs:
           map_path = (evidence / 'native-link.map').as_posix()
           with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
               output.write(key + '=' + str(compiler) + chr(10))
-              output.write('CARGO_ENCODED_RUSTFLAGS=-C' + chr(31) + 'target-feature=+crt-static' + chr(31) + '-C' + chr(31) + 'link-arg=-Wl,-Map,' + map_path + chr(10))
+              output.write('CARGO_ENCODED_RUSTFLAGS=-C' + chr(31) + 'target-feature=+crt-static' + chr(31) + '-C' + chr(31) + 'link-arg=-Wl,-Map,' + map_path + chr(31) + '-C' + chr(31) + 'link-arg=-Wl,--reproduce=' + (root / 'gnullvm-release-link.tar').as_posix() + chr(10))
               output.write('LLVM_MINGW_CANDIDATE=' + str(install) + chr(10))
           with Path(os.environ['GITHUB_PATH']).open('a', encoding='utf-8') as output:
               output.write(str(install / 'bin') + chr(10))
@@ -107,6 +107,46 @@ jobs:
           binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
           record = {'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'map_sha256': hashlib.sha256((evidence / 'native-link.map').read_bytes()).hexdigest()}
           (evidence / 'release-before-tests.json').write_text(json.dumps(record, sort_keys=True))
+      - name: Fingerprint actual linker inputs without publishing object files
+        shell: python
+        run: |
+          import hashlib
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+          import tarfile
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          reproduction = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-release-link.tar'
+          if not reproduction.is_file() or reproduction.stat().st_size > 512 * 1024 * 1024:
+              raise SystemExit('missing or oversized release linker reproduction')
+          inputs = []
+          seen = set()
+          total = 0
+          with tarfile.open(reproduction, mode='r:') as archive:
+              for member in archive:
+                  path = PurePosixPath(member.name)
+                  if path.is_absolute() or '..' in path.parts or member.name in seen or '\\' in member.name or member.issym() or member.islnk():
+                      raise SystemExit('unsafe or duplicate linker input')
+                  seen.add(member.name)
+                  if member.isdir():
+                      continue
+                  if not member.isfile() or member.size < 0 or member.size > 128 * 1024 * 1024:
+                      raise SystemExit('invalid linker input size/type')
+                  total += member.size
+                  if total > 512 * 1024 * 1024 or len(seen) > 8192:
+                      raise SystemExit('linker input inventory exceeds bound')
+                  stream = archive.extractfile(member)
+                  checksum = hashlib.sha256()
+                  size = 0
+                  while chunk := stream.read(1024 * 1024):
+                      checksum.update(chunk)
+                      size += len(chunk)
+                  if size != member.size:
+                      raise SystemExit('truncated linker input')
+                  inputs.append({'path': member.name, 'size': size, 'sha256': checksum.hexdigest()})
+          if not inputs or not any(item['path'].endswith('/response.txt') for item in inputs):
+              raise SystemExit('linker reproduction lacks command/input evidence')
+          (evidence / 'link-input-fingerprints.json').write_text(json.dumps({'release_identity': json.loads((evidence / 'release-before-tests.json').read_text()), 'inputs': inputs}, sort_keys=True, indent=2), encoding='utf-8')
       - name: Actual matching-CPU LSP tests in a separate target directory
         if: matrix.target == 'x86_64-pc-windows-gnullvm'
         shell: python
