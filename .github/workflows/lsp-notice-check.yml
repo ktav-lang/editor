@@ -175,7 +175,7 @@ jobs:
           original = source.read_bytes()
           if hashlib.sha1(b'blob ' + str(len(original)).encode() + bytes([0]) + original).hexdigest() != 'd96cf57e2da901bc21e69bf5a87ed034820453f0':
               raise SystemExit('original supplied startup source changed')
-          anchor = b'_start:' + bytes([10])
+          anchor = bytes([10]) + b'_start:' + bytes([10])
           if original.count(anchor) != 1:
               raise SystemExit('startup entry point requires review')
           notice = ('/* Изменено для CI relink proof, ' + datetime.date.today().isoformat() + '. */').encode('utf-8')
