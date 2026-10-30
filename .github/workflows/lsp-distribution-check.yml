@@ -143,7 +143,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build and verify actual plugin without publishing
         working-directory: intellij
-        run: ./gradlew -I ../ci/license-init.gradle checkLicense test checkIntellijDistribution --no-daemon
+        run: ./gradlew --no-daemon --no-parallel --no-configure-on-demand -I ../ci/license-init.gradle licenseArtifactInventory checkLicense test checkIntellijDistribution
       - name: Require all six complete platform payloads in actual ZIP
         shell: python
         run: |
