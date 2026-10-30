@@ -1,0 +1,173 @@
+name: macOS LSP notice evidence
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_REF: 2618bf1232f95da464a5cd407cc247ebb76acddd
+
+jobs:
+  macos-notices:
+    name: LSP macOS notices / ${{ matrix.target }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve reviewed notice tooling
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import shutil
+          stage = Path(os.environ['RUNNER_TEMP']) / 'macos-notice-tools'
+          stage.mkdir()
+          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/check_lsp_macos.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/test_lsp_macos_notices.py']:
+              destination = stage / name
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(name, destination)
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Verify immutable core and apply notice-only overlay
+        shell: python
+        run: |
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import tomllib
+          if subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() != os.environ['SOURCE_REF']:
+              raise SystemExit('unexpected macOS LSP source')
+          lock_bytes = Path('lsp/Cargo.lock').read_bytes()
+          core = [item for item in tomllib.loads(lock_bytes.decode('utf-8'))['package'] if item['name'] == 'ktav']
+          if len(core) != 1 or core[0].get('version') != '0.8.1' or core[0].get('checksum') != '7140dfe2fa6c320e74768cd6a637828c2d26f81746254f4fcd805f3993bd3fd5':
+              raise SystemExit('unexpected macOS core identity')
+          stage = Path(os.environ['RUNNER_TEMP']) / 'macos-notice-tools'
+          for source in stage.rglob('*'):
+              if not source.is_file():
+                  continue
+              destination = Path(source.relative_to(stage))
+              if destination.as_posix() == 'lsp/build.rs' and destination.exists() and destination.read_bytes() != source.read_bytes():
+                  raise SystemExit('existing LSP build hook requires review')
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, destination)
+          subprocess.run(['git', 'diff', '--exit-code', '--', 'lsp/Cargo.toml', 'lsp/Cargo.lock', 'lsp/src/lib.rs', 'lsp/tests', 'root-docs'], check=True)
+          main = Path('lsp/src/main.rs')
+          original = main.read_bytes()
+          anchor = b'async fn main() {'
+          if original.count(anchor) != 1:
+              raise SystemExit('macOS LSP entry point requires review')
+          declaration = b'include!(concat!(env!("OUT_DIR"), "/native_notices.rs"));'
+          packaged = declaration + bytes([10, 10]) + original.replace(anchor, anchor + bytes([10]) + b'    let _ = std::hint::black_box(KTAV_NATIVE_NOTICES);', 1)
+          main.write_bytes(packaged)
+          record = {'source_ref': os.environ['SOURCE_REF'], 'original_main_sha256': hashlib.sha256(original).hexdigest(), 'packaged_main_sha256': hashlib.sha256(packaged).hexdigest(), 'coverage': 'Audit-only Cargo/std notice resource; system-library terms require separate review.'}
+          (Path(os.environ['RUNNER_TEMP']) / 'macos-notice-provenance.json').write_text(json.dumps(record, sort_keys=True, indent=2), encoding='utf-8')
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: ${{ matrix.target }}
+          components: rust-docs
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about@0.9.3
+      - name: Verify Darwin map and machine guards
+        run: python3 -I -m unittest discover -s ci -p test_lsp_macos_notices.py -v
+      - name: Prepare locked Cargo/std notice resource
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import sys
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'macos-notices'
+          subprocess.run([sys.executable, '../scripts/prepare_lsp_notices.py', str(evidence)], cwd='lsp', check=True)
+          shutil.copyfile(Path(os.environ['RUNNER_TEMP']) / 'macos-notice-provenance.json', evidence / 'source-provenance.json')
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
+              output.write('KTAV_NATIVE_NOTICES=' + (evidence / 'NOTICE.json.gz').as_posix() + chr(10))
+              output.write('CARGO_ENCODED_RUSTFLAGS=-C' + chr(31) + 'link-arg=-Wl,-map,' + (evidence / 'native-link.map').as_posix() + chr(10))
+      - name: Build exact resource and capture selected linker
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+          RUSTC_LOG: rustc_codegen_ssa::back::link=info
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          result = subprocess.run(['cargo', 'build', '--locked', '--release', '--manifest-path', 'lsp/Cargo.toml', '--target', os.environ['LSP_TARGET']], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'macos-notices'
+          (evidence / 'linker-trace.txt').write_bytes(result.stderr)
+          sys.stdout.buffer.write(result.stdout)
+          sys.stderr.buffer.write(result.stderr)
+          raise SystemExit(result.returncode)
+      - name: Preserve release identity and collect actual system imports
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import base64
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'macos-notices'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp'
+          identity = {'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'map_sha256': hashlib.sha256((evidence / 'native-link.map').read_bytes()).hexdigest()}
+          (evidence / 'release-before-tests.json').write_text(json.dumps(identity, sort_keys=True), encoding='utf-8')
+          for name, args in [('dynamic-libraries.txt', ['otool', '-L', str(binary)]), ('undefined-symbols.txt', ['nm', '-m', '-u', str(binary)]), ('load-commands.txt', ['otool', '-l', str(binary)]), ('clang-version.txt', ['clang', '--version']), ('sdk-version.txt', ['xcrun', '--show-sdk-version'])]:
+              (evidence / name).write_bytes(subprocess.check_output(args))
+          sdk = Path(subprocess.check_output(['xcrun', '--show-sdk-path'], text=True).strip())
+          header = sdk / 'usr/include/iconv.h'
+          if not header.is_file() or header.stat().st_size > 4 * 1024 * 1024:
+              raise SystemExit('missing or oversized original SDK iconv header')
+          data = header.read_bytes()
+          record = {'path': 'usr/include/iconv.h', 'sha256': hashlib.sha256(data).hexdigest(), 'raw_bytes_base64': base64.b64encode(data).decode('ascii'), 'scope': 'Original selected SDK interface header; not by itself proof of the runtime dylib source revision.'}
+          (evidence / 'system-iconv-header.json').write_text(json.dumps(record, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Actual matching-CPU tests without overwriting the release map
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          host = subprocess.check_output(['rustc', '-vV'], text=True).split('host: ', 1)[1].splitlines()[0]
+          native = host == os.environ['LSP_TARGET']
+          if native:
+              environment = {**os.environ, 'CARGO_TARGET_DIR': str(Path(os.environ['RUNNER_TEMP']) / 'macos-notice-tests'), 'CARGO_ENCODED_RUSTFLAGS': ''}
+              subprocess.run(['cargo', 'test', '--locked', '--release', '--manifest-path', 'lsp/Cargo.toml', '--target', os.environ['LSP_TARGET']], env=environment, check=True)
+          report = {'target': os.environ['LSP_TARGET'], 'host': host, 'native_execution': native}
+          (Path(os.environ['RUNNER_TEMP']) / 'macos-notices/execution-scope.json').write_text(json.dumps(report, sort_keys=True), encoding='utf-8')
+      - name: Verify actual Mach-O resource and static-input boundary
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'macos-notices'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp'
+          subprocess.run([sys.executable, 'scripts/check_lsp_macos.py', str(evidence), str(binary), os.environ['LSP_TARGET']], check=True)
+          if Path('lsp/Cargo.lock').read_bytes() != (evidence / 'Cargo.lock').read_bytes():
+              raise SystemExit('macOS build changed original lock')
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lsp-macos-notices-${{ matrix.target }}
+          path: ${{ runner.temp }}/macos-notices/
+          if-no-files-found: warn
