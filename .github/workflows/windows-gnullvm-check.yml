@@ -94,9 +94,30 @@ jobs:
           (evidence / 'source-provenance.json').write_text(json.dumps({'source_ref': os.environ['SOURCE_REF'], 'target': os.environ['LSP_TARGET'], 'sdk_archive_sha256': checksum.hexdigest(), 'sdk_source': url, 'coverage': 'Experimental standalone LSP only; no production or binding compatibility claim.'}, sort_keys=True, indent=2), encoding='utf-8')
       - name: Build unchanged standalone LSP with GNU LLVM target
         run: cargo build --locked --release --manifest-path lsp/Cargo.toml --target ${{ matrix.target }}
-      - name: Actual matching-CPU LSP tests
+      - name: Preserve release binary and map identity before tests
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
+          record = {'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'map_sha256': hashlib.sha256((evidence / 'native-link.map').read_bytes()).hexdigest()}
+          (evidence / 'release-before-tests.json').write_text(json.dumps(record, sort_keys=True))
+      - name: Actual matching-CPU LSP tests in a separate target directory
         if: matrix.target == 'x86_64-pc-windows-gnullvm'
-        run: cargo test --locked --release --manifest-path lsp/Cargo.toml --target ${{ matrix.target }}
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          environment = {**os.environ, 'CARGO_TARGET_DIR': str(Path(os.environ['RUNNER_TEMP']) / 'gnullvm-test-target'), 'CARGO_ENCODED_RUSTFLAGS': '-C' + chr(31) + 'target-feature=+crt-static'}
+          subprocess.run(['cargo', 'test', '--locked', '--release', '--manifest-path', 'lsp/Cargo.toml', '--target', os.environ['LSP_TARGET']], env=environment, check=True)
       - name: Capture actual PE imports, runtime map and original license files
         shell: python
         env:
@@ -114,6 +135,9 @@ jobs:
           binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
           if not binary.is_file() or not (evidence / 'native-link.map').is_file():
               raise SystemExit('missing actual candidate binary/map')
+          before = json.loads((evidence / 'release-before-tests.json').read_text())
+          if hashlib.sha256(binary.read_bytes()).hexdigest() != before['binary_sha256'] or hashlib.sha256((evidence / 'native-link.map').read_bytes()).hexdigest() != before['map_sha256']:
+              raise SystemExit('tests changed the release binary or its linker map')
           if Path('lsp/Cargo.lock').read_bytes() != (evidence / 'Cargo.lock').read_bytes():
               raise SystemExit('candidate build changed existing lock')
           readobj = sdk / 'bin/llvm-readobj.exe'
