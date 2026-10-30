@@ -27,7 +27,7 @@ jobs:
           from pathlib import Path
           stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
           stage.mkdir()
-          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE']:
+          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json']:
               target = stage / name
               target.parent.mkdir(parents=True, exist_ok=True)
               shutil.copy2(name, target)
