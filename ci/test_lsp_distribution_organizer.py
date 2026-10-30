@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -47,6 +48,21 @@ class PluginDistributionOrganization(unittest.TestCase):
                     binding = json.loads((output / platform / copied['source_binding']).read_bytes())
                     self.assertEqual(binding['binary']['file'], expected_binary)
                     self.assertEqual(binding['binary']['sha256'], original['files'][original['binary']]['sha256'])
+
+    def test_isolated_cli_works_outside_project_without_loading_cwd_modules(self):
+        script = Path(__file__).resolve().parents[1] / 'scripts/organize_lsp_distribution.py'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            incoming = self.inputs(root)
+            output = root / 'plugin-bin'
+            cwd = root / 'caller'
+            cwd.mkdir()
+            (cwd / 'json.py').write_text('raise RuntimeError("untrusted cwd module loaded")\n', encoding='utf-8')
+            result = subprocess.run([sys.executable, '-I', str(script), str(incoming), str(output)], cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            report = json.loads(result.stdout)
+            self.assertEqual(len(report['platforms']), 6)
+            for target, (platform, _) in TARGETS.items():
+                self.assertEqual(verify(output / platform)['target'], target)
 
     def test_missing_platform_fails_before_output_is_created(self):
         with tempfile.TemporaryDirectory() as directory:

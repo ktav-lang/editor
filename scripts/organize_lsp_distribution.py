@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from lsp_distribution import TARGETS, verify
 
 
