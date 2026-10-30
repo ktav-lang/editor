@@ -1,0 +1,140 @@
+name: Windows GNU LLVM compatibility evidence
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_REF: 2618bf1232f95da464a5cd407cc247ebb76acddd
+
+jobs:
+  gnullvm-prototype:
+    name: LSP GNU LLVM / ${{ matrix.target }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-gnullvm
+            compiler: x86_64-w64-mingw32-clang.exe
+          - target: aarch64-pc-windows-gnullvm
+            compiler: aarch64-w64-mingw32-clang.exe
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: ${{ matrix.target }}
+          components: rust-docs
+      - name: Verify source/core and install exact candidate SDK
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+          CANDIDATE_COMPILER: ${{ matrix.compiler }}
+        run: |
+          import hashlib
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+          import stat
+          import subprocess
+          import tomllib
+          import urllib.request
+          import zipfile
+          if subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() != os.environ['SOURCE_REF']:
+              raise SystemExit('unexpected GNU LLVM source')
+          lock = Path('lsp/Cargo.lock').read_bytes()
+          core = [item for item in tomllib.loads(lock.decode())['package'] if item['name'] == 'ktav']
+          if len(core) != 1 or core[0].get('version') != '0.8.1' or core[0].get('checksum') != '7140dfe2fa6c320e74768cd6a637828c2d26f81746254f4fcd805f3993bd3fd5':
+              raise SystemExit('unexpected GNU LLVM core source')
+          root = Path(os.environ['RUNNER_TEMP'])
+          evidence = root / 'gnullvm-evidence'
+          evidence.mkdir()
+          (evidence / 'Cargo.lock').write_bytes(lock)
+          sdk = root / 'gnullvm-sdk'
+          sdk.mkdir()
+          archive_path = sdk / 'sdk.zip'
+          url = 'https://github.com/mstorsjo/llvm-mingw/releases/download/20261020/llvm-mingw-20261020-ucrt-x86_64.zip'
+          checksum = hashlib.sha256()
+          total = 0
+          with urllib.request.urlopen(url, timeout=120) as response, archive_path.open('xb') as output:
+              while chunk := response.read(1024 * 1024):
+                  total += len(chunk)
+                  if total > 256 * 1024 * 1024:
+                      raise SystemExit('candidate SDK size limit exceeded')
+                  checksum.update(chunk)
+                  output.write(chunk)
+          if checksum.hexdigest() != 'fd5462b7f5d93b2ff981fcd3f9c7e427e47f3203c64ea91c27bcc444eebd74cd':
+              raise SystemExit('candidate SDK integrity mismatch')
+          with zipfile.ZipFile(archive_path) as archive:
+              for member in archive.infolist():
+                  path = PurePosixPath(member.filename)
+                  if path.is_absolute() or '..' in path.parts or '\\' in member.filename or ':' in member.filename or stat.S_IFMT(member.external_attr >> 16) == stat.S_IFLNK:
+                      raise SystemExit('unsafe candidate SDK archive member')
+              archive.extractall(sdk)
+          install = sdk / 'llvm-mingw-20261020-ucrt-x86_64'
+          compiler = install / 'bin' / os.environ['CANDIDATE_COMPILER']
+          if not compiler.is_file():
+              raise SystemExit('candidate compiler missing')
+          (evidence / 'compiler-version.txt').write_bytes(subprocess.check_output([str(compiler), '--version']))
+          (evidence / 'rustc.txt').write_bytes(subprocess.check_output(['rustc', '--version', '--verbose']))
+          key = 'CARGO_TARGET_' + os.environ['LSP_TARGET'].upper().replace('-', '_') + '_LINKER'
+          map_path = (evidence / 'native-link.map').as_posix()
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
+              output.write(key + '=' + str(compiler) + chr(10))
+              output.write('CARGO_ENCODED_RUSTFLAGS=-C' + chr(31) + 'link-arg=-Wl,-Map,' + map_path + chr(10))
+              output.write('LLVM_MINGW_CANDIDATE=' + str(install) + chr(10))
+          with Path(os.environ['GITHUB_PATH']).open('a', encoding='utf-8') as output:
+              output.write(str(install / 'bin') + chr(10))
+          (evidence / 'source-provenance.json').write_text(json.dumps({'source_ref': os.environ['SOURCE_REF'], 'target': os.environ['LSP_TARGET'], 'sdk_archive_sha256': checksum.hexdigest(), 'sdk_source': url, 'coverage': 'Experimental standalone LSP only; no production or binding compatibility claim.'}, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Build unchanged standalone LSP with GNU LLVM target
+        run: cargo build --locked --release --manifest-path lsp/Cargo.toml --target ${{ matrix.target }}
+      - name: Actual matching-CPU LSP tests
+        if: matrix.target == 'x86_64-pc-windows-gnullvm'
+        run: cargo test --locked --release --manifest-path lsp/Cargo.toml --target ${{ matrix.target }}
+      - name: Capture actual PE imports, runtime map and original license files
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import base64
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          sdk = Path(os.environ['LLVM_MINGW_CANDIDATE'])
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
+          if not binary.is_file() or not (evidence / 'native-link.map').is_file():
+              raise SystemExit('missing actual candidate binary/map')
+          if Path('lsp/Cargo.lock').read_bytes() != (evidence / 'Cargo.lock').read_bytes():
+              raise SystemExit('candidate build changed existing lock')
+          readobj = sdk / 'bin/llvm-readobj.exe'
+          (evidence / 'pe-inputs.txt').write_bytes(subprocess.check_output([str(readobj), '--file-headers', '--coff-imports', str(binary)]))
+          notices = []
+          total = 0
+          for path in sorted(sdk.rglob('*')):
+              if not path.is_file() or not re.match(r'(?i)^(?:license|copying|copyright|notice)', path.name):
+                  continue
+              if path.stat().st_size > 4 * 1024 * 1024:
+                  raise SystemExit('candidate legal document exceeds bound')
+              data = path.read_bytes()
+              total += len(data)
+              if total > 32 * 1024 * 1024:
+                  raise SystemExit('candidate legal inventory exceeds bound')
+              notices.append({'path': path.relative_to(sdk).as_posix(), 'sha256': hashlib.sha256(data).hexdigest(), 'raw_bytes_base64': base64.b64encode(data).decode('ascii')})
+          (evidence / 'sdk-legal.json').write_text(json.dumps(notices, indent=2), encoding='utf-8')
+          (evidence / 'binary-fingerprint.json').write_text(json.dumps({'target': os.environ['LSP_TARGET'], 'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'native_execution': os.environ['LSP_TARGET'] == 'x86_64-pc-windows-gnullvm', 'scope': 'Compatibility prototype only; inspect retained runtime inputs before selecting licensing policy.'}, sort_keys=True, indent=2), encoding='utf-8')
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-gnullvm-evidence-${{ matrix.target }}
+          path: ${{ runner.temp }}/gnullvm-evidence/
+          if-no-files-found: warn
