@@ -23,14 +23,62 @@ jobs:
             compiler: aarch64-w64-mingw32-clang.exe
     steps:
       - uses: actions/checkout@v4
+      - name: Preserve reviewed notice tools before release-source checkout
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import shutil
+          stage = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-notice-tools'
+          stage.mkdir()
+          names = ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/lsp_gnullvm_notices.py', 'scripts/check_lsp_gnullvm.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/lsp-gnullvm-runtime-catalog.json', 'ci/test_lsp_gnullvm_notices.py']
+          for name in names:
+              destination = stage / name
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(name, destination)
+      - uses: actions/checkout@v4
         with:
           ref: ${{ env.SOURCE_REF }}
           submodules: recursive
           persist-credentials: false
+      - name: Apply notice-only source overlay
+        shell: python
+        run: |
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          stage = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-notice-tools'
+          for source in stage.rglob('*'):
+              if not source.is_file():
+                  continue
+              destination = Path(source.relative_to(stage))
+              if destination.as_posix() == 'lsp/build.rs' and destination.exists() and destination.read_bytes() != source.read_bytes():
+                  raise SystemExit('existing LSP build hook requires review')
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, destination)
+          subprocess.run(['git', 'diff', '--exit-code', '--', 'lsp/Cargo.toml', 'lsp/Cargo.lock', 'lsp/src/lib.rs', 'lsp/tests', 'root-docs'], check=True)
+          main = Path('lsp/src/main.rs')
+          original = main.read_bytes()
+          anchor = b'async fn main() {'
+          if original.count(anchor) != 1:
+              raise SystemExit('LSP entry point requires source review')
+          declaration = b'include!(concat!(env!("OUT_DIR"), "/native_notices.rs"));'
+          packaged = declaration + bytes([10, 10]) + original.replace(anchor, anchor + bytes([10]) + b'    let _ = std::hint::black_box(KTAV_NATIVE_NOTICES);', 1)
+          main.write_bytes(packaged)
+          provenance = {'original_main_sha256': hashlib.sha256(original).hexdigest(), 'packaged_main_sha256': hashlib.sha256(packaged).hexdigest(), 'changes': 'Read-only metadata resource retention only; protocol and public API unchanged.'}
+          (Path(os.environ['RUNNER_TEMP']) / 'gnullvm-source-overlay.json').write_text(json.dumps(provenance, sort_keys=True, indent=2))
       - uses: dtolnay/rust-toolchain@1.99.1
         with:
           targets: ${{ matrix.target }}
           components: rust-docs
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about@0.9.3
+      - name: Verify Windows source-notice regression guards
+        run: python -I -m unittest discover -s ci -p test_lsp_gnullvm_notices.py -v
       - name: Verify source/core and install exact candidate SDK
         shell: python
         env:
@@ -91,8 +139,33 @@ jobs:
               output.write('LLVM_MINGW_CANDIDATE=' + str(install) + chr(10))
           with Path(os.environ['GITHUB_PATH']).open('a', encoding='utf-8') as output:
               output.write(str(install / 'bin') + chr(10))
-          (evidence / 'source-provenance.json').write_text(json.dumps({'source_ref': os.environ['SOURCE_REF'], 'target': os.environ['LSP_TARGET'], 'sdk_archive_sha256': checksum.hexdigest(), 'sdk_source': url, 'coverage': 'Experimental standalone LSP only; no production or binding compatibility claim.'}, sort_keys=True, indent=2), encoding='utf-8')
-      - name: Build unchanged standalone LSP with GNU LLVM target
+          (evidence / 'source-provenance.json').write_text(json.dumps({'source_ref': os.environ['SOURCE_REF'], 'target': os.environ['LSP_TARGET'], 'sdk_archive_sha256': checksum.hexdigest(), 'sdk_source': url, 'notice_overlay': json.loads((root / 'gnullvm-source-overlay.json').read_text()), 'coverage': 'Experimental standalone LSP with exact embedded notices; no production or other binding compatibility claim.'}, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Prepare exact locked Cargo/std and Windows runtime notices
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import sys
+          notices = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-cargo-notices'
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          subprocess.run([sys.executable, '../scripts/prepare_lsp_notices.py', str(notices)], cwd='lsp', check=True)
+          subprocess.run([sys.executable, 'scripts/lsp_gnullvm_notices.py', str(notices), os.environ['LSP_TARGET']], check=True)
+          for source in notices.iterdir():
+              if not source.is_file():
+                  raise SystemExit('unexpected nested notice evidence')
+              destination = evidence / source.name
+              if destination.exists():
+                  if destination.read_bytes() != source.read_bytes():
+                      raise SystemExit('conflicting source notice evidence')
+              else:
+                  shutil.copyfile(source, destination)
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
+              output.write('KTAV_NATIVE_NOTICES=' + (evidence / 'NOTICE.json.gz').as_posix() + chr(10))
+      - name: Build standalone LSP with exact embedded notices
         run: cargo build --locked --release --manifest-path lsp/Cargo.toml --target ${{ matrix.target }}
       - name: Preserve release binary and map identity before tests
         shell: python
@@ -200,6 +273,18 @@ jobs:
               notices.append({'path': path.relative_to(sdk).as_posix(), 'sha256': hashlib.sha256(data).hexdigest(), 'raw_bytes_base64': base64.b64encode(data).decode('ascii')})
           (evidence / 'sdk-legal.json').write_text(json.dumps(notices, indent=2), encoding='utf-8')
           (evidence / 'binary-fingerprint.json').write_text(json.dumps({'target': os.environ['LSP_TARGET'], 'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'native_execution': os.environ['LSP_TARGET'] == 'x86_64-pc-windows-gnullvm', 'scope': 'Compatibility prototype only; inspect retained runtime inputs before selecting licensing policy.'}, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Verify exact embedded/plain notices, CPU and retained runtime inputs
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
+          subprocess.run([sys.executable, 'scripts/check_lsp_gnullvm.py', str(evidence), str(binary), os.environ['LSP_TARGET']], check=True)
       - name: Run standalone executable without SDK DLL search paths
         if: matrix.target == 'x86_64-pc-windows-gnullvm'
         shell: python
