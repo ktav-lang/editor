@@ -31,6 +31,16 @@ jobs:
             artifact: ktav-lsp.exe
     steps:
       - uses: actions/checkout@v4
+      - name: Preserve SDK document collector
+        shell: python
+        run: |
+          import os
+          import shutil
+          from pathlib import Path
+          stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-sdk-audit-tools'
+          stage.mkdir()
+          shutil.copyfile('scripts/collect_lsp_sdk_legal.py', stage / 'collect_lsp_sdk_legal.py')
+      - uses: actions/checkout@v4
         with:
           ref: ${{ env.SOURCE_REF }}
           persist-credentials: false
@@ -65,8 +75,22 @@ jobs:
               output.write('CARGO_ENCODED_RUSTFLAGS=-C' + chr(31) + flag + chr(10))
           record = {'source_ref': os.environ['SOURCE_REF'], 'target': os.environ['LSP_TARGET'], 'host': platform.platform(), 'scope': 'Audit-only SDK link-input evidence; no executable publication or license conclusion.'}
           (evidence / 'source-provenance.json').write_text(json.dumps(record, sort_keys=True, indent=2), encoding='utf-8')
-      - name: Build actual target with platform linker map
-        run: cargo build --locked --release --manifest-path lsp/Cargo.toml --target ${{ matrix.target }}
+      - name: Build actual target with map and selected linker trace
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+          RUSTC_LOG: rustc_codegen_ssa::back::link=info
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          result = subprocess.run(['cargo', 'build', '--locked', '--release', '--manifest-path', 'lsp/Cargo.toml', '--target', os.environ['LSP_TARGET']], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'lsp-platform-runtime'
+          (evidence / 'linker-trace.txt').write_bytes(result.stderr)
+          sys.stdout.buffer.write(result.stdout)
+          sys.stderr.buffer.write(result.stderr)
+          raise SystemExit(result.returncode)
       - name: Capture original map, compiler library report and binary fingerprint
         shell: python
         env:
@@ -98,6 +122,15 @@ jobs:
                   (evidence / 'vs-installation-candidates.txt').write_bytes(subprocess.check_output([str(vswhere), '-all', '-property', 'installationVersion']))
           record = {'target': os.environ['LSP_TARGET'], 'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'map_sha256': hashlib.sha256(link_map.read_bytes()).hexdigest(), 'map_bytes': link_map.stat().st_size, 'sdk_environment': {key: os.environ.get(key) for key in ['SDKROOT', 'DEVELOPER_DIR', 'WindowsSDKVersion', 'VCToolsVersion']}, 'scope': 'Observed platform inputs only; SDK copyright and distribution terms require separate review.'}
           (evidence / 'native-platform-inputs.json').write_text(json.dumps(record, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Capture original installed SDK license documents
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          root = Path(os.environ['RUNNER_TEMP'])
+          subprocess.run([sys.executable, str(root / 'lsp-sdk-audit-tools/collect_lsp_sdk_legal.py'), str(root / 'lsp-platform-runtime')], check=True)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
