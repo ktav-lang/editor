@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from check_lsp_macos import cpu, object_inputs
+from check_lsp_macos import cpu, dynamic_libraries, object_inputs
 
 
 class DarwinNoticeInputs(unittest.TestCase):
@@ -91,6 +91,19 @@ class DarwinNoticeInputs(unittest.TestCase):
             data = self.map_bytes(cargo, sdk).replace(b'main.rcgu.o', b'libfake.rlib(native.o)')
             with self.assertRaisesRegex(ValueError, 'non-Rust native member'):
                 object_inputs(data, cargo, rustlib, sdk)
+
+    def test_only_system_dynamic_library_is_accepted(self):
+        data = b'executable:\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)\n'
+        self.assertEqual(dynamic_libraries(data), ['/usr/lib/libSystem.B.dylib'])
+
+    def test_unused_iconv_dynamic_dependency_is_rejected(self):
+        data = b'executable:\n\t/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)\n\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1356.0.0)\n'
+        with self.assertRaisesRegex(ValueError, 'unreviewed or unused'):
+            dynamic_libraries(data)
+
+    def test_malformed_dynamic_report_is_not_silently_filtered(self):
+        with self.assertRaisesRegex(ValueError, 'invalid Darwin dynamic-library row'):
+            dynamic_libraries(b'executable:\nunknown input\n')
 
     def test_macho_cpu_and_executable_type(self):
         data = bytearray(32)

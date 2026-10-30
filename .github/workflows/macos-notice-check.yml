@@ -94,7 +94,7 @@ jobs:
           shutil.copyfile(Path(os.environ['RUNNER_TEMP']) / 'macos-notice-provenance.json', evidence / 'source-provenance.json')
           with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
               output.write('KTAV_NATIVE_NOTICES=' + (evidence / 'NOTICE.json.gz').as_posix() + chr(10))
-              output.write('CARGO_ENCODED_RUSTFLAGS=-C' + chr(31) + 'link-arg=-Wl,-map,' + (evidence / 'native-link.map').as_posix() + chr(10))
+              output.write('CARGO_ENCODED_RUSTFLAGS=-C' + chr(31) + 'link-arg=-Wl,-map,' + (evidence / 'native-link.map').as_posix() + chr(31) + '-C' + chr(31) + 'link-arg=-Wl,-dead_strip_dylibs' + chr(10))
       - name: Build exact resource and capture selected linker
         shell: python
         env:
@@ -147,7 +147,7 @@ jobs:
           host = subprocess.check_output(['rustc', '-vV'], text=True).split('host: ', 1)[1].splitlines()[0]
           native = host == os.environ['LSP_TARGET']
           if native:
-              environment = {**os.environ, 'CARGO_TARGET_DIR': str(Path(os.environ['RUNNER_TEMP']) / 'macos-notice-tests'), 'CARGO_ENCODED_RUSTFLAGS': ''}
+              environment = {**os.environ, 'CARGO_TARGET_DIR': str(Path(os.environ['RUNNER_TEMP']) / 'macos-notice-tests'), 'CARGO_ENCODED_RUSTFLAGS': '-C' + chr(31) + 'link-arg=-Wl,-dead_strip_dylibs'}
               subprocess.run(['cargo', 'test', '--locked', '--release', '--manifest-path', 'lsp/Cargo.toml', '--target', os.environ['LSP_TARGET']], env=environment, check=True)
           report = {'target': os.environ['LSP_TARGET'], 'host': host, 'native_execution': native}
           (Path(os.environ['RUNNER_TEMP']) / 'macos-notices/execution-scope.json').write_text(json.dumps(report, sort_keys=True), encoding='utf-8')

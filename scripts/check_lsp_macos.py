@@ -77,6 +77,23 @@ def object_inputs(data, cargo_root, rustlib_root, sdk_root):
     return result
 
 
+def dynamic_libraries(data):
+    lines = data.splitlines()
+    if not lines or not lines[0].endswith(b':'):
+        raise ValueError('invalid Darwin dynamic-library report')
+    libraries = []
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        match = re.fullmatch(rb'\s+(/[^ \t\r\n]+)\s+\(compatibility version [0-9.]+, current version [0-9.]+\)', line)
+        if not match:
+            raise ValueError('invalid Darwin dynamic-library row')
+        libraries.append(match[1].decode('utf-8'))
+    if libraries != ['/usr/lib/libSystem.B.dylib']:
+        raise ValueError('unreviewed or unused Darwin dynamic dependency')
+    return libraries
+
+
 def check(evidence, binary_path, target):
     if target not in TARGET_CPUS:
         raise ValueError('unreviewed Darwin LSP target')
@@ -89,6 +106,10 @@ def check(evidence, binary_path, target):
     bundle = json.loads(notice)
     if bundle.get('schema_version') != 1 or not bundle.get('packages'):
         raise ValueError('missing Darwin Cargo/std notice coverage')
+    libraries = dynamic_libraries(_read(evidence / 'dynamic-libraries.txt', MAX_JSON))
+    symbols = _read(evidence / 'undefined-symbols.txt', MAX_JSON)
+    if re.search(rb'iconv|charset', symbols, re.I):
+        raise ValueError('unexpected Darwin iconv/charset symbol dependency')
     identity = json.loads(_read(evidence / 'release-before-tests.json', MAX_JSON))
     link_map = _read(evidence / 'native-link.map', MAX_JSON)
     if identity['binary_sha256'] != hashlib.sha256(binary).hexdigest() or identity['map_sha256'] != hashlib.sha256(link_map).hexdigest():
@@ -101,6 +122,8 @@ def check(evidence, binary_path, target):
         **identity,
         'notice_sha256': hashlib.sha256(notice).hexdigest(),
         'objects': inputs,
+        'dynamic_libraries': libraries,
+        'iconv_symbol_imports': False,
         'scope': 'Cargo/std resource and static-input boundary only. System dynamic-library conditions and Apple SDK terms remain a separate review; no blanket distribution approval.',
     }
     (evidence / 'native-macos-verification.json').write_text(json.dumps(report, sort_keys=True, indent=2), encoding='utf-8')
