@@ -27,7 +27,7 @@ jobs:
           from pathlib import Path
           stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
           stage.mkdir()
-          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json']:
+          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py']:
               target = stage / name
               target.parent.mkdir(parents=True, exist_ok=True)
               shutil.copy2(name, target)
@@ -79,8 +79,10 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-zigbuild,cargo-about@0.9.3
-      - name: Verify source supplement guards
-        run: python3 -I -m unittest discover -s ci -p test_lsp_license_supplement.py -v
+      - name: Verify source supplement and startup guards
+        run: |
+          python3 -I -m unittest discover -s ci -p test_lsp_license_supplement.py -v
+          python3 -I -m unittest discover -s ci -p test_lsp_startup.py -v
       - name: Verify registry core and prepare existing locked notices
         shell: python
         run: |
@@ -144,6 +146,8 @@ jobs:
           (evidence / 'native-resource-verification.json').write_bytes(report)
           with (evidence / 'incremental-resource.json').open('x', encoding='utf-8') as output:
               json.dump({'exact_resource_sha256': hashlib.sha256(resource).hexdigest(), 'incremental_input_rebuilt': True}, output, sort_keys=True, indent=2)
+      - name: Verify retained startup inputs and final ELF symbols
+        run: python3 scripts/check_lsp_startup.py lsp/target/${{ matrix.target }}/release/ktav-lsp ${{ runner.temp }}/lsp-notices
       - uses: actions/upload-artifact@v4
         if: always()
         with:
