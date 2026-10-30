@@ -31,6 +31,8 @@ jobs:
             artifact: ktav-lsp.exe
     steps:
       - uses: actions/checkout@v4
+      - name: Verify measured SDK document size and safety bounds
+        run: python -I -m unittest discover -s ci -p test_sdk_legal_bounds.py -v
       - name: Preserve SDK document collector
         shell: python
         run: |

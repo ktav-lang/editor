@@ -11,6 +11,13 @@ import subprocess
 import sys
 
 LEGAL = re.compile(r'(?:licen[sc]e|eula|redist.*list|third.?party.*notice|acknowledg)', re.I)
+MAX_DOCUMENT_BYTES = 8 * 1024 * 1024
+MAX_TOTAL_BYTES = 32 * 1024 * 1024
+
+
+def check_bounds(size, preceding, location):
+    if size < 0 or preceding < 0 or size > MAX_DOCUMENT_BYTES or preceding + size > MAX_TOTAL_BYTES:
+        raise ValueError(f'SDK legal inventory exceeds document bound: {location}, file_bytes={size}, preceding_bytes={preceding}')
 
 
 def collect(evidence):
@@ -57,8 +64,7 @@ def collect(evidence):
     index = [{'location': location, 'bytes': size} for location, source, size in selected]
     (evidence / 'sdk-legal-index.json').write_text(json.dumps({'identity_candidates': identity, 'documents': index, 'candidate_bytes': sum(item['bytes'] for item in index)}, sort_keys=True, indent=2), encoding='utf-8')
     for location, source, size in selected:
-        if size > 4 * 1024 * 1024 or total + size > 32 * 1024 * 1024:
-            raise ValueError(f'SDK legal inventory exceeds document bound: {location}, file_bytes={size}, preceding_bytes={total}')
+        check_bounds(size, total, location)
         data = source.read_bytes()
         total += len(data)
         records.append({'location': location, 'sha256': hashlib.sha256(data).hexdigest(), 'raw_bytes_base64': base64.b64encode(data).decode('ascii')})
