@@ -40,6 +40,7 @@ def collect(evidence):
     else:
         raise ValueError('SDK legal inventory supports only Windows/macOS')
     records = []
+    selected = []
     total = 0
     seen = set()
     for label, root in candidates:
@@ -52,12 +53,15 @@ def collect(evidence):
             if resolved in seen:
                 continue
             seen.add(resolved)
-            size = source.stat().st_size
-            if size > 4 * 1024 * 1024 or total + size > 32 * 1024 * 1024:
-                raise ValueError('SDK legal inventory exceeds document bound')
-            data = source.read_bytes()
-            total += len(data)
-            records.append({'location': label + '/' + source.relative_to(root).as_posix(), 'sha256': hashlib.sha256(data).hexdigest(), 'raw_bytes_base64': base64.b64encode(data).decode('ascii')})
+            selected.append((label + '/' + source.relative_to(root).as_posix(), source, source.stat().st_size))
+    index = [{'location': location, 'bytes': size} for location, source, size in selected]
+    (evidence / 'sdk-legal-index.json').write_text(json.dumps({'identity_candidates': identity, 'documents': index, 'candidate_bytes': sum(item['bytes'] for item in index)}, sort_keys=True, indent=2), encoding='utf-8')
+    for location, source, size in selected:
+        if size > 4 * 1024 * 1024 or total + size > 32 * 1024 * 1024:
+            raise ValueError(f'SDK legal inventory exceeds document bound: {location}, file_bytes={size}, preceding_bytes={total}')
+        data = source.read_bytes()
+        total += len(data)
+        records.append({'location': location, 'sha256': hashlib.sha256(data).hexdigest(), 'raw_bytes_base64': base64.b64encode(data).decode('ascii')})
     (evidence / 'sdk-legal-documents.json').write_text(json.dumps({'identity_candidates': identity, 'documents': records, 'document_bytes': total, 'coverage': 'Original installed SDK documents for review, not proof of selected linker or redistribution compatibility.'}, sort_keys=True, indent=2), encoding='utf-8')
     print(json.dumps({'sdk_legal_documents': len(records), 'document_bytes': total}))
 
