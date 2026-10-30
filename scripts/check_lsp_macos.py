@@ -48,11 +48,16 @@ def object_inputs(data, cargo_root, rustlib_root, sdk_root):
             result.append({'kind': 'linker-synthesized'})
             continue
         if name.endswith('.tbd'):
-            path = Path(name).resolve()
+            path = Path(name)
             boundary = (sdk_root / 'usr/lib').resolve()
-            if not path.is_relative_to(boundary) or path.relative_to(boundary).as_posix() not in SYSTEM_STUBS:
-                raise ValueError('unreviewed Darwin SDK stub')
-            result.append({'kind': 'system-stub', 'path': path.relative_to(boundary).as_posix()})
+            public_path = path.parent.resolve() / path.name
+            resolved = path.resolve()
+            if not public_path.is_relative_to(boundary) or not resolved.is_relative_to(boundary):
+                raise ValueError(f'Darwin SDK stub escapes selected SDK: {name} -> {resolved}; SDK={boundary}')
+            relative = public_path.relative_to(boundary).as_posix()
+            if relative not in SYSTEM_STUBS:
+                raise ValueError(f'unreviewed Darwin SDK stub: {relative}')
+            result.append({'kind': 'system-stub', 'path': relative, 'resolved_path': resolved.relative_to(boundary).as_posix()})
             continue
         archive = name.split('.rlib(', 1)[0] + '.rlib' if '.rlib(' in name else None
         if archive:

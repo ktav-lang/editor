@@ -23,6 +23,40 @@ class DarwinNoticeInputs(unittest.TestCase):
             records = object_inputs(self.map_bytes(cargo, sdk, b'\xff\xfe\x80'), cargo, rustlib, sdk)
             self.assertEqual([item['kind'] for item in records], ['linker-synthesized', 'rust-object', 'system-stub'])
 
+    def test_public_stub_name_survives_file_and_sdk_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cargo, rustlib, sdk = self.roots(directory)
+            library = sdk / 'usr/lib'
+            library.mkdir(parents=True)
+            (library / 'libSystem.B.tbd').write_text('stub', encoding='utf-8')
+            (library / 'libSystem.tbd').symlink_to('libSystem.B.tbd')
+            alias = Path(directory) / 'selected-sdk'
+            alias.symlink_to(sdk, target_is_directory=True)
+            result = object_inputs(self.map_bytes(cargo, sdk), cargo, rustlib, alias)
+            self.assertEqual(result[-1], {'kind': 'system-stub', 'path': 'libSystem.tbd', 'resolved_path': 'libSystem.B.tbd'})
+
+    def test_known_stub_symlink_cannot_escape_sdk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cargo, rustlib, sdk = self.roots(directory)
+            library = sdk / 'usr/lib'
+            library.mkdir(parents=True)
+            outside = Path(directory) / 'outside.tbd'
+            outside.write_text('stub', encoding='utf-8')
+            (library / 'libSystem.tbd').symlink_to(outside)
+            with self.assertRaisesRegex(ValueError, 'escapes selected SDK'):
+                object_inputs(self.map_bytes(cargo, sdk), cargo, rustlib, sdk)
+
+    def test_unknown_alias_to_known_stub_is_still_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cargo, rustlib, sdk = self.roots(directory)
+            library = sdk / 'usr/lib'
+            library.mkdir(parents=True)
+            (library / 'libSystem.tbd').write_text('stub', encoding='utf-8')
+            (library / 'unknown.tbd').symlink_to('libSystem.tbd')
+            data = self.map_bytes(cargo, sdk).replace(b'libSystem.tbd', b'unknown.tbd')
+            with self.assertRaisesRegex(ValueError, 'unreviewed Darwin SDK stub'):
+                object_inputs(data, cargo, rustlib, sdk)
+
     def test_external_static_object_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             cargo, rustlib, sdk = self.roots(directory)
