@@ -42,8 +42,26 @@ jobs:
           cache-dependency-path: polydoc/package-lock.json
       - name: Install Node dependencies
         run: npm ci
+      - name: Generate documentation for artifact collection
+        run: node scripts/build-docs.mjs
       - name: Generated docs are byte-identical to their source units
         run: node scripts/build-docs.mjs --check
+      - name: Require exactly the three intended generated README files
+        shell: python
+        run: |
+          import subprocess
+          changed = subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines()
+          expected = {'README.md', 'docs/i18n/README.ru.md', 'docs/i18n/README.zh.md'}
+          if set(changed) != expected:
+              raise SystemExit('unexpected generated documentation scope: ' + repr(changed))
+      - uses: actions/upload-artifact@v4
+        with:
+          name: license-readme-generated
+          path: |
+            README.md
+            docs/i18n/README.ru.md
+            docs/i18n/README.zh.md
+          if-no-files-found: error
 
   # ------------------------------------------------------------------
   # grammars/ + scripts/ — JSON validation and shell regressions.
