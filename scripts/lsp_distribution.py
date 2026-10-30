@@ -223,50 +223,62 @@ def required_files(manifest):
     return {manifest['binary'], *manifest['first_party_licenses'], *(value for value in fields.values() if value)}
 
 
-def verify(directory):
-    manifests = list(directory.glob('*.distribution.json'))
-    if len(manifests) != 1 or manifests[0].is_symlink():
+def verify_payload(filenames, read, info):
+    manifests = [item for item in filenames if item.endswith('.distribution.json')]
+    if len(manifests) != 1:
         raise ValueError('missing or duplicate distribution manifest')
-    manifest = json.loads(_read(manifests[0], MAX_JSON))
+    manifest = json.loads(read(manifests[0], MAX_JSON))
     target = manifest['target']
     if manifest.get('schema_version') != 1 or target not in TARGETS or (manifest['platform'], manifest['asset']) != TARGETS[target]:
         raise ValueError('invalid LSP distribution identity')
     asset = manifest['asset']
     if set(manifest['files']) != required_files(manifest):
         raise ValueError('distribution file inventory omits required materials')
-    expected = {name(item) for item in manifest['files']} | {manifests[0].name}
-    if manifests[0].name != asset + '.distribution.json' or {item.name for item in directory.iterdir()} != expected:
+    expected = {name(item) for item in manifest['files']} | {manifests[0]}
+    if manifests[0] != asset + '.distribution.json' or set(filenames) != expected:
         raise ValueError('missing or unexpected distribution file')
     total = 0
     for filename, identity in manifest['files'].items():
         limit = MAX_SOURCE if filename == manifest['corresponding_source'] else MAX_BINARY if filename == manifest['binary'] else MAX_JSON
-        actual = file_info(directory / filename, limit)
+        actual = info(filename, limit)
         if actual != identity:
             raise ValueError('distribution file identity mismatch')
         total += actual['bytes']
     if total > MAX_PAYLOAD:
         raise ValueError('LSP distribution payload exceeds bound')
-    binary = _read(directory / name(manifest['binary']), MAX_BINARY)
+    binary = read(name(manifest['binary']), MAX_BINARY)
     cpu(binary, target)
-    notice = _read(directory / name(manifest['notice']), MAX_JSON)
+    notice = read(name(manifest['notice']), MAX_JSON)
     bundle = json.loads(notice)
-    core_identity(bundle, _read(directory / name(manifest['cargo_lock']), MAX_JSON))
+    core_identity(bundle, read(name(manifest['cargo_lock']), MAX_JSON))
     report = report_identity(manifest['verification'], hashlib.sha256(binary).hexdigest(), hashlib.sha256(notice).hexdigest(), target)
     if manifest['runtime_notice'] and (manifest['files'][manifest['runtime_notice']]['bytes'] == 0 or manifest['files'][manifest['runtime_notice']]['sha256'] != report.get('plain_notice_sha256')):
         raise ValueError('staged plain runtime notice lost its verification binding')
     if any(manifest['files'][item]['bytes'] == 0 for item in manifest['first_party_licenses']):
         raise ValueError('empty first-party distribution licence')
-    resource(binary, notice, _read(directory / name(manifest['notice_gzip']), 4 * 1024 * 1024))
-    if _read(directory / name(manifest['stdlib_report']), MAX_JSON) != text(bundle['rust_standard_library']) or _read(directory / name(manifest['cargo_plain_notice']), MAX_JSON) != cargo_plain(bundle):
+    resource(binary, notice, read(name(manifest['notice_gzip']), 4 * 1024 * 1024))
+    if read(name(manifest['stdlib_report']), MAX_JSON) != text(bundle['rust_standard_library']) or read(name(manifest['cargo_plain_notice']), MAX_JSON) != cargo_plain(bundle):
         raise ValueError('readable original source notices changed')
     source = source_reference(bundle, target, manifest['source_ref'])
     if source != manifest['corresponding_source']:
         raise ValueError('required corresponding source was dropped')
     if source:
-        binding = json.loads(_read(directory / name(manifest['source_binding']), MAX_JSON))
+        binding = json.loads(read(name(manifest['source_binding']), MAX_JSON))
         if binding['target'] != target or binding['source_ref'] != manifest['source_ref'] or binding['binary'] != {'file': manifest['binary'], 'sha256': manifest['files'][manifest['binary']]['sha256']} or binding['notice'] != {'file': manifest['notice'], 'sha256': manifest['files'][manifest['notice']]['sha256']} or binding['corresponding_source'] != {'file': source, 'sha256': manifest['files'][source]['sha256']}:
             raise ValueError('staged corresponding-source binding mismatch')
     return manifest
+
+
+def verify(directory):
+    manifests = list(directory.glob('*.distribution.json'))
+    if len(manifests) != 1 or manifests[0].is_symlink():
+        raise ValueError('missing or duplicate distribution manifest')
+    filenames = [item.name for item in directory.iterdir()]
+    return verify_payload(
+        filenames,
+        lambda filename, limit: _read(directory / filename, limit),
+        lambda filename, limit: file_info(directory / filename, limit),
+    )
 
 
 if __name__ == '__main__':

@@ -8,13 +8,16 @@ import stat
 import sys
 import zipfile
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
+from check_lsp_plugin_zip import MAX_SOURCE, verify as verify_lsp_zip
+
 MAX_ENTRY = 64 * 1024 * 1024
 MAX_ARCHIVE = 256 * 1024 * 1024
 NATIVE_PREFIXES = (b'\x7fELF', b'MZ', b'\x00asm', b'!<arch>\n', b'\xcf\xfa\xed\xfe', b'\xfe\xed\xfa\xcf', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca')
 PLATFORMS = {'linux-x64', 'linux-arm64', 'darwin-x64', 'darwin-arm64', 'win32-x64', 'win32-arm64'}
 
 
-def entries(archive):
+def entries(archive, verified_source_entries=()):
     records = archive.infolist()
     if len(records) > 30000 or sum(item.file_size for item in records) > MAX_ARCHIVE:
         raise ValueError('archive inventory exceeds limits')
@@ -29,7 +32,8 @@ def entries(archive):
         names.add(name)
         if stat.S_ISLNK(item.external_attr >> 16):
             raise ValueError('archive symlink requires review')
-        if item.file_size > MAX_ENTRY:
+        limit = MAX_SOURCE if name in verified_source_entries else MAX_ENTRY
+        if item.file_size > limit:
             raise ValueError('archive member exceeds size limit')
         if not item.is_dir():
             yield item
@@ -51,10 +55,15 @@ def verify(path, project):
     native = []
     plugin_descriptors = 0
     with zipfile.ZipFile(path) as outer:
-        for item in entries(outer):
+        has_manifests = any(item.filename.endswith('.distribution.json') for item in outer.infolist())
+        lsp = verify_lsp_zip(path, 'intellij') if has_manifests else None
+        verified_sources = lsp['verified_source_entries'] if lsp else ()
+        for item in entries(outer, verified_sources):
             name = item.filename
             if not name.startswith('ktav-intellij/'):
                 raise ValueError('unexpected plugin root')
+            if name in verified_sources:
+                continue
             data = read(outer, item)
             if name.endswith('.jar'):
                 with zipfile.ZipFile(io.BytesIO(data)) as jar:
@@ -99,6 +108,7 @@ def verify(path, project):
         'coverage': 'Ktav JAR license bytes and exclusion of IDE SDK/tooling JVM classes. Native LSP code and license obligations require separate evidence.',
         'jars': jars,
         'native_lsp_payloads': native,
+        'lsp_distribution': lsp,
         'licenses': {name: hashlib.sha256(value).hexdigest() for name, value in licenses.items()},
     }
 
