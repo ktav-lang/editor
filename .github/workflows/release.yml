@@ -60,10 +60,15 @@ jobs:
   verify-versions:
     name: Verify versions in sync
     runs-on: ubuntu-latest
+    outputs:
+      source_ref: ${{ steps.source.outputs.source_ref }}
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.tag || github.ref }}
+      - name: Pin selected source commit
+        id: source
+        run: printf 'source_ref=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Compare versions
         shell: bash
         run: |
@@ -141,85 +146,12 @@ jobs:
   # for the github-release job to attach to the Release.
   # ------------------------------------------------------------------
   lsp-binaries:
-    name: lsp binary / ${{ matrix.target }}
+    name: Licensed LSP binaries and source
     needs: verify-versions
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact: ktav-lsp
-            asset: ktav-lsp-linux-amd64
-            use-zigbuild: true
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            artifact: ktav-lsp
-            asset: ktav-lsp-linux-arm64
-            use-zigbuild: true
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact: ktav-lsp
-            asset: ktav-lsp-darwin-amd64
-            use-zigbuild: false
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact: ktav-lsp
-            asset: ktav-lsp-darwin-arm64
-            use-zigbuild: false
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact: ktav-lsp.exe
-            asset: ktav-lsp-windows-amd64.exe
-            use-zigbuild: false
-          - os: windows-latest
-            target: aarch64-pc-windows-msvc
-            artifact: ktav-lsp.exe
-            asset: ktav-lsp-windows-arm64.exe
-            use-zigbuild: false
-    defaults:
-      run:
-        working-directory: lsp
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.tag || github.ref }}
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: lsp
-          key: ${{ matrix.target }}
-      - name: Install zig
-        if: matrix.use-zigbuild
-        uses: mlugg/setup-zig@v2
-        with:
-          version: 0.14.0
-      - name: Install cargo-zigbuild
-        if: matrix.use-zigbuild
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-zigbuild
-      - name: Build (zigbuild)
-        if: matrix.use-zigbuild
-        run: cargo zigbuild --locked --release --target ${{ matrix.target }}.2.17
-      - name: Build (native)
-        if: ${{ !matrix.use-zigbuild }}
-        run: cargo build --locked --release --target ${{ matrix.target }}
-      - name: Stage artifact
-        shell: bash
-        run: cp target/${{ matrix.target }}/release/${{ matrix.artifact }} ../${{ matrix.asset }}
-      - uses: actions/upload-artifact@v5
-        with:
-          name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}
-          if-no-files-found: error
+    uses: ./.github/workflows/lsp-licensed-payloads.yml
+    with:
+      source_ref: ${{ needs.verify-versions.outputs.source_ref }}
 
-  # ------------------------------------------------------------------
-  # vscode — download binaries, package + publish to Marketplace + Open VSX.
-  # ------------------------------------------------------------------
   vscode-publish:
     name: vscode / vsce + ovsx publish
     needs: [verify-versions, lsp-binaries]
@@ -239,36 +171,12 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
           submodules: recursive
 
-      # Download all platform binaries from lsp-binaries artifacts
       - uses: actions/download-artifact@v5
         with:
-          path: binaries
-          pattern: ktav-lsp-*
-          merge-multiple: false
-
-      # Place binaries in bin/<platform>-<arch>/
-      - name: Organize binaries
-        shell: bash
-        run: |
-          # `download-artifact` placed the artifacts at $GITHUB_WORKSPACE/binaries
-          # (workspace-root relative — NOT relative to this step's vscode
-          # working-directory). Each artifact dir holds ONE file named after the
-          # asset (lsp-binaries stages it as `$asset`, not `ktav-lsp`). Copy each
-          # into the platform dir the extension probes, renamed to `ktav-lsp[.exe]`.
-          # Absolute $GITHUB_WORKSPACE paths avoid any cwd ambiguity; no `[ -d ]`
-          # guards so a missing binary fails the release loudly instead of
-          # silently shipping a partial (Windows-only) VSIX.
-          B="$GITHUB_WORKSPACE/binaries"
-          D="$GITHUB_WORKSPACE/vscode/bin"
-          mkdir -p "$D"/{linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64,win32-arm64}
-          cp "$B/ktav-lsp-linux-amd64/ktav-lsp-linux-amd64"           "$D/linux-x64/ktav-lsp"
-          cp "$B/ktav-lsp-linux-arm64/ktav-lsp-linux-arm64"           "$D/linux-arm64/ktav-lsp"
-          cp "$B/ktav-lsp-darwin-amd64/ktav-lsp-darwin-amd64"         "$D/darwin-x64/ktav-lsp"
-          cp "$B/ktav-lsp-darwin-arm64/ktav-lsp-darwin-arm64"         "$D/darwin-arm64/ktav-lsp"
-          cp "$B/ktav-lsp-windows-amd64.exe/ktav-lsp-windows-amd64.exe" "$D/win32-x64/ktav-lsp.exe"
-          cp "$B/ktav-lsp-windows-arm64.exe/ktav-lsp-windows-arm64.exe" "$D/win32-arm64/ktav-lsp.exe"
-          chmod +x "$D/linux-x64/ktav-lsp" "$D/linux-arm64/ktav-lsp" "$D/darwin-x64/ktav-lsp" "$D/darwin-arm64/ktav-lsp"
-          ls -lhR "$D"
+          name: lsp-plugin-binaries
+          path: vscode/bin
+      - name: Restore executable modes after artifact transport
+        run: chmod +x bin/{linux-x64,linux-arm64,darwin-x64,darwin-arm64}/ktav-lsp
 
       - uses: actions/setup-node@v6
         with:
@@ -302,6 +210,8 @@ jobs:
           VSIX="ktav-$(node -p "require('./package.json').version").vsix"
           npx vsce package --out "$VSIX"
           echo "VSIX=$VSIX" >> "$GITHUB_ENV"
+      - name: Verify complete LSP legal and source delivery
+        run: python3 -I ../scripts/check_lsp_plugin_zip.py "$VSIX" vsix > "$RUNNER_TEMP/vsix-lsp-distribution.json"
       - name: Validate packaged VSIX
         shell: bash
         run: |
@@ -371,32 +281,12 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
           submodules: recursive
 
-      # Download all platform binaries from lsp-binaries artifacts
       - uses: actions/download-artifact@v5
         with:
-          path: binaries
-          pattern: ktav-lsp-*
-          merge-multiple: false
-
-      # Place binaries in bin/<platform>-<arch>/
-      - name: Organize binaries
-        shell: bash
-        run: |
-          # Same as vscode-publish: artifacts live at $GITHUB_WORKSPACE/binaries
-          # (workspace-root relative), each dir holding one file named after the
-          # asset. Copy into the per-platform dir as `ktav-lsp[.exe]`. Absolute
-          # paths avoid cwd ambiguity; fail loudly on any missing binary.
-          B="$GITHUB_WORKSPACE/binaries"
-          D="$GITHUB_WORKSPACE/intellij/bin"
-          mkdir -p "$D"/{linux-x64,linux-arm64,darwin-x64,darwin-arm64,win32-x64,win32-arm64}
-          cp "$B/ktav-lsp-linux-amd64/ktav-lsp-linux-amd64"           "$D/linux-x64/ktav-lsp"
-          cp "$B/ktav-lsp-linux-arm64/ktav-lsp-linux-arm64"           "$D/linux-arm64/ktav-lsp"
-          cp "$B/ktav-lsp-darwin-amd64/ktav-lsp-darwin-amd64"         "$D/darwin-x64/ktav-lsp"
-          cp "$B/ktav-lsp-darwin-arm64/ktav-lsp-darwin-arm64"         "$D/darwin-arm64/ktav-lsp"
-          cp "$B/ktav-lsp-windows-amd64.exe/ktav-lsp-windows-amd64.exe" "$D/win32-x64/ktav-lsp.exe"
-          cp "$B/ktav-lsp-windows-arm64.exe/ktav-lsp-windows-arm64.exe" "$D/win32-arm64/ktav-lsp.exe"
-          chmod +x "$D/linux-x64/ktav-lsp" "$D/linux-arm64/ktav-lsp" "$D/darwin-x64/ktav-lsp" "$D/darwin-arm64/ktav-lsp"
-          ls -lhR "$D"
+          name: lsp-plugin-binaries
+          path: intellij/bin
+      - name: Restore executable modes after artifact transport
+        run: chmod +x bin/{linux-x64,linux-arm64,darwin-x64,darwin-arm64}/ktav-lsp
 
       # The plugin version carries a build stamp. Take it from the commit so
       # both Gradle runs below, and any re-run of this tag, build one version
@@ -409,7 +299,19 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew test verifyPlugin buildPlugin --no-daemon
+      - run: ./gradlew --no-daemon --no-parallel --no-configure-on-demand -I ../ci/license-init.gradle licenseArtifactInventory checkLicense test verifyPlugin buildPlugin
+      - name: Verify complete LSP legal and source delivery
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          archives = list(Path('build/distributions').glob('*.zip'))
+          if len(archives) != 1:
+              raise SystemExit('expected exactly one actual IntelliJ ZIP')
+          report = subprocess.check_output([sys.executable, '-I', '../scripts/check_lsp_plugin_zip.py', str(archives[0]), 'intellij'])
+          (Path(os.environ['RUNNER_TEMP']) / 'intellij-lsp-distribution.json').write_bytes(report)
       - name: Publish to JetBrains Marketplace
         # Publishes only on a manual dispatch with publish=true; tag pushes
         # build only. The FIRST version must be uploaded manually via
@@ -420,7 +322,9 @@ jobs:
         # for that manual first upload.
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish && env.INTELLIJ_PUBLISH_TOKEN != '' }}
         continue-on-error: true
-        run: ./gradlew publishPlugin --no-daemon
+        run: ./gradlew --no-daemon --no-parallel --no-configure-on-demand -I ../ci/license-init.gradle publishPlugin
+      - name: Recheck license and distribution gates before upload
+        run: ./gradlew --no-daemon --no-parallel --no-configure-on-demand -I ../ci/license-init.gradle licenseArtifactInventory checkLicense
       # The universal plugin zip (loads on all JetBrains IDEs / all OSes,
       # bundling every platform LSP binary) always ships.
       - uses: actions/upload-artifact@v5
@@ -435,7 +339,7 @@ jobs:
   # ------------------------------------------------------------------
   github-release:
     name: GitHub Release
-    needs: [lsp-publish, lsp-binaries, vscode-publish, intellij-publish]
+    needs: [verify-versions, lsp-publish, lsp-binaries, vscode-publish, intellij-publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -446,8 +350,29 @@ jobs:
 
       - uses: actions/download-artifact@v5
         with:
+          pattern: lsp-distribution-*
+          path: release-lsp-inputs
+          merge-multiple: false
+      - name: Stage only verified raw LSP assets, notices and source
+        run: python3 -I scripts/stage_lsp_release_assets.py release-lsp-inputs artifacts "${{ needs.verify-versions.outputs.source_ref }}" > "$RUNNER_TEMP/release-lsp-assets.json"
+      - uses: actions/download-artifact@v5
+        with:
+          name: vscode-vsix
           path: artifacts
-          merge-multiple: true
+      - uses: actions/download-artifact@v5
+        with:
+          name: intellij-zip
+          path: artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: licensed-release-candidate
+          path: artifacts/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: licensed-release-inventory
+          path: ${{ runner.temp }}/release-lsp-assets.json
+          if-no-files-found: error
 
       - name: Extract release notes from CHANGELOG.md
         id: notes

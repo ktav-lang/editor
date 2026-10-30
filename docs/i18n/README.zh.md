@@ -145,7 +145,15 @@ require("lspconfig").ktav.setup({})
 
 ## 许可证
 
-MIT OR Apache-2.0。详见 [LICENSE-MIT](../../LICENSE-MIT) 和 [LICENSE-APACHE](../../LICENSE-APACHE)。
+Ktav 自有代码采用 MIT OR Apache-2.0。详见 [LICENSE-MIT](../../LICENSE-MIT) 和 [LICENSE-APACHE](../../LICENSE-APACHE)。随附第三方代码保留各自的许可证和声明；Ktav 的许可证不能替代这些条款。
+
+### 原生二进制文件、声明和源代码
+
+经过许可证检查的发布流水线将每个 LSP 可执行文件与 `*.distribution.json`、可读的 `*.THIRD-PARTY-NOTICES.txt`、`*.NOTICE.json` 及其压缩副本、原始 Rust `*.COPYRIGHT-library.html`、`*.Cargo.lock` 和两份 Ktav 许可证一同提供。平台运行时声明也随附其中。再次分发时必须保留完整的平台文件集；仅复制可执行文件会丢失必需材料。
+
+GNU Linux ARM64 文件集还包含 `ktav-lsp-source-aarch64-unknown-linux-gnu.tar.gz` 和 `*.source-binding.json`。其中保留的启动代码受 LGPL-2.1-or-later 约束，不具有已审查 x64 启动代码中的编译链接例外。匹配的源代码归档提供对应源代码和重新链接所需材料；可使用归档中的重建脚本，以修改后的启动源代码重新构建。这不会改变 Ktav 自有代码的许可证。
+
+通用插件包含同样完整的文件集：VS Code 扩展中的 `bin/<platform>/`，以及 IntelliJ 插件中的 `lib/bin/<platform>/`。必需的 ARM64 源代码归档使每个通用插件增加约 94 MB。CI 检查实际 VSIX/IntelliJ ZIP 的内容、可执行文件内嵌声明及源代码绑定，而不只是暂存目录。这些检查不会追溯替换历史已发布文件。
 
 ## 其他 Ktav 实现
 

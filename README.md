@@ -149,7 +149,15 @@ CHANGELOG lists changes per subproject under each version heading.
 
 ## License
 
-MIT OR Apache-2.0. See [LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE).
+Ktav's own code is MIT OR Apache-2.0. See [LICENSE-MIT](LICENSE-MIT) and [LICENSE-APACHE](LICENSE-APACHE). Bundled third-party code retains its own licenses and notices; the first-party license does not replace them.
+
+### Native binaries, notices and source
+
+The license-checked release pipeline delivers each LSP executable together with `*.distribution.json`, readable `*.THIRD-PARTY-NOTICES.txt`, `*.NOTICE.json`, its compressed copy, the original Rust `*.COPYRIGHT-library.html`, `*.Cargo.lock`, and both Ktav license files. Platform-specific runtime notices are delivered alongside them. Keep the complete platform payload when redistributing; copying only the executable drops required materials.
+
+The GNU Linux ARM64 payload also includes `ktav-lsp-source-aarch64-unknown-linux-gnu.tar.gz` and `*.source-binding.json`. Its retained startup code is subject to LGPL-2.1-or-later without the compiled-linking exception present in the reviewed x64 startup. The matching source archive supplies corresponding source and relinking materials; use its rebuild script to rebuild with modified startup source. This does not change the license of Ktav's own code.
+
+Universal plugins carry the same complete payloads: `bin/<platform>/` in the VS Code extension and `lib/bin/<platform>/` in the IntelliJ plugin. The required ARM64 source archive adds approximately 94 MB to each universal plugin. CI verifies the actual VSIX/IntelliJ ZIP contents, executable notice resources and source bindings, not only staging directories. These checks do not retroactively replace historical published assets.
 
 ## Other Ktav implementations
 

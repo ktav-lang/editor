@@ -1,0 +1,225 @@
+name: LSP native notice evidence
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Immutable source commit to build
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_REF: ${{ inputs.source_ref }}
+
+jobs:
+  lsp-notice-prototype:
+    name: LSP notice / ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve source-backed notice tools and build hook
+        shell: python
+        run: |
+          import os
+          import shutil
+          from pathlib import Path
+          stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
+          stage.mkdir()
+          for name in ['scripts/apply_lsp_notice_overlay.py', 'scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py', 'scripts/prepare_lsp_source_bundle.py', 'scripts/rebuild_lsp_source.sh', 'scripts/verify_lsp_source_bundle.py', 'scripts/check_lsp_relink.py', 'ci/test_lsp_source_bundle.py', 'ci/test_lsp_relink.py', 'ci/lsp-source-README.txt', 'ci/licenses/LGPL-2.1.txt', 'ci/licenses/GPL-2.0.txt', 'ci/licenses/GPL-3.0.txt', 'ci/licenses/gnu-source-texts.json', 'scripts/lsp_runtime_notices.py', 'ci/test_lsp_runtime_notices.py', 'ci/lsp-zig-runtime-catalog.json']:
+              target = stage / name
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(name, target)
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Apply notice-only LSP source overlay
+        shell: python
+        run: |
+          import hashlib
+          import json
+          import os
+          import shutil
+          import subprocess
+          import sys
+          from pathlib import Path
+          source_ref = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if source_ref != os.environ['SOURCE_REF']:
+              raise SystemExit('unexpected LSP release source')
+          stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
+          for name in stage.rglob('*'):
+              if not name.is_file():
+                  continue
+              target = Path(name.relative_to(stage))
+              if target.as_posix() == 'lsp/build.rs' and target.exists() and target.read_bytes() != name.read_bytes():
+                  raise SystemExit('existing LSP build hook requires review')
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(name, target)
+          subprocess.run(['git', 'diff', '--exit-code', '--', 'lsp/Cargo.toml', 'lsp/Cargo.lock', 'lsp/src/lib.rs', 'lsp/tests', 'root-docs'], check=True)
+          overlay = json.loads(subprocess.check_output([sys.executable, '-I', 'scripts/apply_lsp_notice_overlay.py', 'lsp/src/main.rs']))
+          record = {'source_ref': source_ref, 'tooling_ref': os.environ['GITHUB_SHA'], **overlay, 'coverage': 'Notice-only source overlay; runtime and distribution requirements are verified by their dedicated gates.'}
+          with (Path(os.environ['RUNNER_TEMP']) / 'lsp-source-provenance.json').open('x', encoding='utf-8') as output:
+              json.dump(record, output, sort_keys=True, indent=2)
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: ${{ matrix.target }}
+          components: rust-docs
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: '0.14.0'
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild@0.24.0,cargo-about@0.9.3
+      - name: Verify source supplement and startup guards
+        run: |
+          python3 -I -m unittest discover -s ci -p test_lsp_license_supplement.py -v
+          python3 -I -m unittest discover -s ci -p test_lsp_startup.py -v
+          python3 -I -m unittest discover -s ci -p test_lsp_source_bundle.py -v
+          python3 -I -m unittest discover -s ci -p test_lsp_relink.py -v
+          python3 -I -m unittest discover -s ci -p test_lsp_runtime_notices.py -v
+      - name: Verify registry core and prepare existing locked notices
+        shell: python
+        run: |
+          import json
+          import os
+          import shutil
+          import subprocess
+          import sys
+          import tomllib
+          from pathlib import Path
+          lock = tomllib.loads(Path('lsp/Cargo.lock').read_text())
+          core = [item for item in lock['package'] if item['name'] == 'ktav']
+          if len(core) != 1 or core[0].get('version') != '0.8.1' or core[0].get('source') != 'registry+https://github.com/rust-lang/crates.io-index' or core[0].get('checksum') != '7140dfe2fa6c320e74768cd6a637828c2d26f81746254f4fcd805f3993bd3fd5':
+              raise SystemExit('unexpected LSP core provenance')
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'lsp-notices'
+          subprocess.run([sys.executable, '../scripts/prepare_lsp_notices.py', str(evidence)], cwd='lsp', check=True)
+          shutil.copy2(Path(os.environ['RUNNER_TEMP']) / 'lsp-source-provenance.json', evidence / 'source-provenance.json')
+          subprocess.run([sys.executable, 'scripts/lsp_runtime_notices.py', str(evidence), '${{ matrix.target }}'], check=True)
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
+              output.write('KTAV_NATIVE_NOTICES=' + (evidence / 'NOTICE.json.gz').as_posix() + chr(10))
+      - name: Verify resource and linker-capture guards
+        run: |
+          python3 -I -m unittest discover -s ci -p test_embedded_notices.py -v
+          python3 -I -m unittest discover -s ci -p test_zig_link_capture.py -v
+      - name: Full host LSP tests with the metadata hook
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        working-directory: lsp
+        run: cargo test --locked --release
+      - name: Build executable and capture actual runtime inputs
+        shell: bash
+        working-directory: lsp
+        run: |
+          set -euo pipefail
+          export KTAV_REAL_ZIG="$(command -v zig)"
+          export KTAV_LINK_MAP="$RUNNER_TEMP/lsp-notices/native-link.map"
+          export CARGO_ZIGBUILD_ZIG_COMMAND="$GITHUB_WORKSPACE/scripts/capture-zig-link.sh"
+          unset CARGO_ZIGBUILD_ZIG_COMMAND_ARGS
+          chmod +x "$CARGO_ZIGBUILD_ZIG_COMMAND"
+          zig version > "$RUNNER_TEMP/lsp-notices/zig-version.txt"
+          RUSTFLAGS="-C link-arg=-Wl,--print-map" cargo zigbuild --locked --release --target ${{ matrix.target }}.2.17
+          test -s "$KTAV_LINK_MAP"
+          python3 -c 'import gzip, os; from pathlib import Path; p = Path(os.environ["KTAV_NATIVE_NOTICES"]); before = p.read_bytes(); after = gzip.compress(p.with_name("NOTICE.json").read_bytes(), compresslevel=1, mtime=0); assert before != after; p.write_bytes(after)'
+          RUSTFLAGS="-C link-arg=-Wl,--print-map" cargo zigbuild --locked --release --target ${{ matrix.target }}.2.17
+      - name: Verify actual executable resource and incremental input tracking
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import hashlib
+          import json
+          import os
+          import subprocess
+          import sys
+          from pathlib import Path
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp'
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'lsp-notices'
+          report = subprocess.check_output([sys.executable, '-I', 'scripts/check_embedded_notices.py', str(binary), str(evidence / 'NOTICE.json')])
+          payload = (evidence / 'NOTICE.json.gz').read_bytes()
+          resource = b'KTAV-NOTICES-GZIP-v1\0' + len(payload).to_bytes(8, 'little') + payload
+          if binary.read_bytes().count(resource) != 1:
+              raise SystemExit('LSP did not retain the updated exact resource after incremental rebuild')
+          verification = json.loads(report)
+          verification['plain_notice_sha256'] = hashlib.sha256((evidence / 'NOTICE.gnu-startup.txt').read_bytes()).hexdigest()
+          (evidence / 'native-resource-verification.json').write_text(json.dumps(verification, sort_keys=True, indent=2), encoding='utf-8')
+          with (evidence / 'incremental-resource.json').open('x', encoding='utf-8') as output:
+              json.dump({'exact_resource_sha256': hashlib.sha256(resource).hexdigest(), 'incremental_input_rebuilt': True}, output, sort_keys=True, indent=2)
+      - name: Verify retained startup inputs and final ELF symbols
+        run: python3 scripts/check_lsp_startup.py lsp/target/${{ matrix.target }}/release/ktav-lsp ${{ runner.temp }}/lsp-notices
+      - name: Prepare corresponding source and original target link inputs
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: python3 scripts/prepare_lsp_source_bundle.py ${{ runner.temp }}/lsp-notices ${{ runner.temp }}/lsp-source-package ${{ matrix.target }}
+      - name: Verify actual source archive and extract into a new directory
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: python3 scripts/verify_lsp_source_bundle.py ${{ runner.temp }}/lsp-source-package/ktav-lsp-source-${{ matrix.target }}.tar.gz ${{ runner.temp }}/lsp-source-verify
+      - name: Rebuild original executable from supplied materials
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "$RUNNER_TEMP/lsp-source-verify/lsp-source/rebuild.sh" "${{ matrix.target }}"
+          cp "$RUNNER_TEMP/lsp-source-verify/lsp-source/target-relinked/${{ matrix.target }}/release/ktav-lsp" "$RUNNER_TEMP/lsp-relink-original"
+      - name: Modify supplied startup source for relink proof
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        shell: python
+        run: |
+          import datetime
+          import hashlib
+          import os
+          from pathlib import Path
+          source = Path(os.environ['RUNNER_TEMP']) / 'lsp-source-verify/lsp-source/upstream/zig-5ad91a646a753cc3eecd8751e61cf458dadd9ac4/lib/libc/glibc/sysdeps/aarch64/start-2.33.S'
+          original = source.read_bytes()
+          if hashlib.sha1(b'blob ' + str(len(original)).encode() + bytes([0]) + original).hexdigest() != 'd96cf57e2da901bc21e69bf5a87ed034820453f0':
+              raise SystemExit('original supplied startup source changed')
+          anchor = bytes([10]) + b'_start:' + bytes([10])
+          if original.count(anchor) != 1:
+              raise SystemExit('startup entry point requires review')
+          notice = ('/* Изменено для CI relink proof, ' + datetime.date.today().isoformat() + '. */').encode('utf-8')
+          source.write_bytes(original.replace(anchor, anchor + notice + bytes([10]) + b'  nop' + bytes([10]), 1))
+      - name: Relink with modified startup and prove actual entry instruction
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "$RUNNER_TEMP/lsp-source-verify/lsp-source/rebuild.sh" "${{ matrix.target }}"
+          python3 scripts/check_lsp_relink.py "$RUNNER_TEMP/lsp-relink-original" "$RUNNER_TEMP/lsp-source-verify/lsp-source/target-relinked/${{ matrix.target }}/release/ktav-lsp" "$RUNNER_TEMP/lsp-notices/NOTICE.json" > "$RUNNER_TEMP/lsp-notices/source-relink-proof.json"
+      - uses: actions/upload-artifact@v4
+        if: success() && matrix.target == 'aarch64-unknown-linux-gnu'
+        with:
+          name: lsp-corresponding-source-${{ matrix.target }}
+          path: ${{ runner.temp }}/lsp-source-package/ktav-lsp-source-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lsp-license-prototype-${{ matrix.target }}
+          path: ${{ runner.temp }}/lsp-notices/
+          if-no-files-found: warn
+      - name: Stage complete binary, legal notices and required source payload
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          root = Path(os.environ['RUNNER_TEMP'])
+          evidence = root / 'lsp-notices'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp'
+          output = root / 'lsp-distribution'
+          subprocess.run([sys.executable, 'scripts/lsp_distribution.py', 'stage', str(evidence), str(binary), os.environ['LSP_TARGET'], str(root / 'lsp-source-package'), str(output)], check=True)
+          subprocess.run([sys.executable, 'scripts/lsp_distribution.py', 'verify', str(output)], check=True)
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: lsp-distribution-${{ matrix.target }}
+          path: ${{ runner.temp }}/lsp-distribution/
+          if-no-files-found: error

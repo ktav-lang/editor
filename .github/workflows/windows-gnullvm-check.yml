@@ -1,0 +1,337 @@
+name: Windows GNU LLVM compatibility evidence
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Immutable source commit to build
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_REF: ${{ inputs.source_ref }}
+
+jobs:
+  gnullvm-prototype:
+    name: LSP GNU LLVM / ${{ matrix.target }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-gnullvm
+            compiler: x86_64-w64-mingw32-clang.exe
+          - target: aarch64-pc-windows-gnullvm
+            compiler: aarch64-w64-mingw32-clang.exe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve reviewed notice tools before release-source checkout
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import shutil
+          stage = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-notice-tools'
+          stage.mkdir()
+          names = ['scripts/apply_lsp_notice_overlay.py', 'scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/lsp_gnullvm_notices.py', 'scripts/check_lsp_gnullvm.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/lsp-gnullvm-runtime-catalog.json', 'ci/test_lsp_gnullvm_notices.py']
+          for name in names:
+              destination = stage / name
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(name, destination)
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Apply notice-only source overlay
+        shell: python
+        run: |
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import sys
+          stage = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-notice-tools'
+          for source in stage.rglob('*'):
+              if not source.is_file():
+                  continue
+              destination = Path(source.relative_to(stage))
+              if destination.as_posix() == 'lsp/build.rs' and destination.exists() and destination.read_bytes() != source.read_bytes():
+                  raise SystemExit('existing LSP build hook requires review')
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, destination)
+          subprocess.run(['git', 'diff', '--exit-code', '--', 'lsp/Cargo.toml', 'lsp/Cargo.lock', 'lsp/src/lib.rs', 'lsp/tests', 'root-docs'], check=True)
+          overlay = json.loads(subprocess.check_output([sys.executable, '-I', 'scripts/apply_lsp_notice_overlay.py', 'lsp/src/main.rs']))
+          provenance = overlay
+          (Path(os.environ['RUNNER_TEMP']) / 'gnullvm-source-overlay.json').write_text(json.dumps(provenance, sort_keys=True, indent=2))
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: ${{ matrix.target }}
+          components: rust-docs
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-about@0.9.3
+      - name: Verify Windows source-notice regression guards
+        run: python -I -m unittest discover -s ci -p test_lsp_gnullvm_notices.py -v
+      - name: Verify source/core and install exact candidate SDK
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+          CANDIDATE_COMPILER: ${{ matrix.compiler }}
+        run: |
+          import hashlib
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+          import stat
+          import subprocess
+          import tomllib
+          import urllib.request
+          import zipfile
+          if subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() != os.environ['SOURCE_REF']:
+              raise SystemExit('unexpected GNU LLVM source')
+          lock = Path('lsp/Cargo.lock').read_bytes()
+          core = [item for item in tomllib.loads(lock.decode())['package'] if item['name'] == 'ktav']
+          if len(core) != 1 or core[0].get('version') != '0.8.1' or core[0].get('checksum') != '7140dfe2fa6c320e74768cd6a637828c2d26f81746254f4fcd805f3993bd3fd5':
+              raise SystemExit('unexpected GNU LLVM core source')
+          root = Path(os.environ['RUNNER_TEMP'])
+          evidence = root / 'gnullvm-evidence'
+          evidence.mkdir()
+          (evidence / 'Cargo.lock').write_bytes(lock)
+          sdk = root / 'gnullvm-sdk'
+          sdk.mkdir()
+          archive_path = sdk / 'sdk.zip'
+          url = 'https://github.com/mstorsjo/llvm-mingw/releases/download/20261020/llvm-mingw-20261020-ucrt-x86_64.zip'
+          checksum = hashlib.sha256()
+          total = 0
+          with urllib.request.urlopen(url, timeout=120) as response, archive_path.open('xb') as output:
+              while chunk := response.read(1024 * 1024):
+                  total += len(chunk)
+                  if total > 256 * 1024 * 1024:
+                      raise SystemExit('candidate SDK size limit exceeded')
+                  checksum.update(chunk)
+                  output.write(chunk)
+          if checksum.hexdigest() != 'fd5462b7f5d93b2ff981fcd3f9c7e427e47f3203c64ea91c27bcc444eebd74cd':
+              raise SystemExit('candidate SDK integrity mismatch')
+          with zipfile.ZipFile(archive_path) as archive:
+              for member in archive.infolist():
+                  path = PurePosixPath(member.filename)
+                  if path.is_absolute() or '..' in path.parts or '\\' in member.filename or ':' in member.filename or stat.S_IFMT(member.external_attr >> 16) == stat.S_IFLNK:
+                      raise SystemExit('unsafe candidate SDK archive member')
+              archive.extractall(sdk)
+          install = sdk / 'llvm-mingw-20261020-ucrt-x86_64'
+          compiler = install / 'bin' / os.environ['CANDIDATE_COMPILER']
+          if not compiler.is_file():
+              raise SystemExit('candidate compiler missing')
+          (evidence / 'compiler-version.txt').write_bytes(subprocess.check_output([str(compiler), '--version']))
+          (evidence / 'rustc.txt').write_bytes(subprocess.check_output(['rustc', '--version', '--verbose']))
+          key = 'CARGO_TARGET_' + os.environ['LSP_TARGET'].upper().replace('-', '_') + '_LINKER'
+          map_path = (evidence / 'native-link.map').as_posix()
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
+              output.write(key + '=' + str(compiler) + chr(10))
+              output.write('CARGO_ENCODED_RUSTFLAGS=-C' + chr(31) + 'target-feature=+crt-static' + chr(31) + '-C' + chr(31) + 'link-arg=-Wl,-Map,' + map_path + chr(31) + '-C' + chr(31) + 'link-arg=-Wl,--reproduce=' + (root / 'gnullvm-release-link.tar').as_posix() + chr(10))
+              output.write('LLVM_MINGW_CANDIDATE=' + str(install) + chr(10))
+          with Path(os.environ['GITHUB_PATH']).open('a', encoding='utf-8') as output:
+              output.write(str(install / 'bin') + chr(10))
+          (evidence / 'source-provenance.json').write_text(json.dumps({'source_ref': os.environ['SOURCE_REF'], 'target': os.environ['LSP_TARGET'], 'sdk_archive_sha256': checksum.hexdigest(), 'sdk_source': url, 'notice_overlay': json.loads((root / 'gnullvm-source-overlay.json').read_text()), 'coverage': 'Experimental standalone LSP with exact embedded notices; no production or other binding compatibility claim.'}, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Prepare exact locked Cargo/std and Windows runtime notices
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          import sys
+          notices = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-cargo-notices'
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          subprocess.run([sys.executable, '../scripts/prepare_lsp_notices.py', str(notices)], cwd='lsp', check=True)
+          subprocess.run([sys.executable, 'scripts/lsp_gnullvm_notices.py', str(notices), os.environ['LSP_TARGET']], check=True)
+          for source in notices.iterdir():
+              if not source.is_file():
+                  raise SystemExit('unexpected nested notice evidence')
+              destination = evidence / source.name
+              if destination.exists():
+                  if destination.read_bytes() != source.read_bytes():
+                      raise SystemExit('conflicting source notice evidence')
+              else:
+                  shutil.copyfile(source, destination)
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
+              output.write('KTAV_NATIVE_NOTICES=' + (evidence / 'NOTICE.json.gz').as_posix() + chr(10))
+      - name: Build standalone LSP with exact embedded notices
+        run: cargo build --locked --release --manifest-path lsp/Cargo.toml --target ${{ matrix.target }}
+      - name: Preserve release binary and map identity before tests
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
+          record = {'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'map_sha256': hashlib.sha256((evidence / 'native-link.map').read_bytes()).hexdigest()}
+          (evidence / 'release-before-tests.json').write_text(json.dumps(record, sort_keys=True))
+      - name: Fingerprint actual linker inputs without publishing object files
+        shell: python
+        run: |
+          import hashlib
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+          import tarfile
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          reproduction = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-release-link.tar'
+          if not reproduction.is_file() or reproduction.stat().st_size > 512 * 1024 * 1024:
+              raise SystemExit('missing or oversized release linker reproduction')
+          inputs = []
+          seen = set()
+          total = 0
+          with tarfile.open(reproduction, mode='r:') as archive:
+              for member in archive:
+                  path = PurePosixPath(member.name)
+                  if path.is_absolute() or '..' in path.parts or member.name in seen or '\\' in member.name or member.issym() or member.islnk():
+                      raise SystemExit('unsafe or duplicate linker input')
+                  seen.add(member.name)
+                  if member.isdir():
+                      continue
+                  if not member.isfile() or member.size < 0 or member.size > 128 * 1024 * 1024:
+                      raise SystemExit('invalid linker input size/type')
+                  total += member.size
+                  if total > 512 * 1024 * 1024 or len(seen) > 8192:
+                      raise SystemExit('linker input inventory exceeds bound')
+                  stream = archive.extractfile(member)
+                  checksum = hashlib.sha256()
+                  size = 0
+                  while chunk := stream.read(1024 * 1024):
+                      checksum.update(chunk)
+                      size += len(chunk)
+                  if size != member.size:
+                      raise SystemExit('truncated linker input')
+                  inputs.append({'path': member.name, 'size': size, 'sha256': checksum.hexdigest()})
+          if not inputs or not any(item['path'].endswith('/response.txt') for item in inputs):
+              raise SystemExit('linker reproduction lacks command/input evidence')
+          (evidence / 'link-input-fingerprints.json').write_text(json.dumps({'release_identity': json.loads((evidence / 'release-before-tests.json').read_text()), 'inputs': inputs}, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Actual matching-CPU LSP tests in a separate target directory
+        if: matrix.target == 'x86_64-pc-windows-gnullvm'
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          environment = {**os.environ, 'CARGO_TARGET_DIR': str(Path(os.environ['RUNNER_TEMP']) / 'gnullvm-test-target'), 'CARGO_ENCODED_RUSTFLAGS': '-C' + chr(31) + 'target-feature=+crt-static'}
+          subprocess.run(['cargo', 'test', '--locked', '--release', '--manifest-path', 'lsp/Cargo.toml', '--target', os.environ['LSP_TARGET']], env=environment, check=True)
+      - name: Capture actual PE imports, runtime map and original license files
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import base64
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          sdk = Path(os.environ['LLVM_MINGW_CANDIDATE'])
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
+          if not binary.is_file() or not (evidence / 'native-link.map').is_file():
+              raise SystemExit('missing actual candidate binary/map')
+          before = json.loads((evidence / 'release-before-tests.json').read_text())
+          if hashlib.sha256(binary.read_bytes()).hexdigest() != before['binary_sha256'] or hashlib.sha256((evidence / 'native-link.map').read_bytes()).hexdigest() != before['map_sha256']:
+              raise SystemExit('tests changed the release binary or its linker map')
+          if Path('lsp/Cargo.lock').read_bytes() != (evidence / 'Cargo.lock').read_bytes():
+              raise SystemExit('candidate build changed existing lock')
+          readobj = sdk / 'bin/llvm-readobj.exe'
+          pe = subprocess.check_output([str(readobj), '--file-headers', '--coff-imports', str(binary)])
+          (evidence / 'pe-inputs.txt').write_bytes(pe)
+          imports = re.findall(rb'^\s*Name: ([^\r\n]+[.]dll)\s*$', pe, re.M | re.I)
+          if not imports or any(name.lower().startswith((b'libunwind', b'libgcc', b'libstdc++', b'libc++')) for name in imports):
+              raise SystemExit('candidate executable still requires non-OS compiler runtime DLL')
+          notices = []
+          total = 0
+          for path in sorted(sdk.rglob('*')):
+              if not path.is_file() or not re.match(r'(?i)^(?:license|copying|copyright|notice)', path.name):
+                  continue
+              if path.stat().st_size > 4 * 1024 * 1024:
+                  raise SystemExit('candidate legal document exceeds bound')
+              data = path.read_bytes()
+              total += len(data)
+              if total > 32 * 1024 * 1024:
+                  raise SystemExit('candidate legal inventory exceeds bound')
+              notices.append({'path': path.relative_to(sdk).as_posix(), 'sha256': hashlib.sha256(data).hexdigest(), 'raw_bytes_base64': base64.b64encode(data).decode('ascii')})
+          (evidence / 'sdk-legal.json').write_text(json.dumps(notices, indent=2), encoding='utf-8')
+          (evidence / 'binary-fingerprint.json').write_text(json.dumps({'target': os.environ['LSP_TARGET'], 'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'native_execution': os.environ['LSP_TARGET'] == 'x86_64-pc-windows-gnullvm', 'scope': 'Compatibility prototype only; inspect retained runtime inputs before selecting licensing policy.'}, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Verify exact embedded/plain notices, CPU and retained runtime inputs
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
+          subprocess.run([sys.executable, 'scripts/check_lsp_gnullvm.py', str(evidence), str(binary), os.environ['LSP_TARGET']], check=True)
+      - name: Run standalone executable without SDK DLL search paths
+        if: matrix.target == 'x86_64-pc-windows-gnullvm'
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import subprocess
+          probe = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-standalone-probe'
+          probe.mkdir()
+          source = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
+          binary = probe / 'ktav-lsp.exe'
+          shutil.copyfile(source, binary)
+          windows = Path(os.environ['SystemRoot'])
+          environment = {**os.environ, 'PATH': str(windows / 'System32') + os.pathsep + str(windows)}
+          result = subprocess.run([str(binary)], input=b'', stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=probe, env=environment, timeout=30)
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-evidence'
+          (evidence / 'standalone-stderr.txt').write_bytes(result.stderr)
+          if result.returncode != 0 or result.stdout:
+              raise SystemExit('standalone candidate failed without SDK DLL paths or emitted non-protocol stdout')
+          (evidence / 'standalone-probe.json').write_text(json.dumps({'sdk_path_removed': True, 'only_executable_staged': True, 'exit_code': result.returncode, 'empty_stdin_stdout_empty': True}, sort_keys=True, indent=2))
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-gnullvm-evidence-${{ matrix.target }}
+          path: ${{ runner.temp }}/gnullvm-evidence/
+          if-no-files-found: warn
+      - name: Stage complete binary, legal notices and required source payload
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          root = Path(os.environ['RUNNER_TEMP'])
+          evidence = root / 'gnullvm-evidence'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
+          output = root / 'lsp-distribution'
+          subprocess.run([sys.executable, 'scripts/lsp_distribution.py', 'stage', str(evidence), str(binary), os.environ['LSP_TARGET'], str(root / 'gnullvm-evidence'), str(output)], check=True)
+          subprocess.run([sys.executable, 'scripts/lsp_distribution.py', 'verify', str(output)], check=True)
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: lsp-distribution-${{ matrix.target }}
+          path: ${{ runner.temp }}/lsp-distribution/
+          if-no-files-found: error

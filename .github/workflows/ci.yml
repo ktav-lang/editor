@@ -207,3 +207,10 @@ jobs:
       - run: ./gradlew test verifyPlugin --no-daemon
         env:
           KTAV_LSP_SMOKE_BINARY: ${{ github.workspace }}/lsp/target/release/ktav-lsp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: intellij-distribution-evidence
+          path: |
+            intellij/build/distributions/*.zip
+            intellij/build/license-inventory/plugin-distribution.json
+          if-no-files-found: error

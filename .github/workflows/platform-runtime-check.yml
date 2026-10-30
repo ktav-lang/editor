@@ -1,0 +1,141 @@
+name: LSP platform runtime evidence
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_REF: 2618bf1232f95da464a5cd407cc247ebb76acddd
+
+jobs:
+  platform-runtime:
+    name: LSP SDK inputs / ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: ktav-lsp
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: ktav-lsp
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: ktav-lsp.exe
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            artifact: ktav-lsp.exe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify measured SDK document size and safety bounds
+        run: python -I -m unittest discover -s ci -p test_sdk_legal_bounds.py -v
+      - name: Preserve SDK document collector
+        shell: python
+        run: |
+          import os
+          import shutil
+          from pathlib import Path
+          stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-sdk-audit-tools'
+          stage.mkdir()
+          shutil.copyfile('scripts/collect_lsp_sdk_legal.py', stage / 'collect_lsp_sdk_legal.py')
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_REF }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.99.1
+        with:
+          targets: ${{ matrix.target }}
+          components: rust-docs
+      - name: Verify exact source/core and capture linker map flags
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import json
+          import os
+          import platform
+          import subprocess
+          import tomllib
+          from pathlib import Path
+          if subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() != os.environ['SOURCE_REF']:
+              raise SystemExit('unexpected platform runtime source')
+          lock = tomllib.loads(Path('lsp/Cargo.lock').read_text())
+          core = [item for item in lock['package'] if item['name'] == 'ktav']
+          if len(core) != 1 or core[0].get('version') != '0.8.1' or core[0].get('checksum') != '7140dfe2fa6c320e74768cd6a637828c2d26f81746254f4fcd805f3993bd3fd5':
+              raise SystemExit('unexpected platform runtime core identity')
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'lsp-platform-runtime'
+          evidence.mkdir()
+          (evidence / 'Cargo.lock').write_bytes(Path('lsp/Cargo.lock').read_bytes())
+          (evidence / 'rustc.txt').write_bytes(subprocess.check_output(['rustc', '--version', '--verbose']))
+          map_path = (evidence / 'native-link.map').as_posix()
+          flag = 'link-arg=/MAP:' + map_path if platform.system() == 'Windows' else 'link-arg=-Wl,-map,' + map_path
+          with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
+              output.write('CARGO_ENCODED_RUSTFLAGS=-C' + chr(31) + flag + chr(10))
+          record = {'source_ref': os.environ['SOURCE_REF'], 'target': os.environ['LSP_TARGET'], 'host': platform.platform(), 'scope': 'Audit-only SDK link-input evidence; no executable publication or license conclusion.'}
+          (evidence / 'source-provenance.json').write_text(json.dumps(record, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Build actual target with map and selected linker trace
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+          RUSTC_LOG: rustc_codegen_ssa::back::link=info
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          result = subprocess.run(['cargo', 'build', '--locked', '--release', '--manifest-path', 'lsp/Cargo.toml', '--target', os.environ['LSP_TARGET']], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'lsp-platform-runtime'
+          (evidence / 'linker-trace.txt').write_bytes(result.stderr)
+          sys.stdout.buffer.write(result.stdout)
+          sys.stderr.buffer.write(result.stderr)
+          raise SystemExit(result.returncode)
+      - name: Capture original map, compiler library report and binary fingerprint
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+          LSP_ARTIFACT: ${{ matrix.artifact }}
+        run: |
+          import hashlib
+          import json
+          import os
+          import platform
+          import shutil
+          import subprocess
+          from pathlib import Path
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'lsp-platform-runtime'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release' / os.environ['LSP_ARTIFACT']
+          link_map = evidence / 'native-link.map'
+          if not binary.is_file() or not link_map.is_file() or not 0 < link_map.stat().st_size < 64 * 1024 * 1024:
+              raise SystemExit('missing actual binary or platform map')
+          if (evidence / 'Cargo.lock').read_bytes() != Path('lsp/Cargo.lock').read_bytes():
+              raise SystemExit('platform runtime build changed the existing lock')
+          sysroot = Path(subprocess.check_output(['rustc', '--print', 'sysroot'], text=True).strip())
+          shutil.copyfile(sysroot / 'share/doc/rust/COPYRIGHT-library.html', evidence / 'COPYRIGHT-library.html')
+          if platform.system() == 'Darwin':
+              for name, args in [('dynamic-libraries.txt', ['otool', '-L', str(binary)]), ('load-commands.txt', ['otool', '-l', str(binary)]), ('clang-version.txt', ['clang', '--version']), ('sdk-version.txt', ['xcrun', '--show-sdk-version'])]:
+                  (evidence / name).write_bytes(subprocess.check_output(args))
+          else:
+              vswhere = Path(os.environ['ProgramFiles(x86)']) / 'Microsoft Visual Studio/Installer/vswhere.exe'
+              if vswhere.is_file():
+                  (evidence / 'vs-installation-candidates.txt').write_bytes(subprocess.check_output([str(vswhere), '-all', '-property', 'installationVersion']))
+          record = {'target': os.environ['LSP_TARGET'], 'binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(), 'map_sha256': hashlib.sha256(link_map.read_bytes()).hexdigest(), 'map_bytes': link_map.stat().st_size, 'sdk_environment': {key: os.environ.get(key) for key in ['SDKROOT', 'DEVELOPER_DIR', 'WindowsSDKVersion', 'VCToolsVersion']}, 'scope': 'Observed platform inputs only; SDK copyright and distribution terms require separate review.'}
+          (evidence / 'native-platform-inputs.json').write_text(json.dumps(record, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Capture original installed SDK license documents
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          root = Path(os.environ['RUNNER_TEMP'])
+          subprocess.run([sys.executable, str(root / 'lsp-sdk-audit-tools/collect_lsp_sdk_legal.py'), str(root / 'lsp-platform-runtime')], check=True)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lsp-sdk-inputs-${{ matrix.target }}
+          path: ${{ runner.temp }}/lsp-platform-runtime/
+          if-no-files-found: warn
