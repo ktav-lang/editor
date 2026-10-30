@@ -31,7 +31,7 @@ jobs:
           import shutil
           stage = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-notice-tools'
           stage.mkdir()
-          names = ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/lsp_gnullvm_notices.py', 'scripts/check_lsp_gnullvm.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/lsp-gnullvm-runtime-catalog.json', 'ci/test_lsp_gnullvm_notices.py']
+          names = ['scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/lsp_gnullvm_notices.py', 'scripts/check_lsp_gnullvm.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/lsp-gnullvm-runtime-catalog.json', 'ci/test_lsp_gnullvm_notices.py']
           for name in names:
               destination = stage / name
               destination.parent.mkdir(parents=True, exist_ok=True)
@@ -315,3 +315,24 @@ jobs:
           name: windows-gnullvm-evidence-${{ matrix.target }}
           path: ${{ runner.temp }}/gnullvm-evidence/
           if-no-files-found: warn
+      - name: Stage complete binary, legal notices and required source payload
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          root = Path(os.environ['RUNNER_TEMP'])
+          evidence = root / 'gnullvm-evidence'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp.exe'
+          output = root / 'lsp-distribution'
+          subprocess.run([sys.executable, 'scripts/lsp_distribution.py', 'stage', str(evidence), str(binary), os.environ['LSP_TARGET'], str(root / 'gnullvm-evidence'), str(output)], check=True)
+          subprocess.run([sys.executable, 'scripts/lsp_distribution.py', 'verify', str(output)], check=True)
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: lsp-distribution-${{ matrix.target }}
+          path: ${{ runner.temp }}/lsp-distribution/
+          if-no-files-found: error

@@ -27,7 +27,7 @@ jobs:
           from pathlib import Path
           stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
           stage.mkdir()
-          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py', 'scripts/prepare_lsp_source_bundle.py', 'scripts/rebuild_lsp_source.sh', 'scripts/verify_lsp_source_bundle.py', 'scripts/check_lsp_relink.py', 'ci/test_lsp_source_bundle.py', 'ci/test_lsp_relink.py', 'ci/lsp-source-README.txt', 'ci/licenses/LGPL-2.1.txt', 'ci/licenses/GPL-2.0.txt', 'ci/licenses/GPL-3.0.txt', 'ci/licenses/gnu-source-texts.json', 'scripts/lsp_runtime_notices.py', 'ci/test_lsp_runtime_notices.py', 'ci/lsp-zig-runtime-catalog.json']:
+          for name in ['scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py', 'scripts/prepare_lsp_source_bundle.py', 'scripts/rebuild_lsp_source.sh', 'scripts/verify_lsp_source_bundle.py', 'scripts/check_lsp_relink.py', 'ci/test_lsp_source_bundle.py', 'ci/test_lsp_relink.py', 'ci/lsp-source-README.txt', 'ci/licenses/LGPL-2.1.txt', 'ci/licenses/GPL-2.0.txt', 'ci/licenses/GPL-3.0.txt', 'ci/licenses/gnu-source-texts.json', 'scripts/lsp_runtime_notices.py', 'ci/test_lsp_runtime_notices.py', 'ci/lsp-zig-runtime-catalog.json']:
               target = stage / name
               target.parent.mkdir(parents=True, exist_ok=True)
               shutil.copy2(name, target)
@@ -147,7 +147,9 @@ jobs:
           resource = b'KTAV-NOTICES-GZIP-v1\0' + len(payload).to_bytes(8, 'little') + payload
           if binary.read_bytes().count(resource) != 1:
               raise SystemExit('LSP did not retain the updated exact resource after incremental rebuild')
-          (evidence / 'native-resource-verification.json').write_bytes(report)
+          verification = json.loads(report)
+          verification['plain_notice_sha256'] = hashlib.sha256((evidence / 'NOTICE.gnu-startup.txt').read_bytes()).hexdigest()
+          (evidence / 'native-resource-verification.json').write_text(json.dumps(verification, sort_keys=True, indent=2), encoding='utf-8')
           with (evidence / 'incremental-resource.json').open('x', encoding='utf-8') as output:
               json.dump({'exact_resource_sha256': hashlib.sha256(resource).hexdigest(), 'incremental_input_rebuilt': True}, output, sort_keys=True, indent=2)
       - name: Verify retained startup inputs and final ELF symbols
@@ -201,3 +203,24 @@ jobs:
           name: lsp-license-prototype-${{ matrix.target }}
           path: ${{ runner.temp }}/lsp-notices/
           if-no-files-found: warn
+      - name: Stage complete binary, legal notices and required source payload
+        shell: python
+        env:
+          LSP_TARGET: ${{ matrix.target }}
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          root = Path(os.environ['RUNNER_TEMP'])
+          evidence = root / 'lsp-notices'
+          binary = Path('lsp/target') / os.environ['LSP_TARGET'] / 'release/ktav-lsp'
+          output = root / 'lsp-distribution'
+          subprocess.run([sys.executable, 'scripts/lsp_distribution.py', 'stage', str(evidence), str(binary), os.environ['LSP_TARGET'], str(root / 'lsp-source-package'), str(output)], check=True)
+          subprocess.run([sys.executable, 'scripts/lsp_distribution.py', 'verify', str(output)], check=True)
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: lsp-distribution-${{ matrix.target }}
+          path: ${{ runner.temp }}/lsp-distribution/
+          if-no-files-found: error
