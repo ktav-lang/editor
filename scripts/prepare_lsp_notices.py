@@ -7,7 +7,8 @@ import shutil
 import subprocess
 import sys
 
-from cargo_notice_bundle import _build
+from cargo_notice_bundle import MAX_BUNDLE_BYTES, _build
+from supplement_lsp_license import supplement
 
 
 def prepare(evidence):
@@ -44,8 +45,16 @@ def prepare(evidence):
     sysroot = subprocess.check_output(['rustc', '--print', 'sysroot'], text=True).strip()
     shutil.copyfile(Path(sysroot) / 'share/doc/rust/COPYRIGHT-library.html', evidence / 'COPYRIGHT-library.html')
     report = subprocess.check_output(['cargo', 'about', 'generate', '--locked', '--all-features', '--fail', '--config', '../ci/about.toml', '--format', 'json'])
-    (evidence / 'licenses.json').write_bytes(report)
-    data = _build(evidence)
+    (evidence / 'licenses-cargo-about.json').write_bytes(report)
+    combined, provenance = supplement(metadata, json.loads(report), original,
+                                      root.parent / 'ci/licenses/valuable-0.1.1.LICENSE')
+    (evidence / 'licenses.json').write_text(json.dumps(combined, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    bundle = json.loads(_build(evidence))
+    bundle['source_license_supplements'] = provenance
+    bundle['license_report_origin'] = 'cargo-about plus explicit reviewed source supplements'
+    data = (json.dumps(bundle, ensure_ascii=False, sort_keys=True, indent=2) + '\n').encode('utf-8')
+    if len(data) > MAX_BUNDLE_BYTES:
+        raise ValueError('LSP notice bundle exceeds decoded size limit')
     compressed = gzip.compress(data, mtime=0)
     if len(compressed) > 4 * 1024 * 1024 or lock.read_bytes() != original:
         raise ValueError('LSP notice resource exceeds limit or Cargo.lock changed')
