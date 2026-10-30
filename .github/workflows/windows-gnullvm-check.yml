@@ -1,13 +1,18 @@
 name: Windows GNU LLVM compatibility evidence
 
 on:
-  pull_request:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Immutable source commit to build
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 env:
-  SOURCE_REF: 2618bf1232f95da464a5cd407cc247ebb76acddd
+  SOURCE_REF: ${{ inputs.source_ref }}
 
 jobs:
   gnullvm-prototype:
@@ -31,7 +36,7 @@ jobs:
           import shutil
           stage = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-notice-tools'
           stage.mkdir()
-          names = ['scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/lsp_gnullvm_notices.py', 'scripts/check_lsp_gnullvm.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/lsp-gnullvm-runtime-catalog.json', 'ci/test_lsp_gnullvm_notices.py']
+          names = ['scripts/apply_lsp_notice_overlay.py', 'scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/lsp_gnullvm_notices.py', 'scripts/check_lsp_gnullvm.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/lsp-gnullvm-runtime-catalog.json', 'ci/test_lsp_gnullvm_notices.py']
           for name in names:
               destination = stage / name
               destination.parent.mkdir(parents=True, exist_ok=True)
@@ -50,6 +55,7 @@ jobs:
           from pathlib import Path
           import shutil
           import subprocess
+          import sys
           stage = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-notice-tools'
           for source in stage.rglob('*'):
               if not source.is_file():
@@ -60,15 +66,8 @@ jobs:
               destination.parent.mkdir(parents=True, exist_ok=True)
               shutil.copyfile(source, destination)
           subprocess.run(['git', 'diff', '--exit-code', '--', 'lsp/Cargo.toml', 'lsp/Cargo.lock', 'lsp/src/lib.rs', 'lsp/tests', 'root-docs'], check=True)
-          main = Path('lsp/src/main.rs')
-          original = main.read_bytes()
-          anchor = b'async fn main() {'
-          if original.count(anchor) != 1:
-              raise SystemExit('LSP entry point requires source review')
-          declaration = b'include!(concat!(env!("OUT_DIR"), "/native_notices.rs"));'
-          packaged = declaration + bytes([10, 10]) + original.replace(anchor, anchor + bytes([10]) + b'    let _ = std::hint::black_box(KTAV_NATIVE_NOTICES);', 1)
-          main.write_bytes(packaged)
-          provenance = {'original_main_sha256': hashlib.sha256(original).hexdigest(), 'packaged_main_sha256': hashlib.sha256(packaged).hexdigest(), 'changes': 'Read-only metadata resource retention only; protocol and public API unchanged.'}
+          overlay = json.loads(subprocess.check_output([sys.executable, '-I', 'scripts/apply_lsp_notice_overlay.py', 'lsp/src/main.rs']))
+          provenance = overlay
           (Path(os.environ['RUNNER_TEMP']) / 'gnullvm-source-overlay.json').write_text(json.dumps(provenance, sort_keys=True, indent=2))
       - uses: dtolnay/rust-toolchain@1.99.1
         with:

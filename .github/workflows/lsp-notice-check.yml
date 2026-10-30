@@ -1,13 +1,18 @@
 name: LSP native notice evidence
 
 on:
-  pull_request:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Immutable source commit to build
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 env:
-  SOURCE_REF: 2618bf1232f95da464a5cd407cc247ebb76acddd
+  SOURCE_REF: ${{ inputs.source_ref }}
 
 jobs:
   lsp-notice-prototype:
@@ -27,7 +32,7 @@ jobs:
           from pathlib import Path
           stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
           stage.mkdir()
-          for name in ['scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py', 'scripts/prepare_lsp_source_bundle.py', 'scripts/rebuild_lsp_source.sh', 'scripts/verify_lsp_source_bundle.py', 'scripts/check_lsp_relink.py', 'ci/test_lsp_source_bundle.py', 'ci/test_lsp_relink.py', 'ci/lsp-source-README.txt', 'ci/licenses/LGPL-2.1.txt', 'ci/licenses/GPL-2.0.txt', 'ci/licenses/GPL-3.0.txt', 'ci/licenses/gnu-source-texts.json', 'scripts/lsp_runtime_notices.py', 'ci/test_lsp_runtime_notices.py', 'ci/lsp-zig-runtime-catalog.json']:
+          for name in ['scripts/apply_lsp_notice_overlay.py', 'scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py', 'scripts/prepare_lsp_source_bundle.py', 'scripts/rebuild_lsp_source.sh', 'scripts/verify_lsp_source_bundle.py', 'scripts/check_lsp_relink.py', 'ci/test_lsp_source_bundle.py', 'ci/test_lsp_relink.py', 'ci/lsp-source-README.txt', 'ci/licenses/LGPL-2.1.txt', 'ci/licenses/GPL-2.0.txt', 'ci/licenses/GPL-3.0.txt', 'ci/licenses/gnu-source-texts.json', 'scripts/lsp_runtime_notices.py', 'ci/test_lsp_runtime_notices.py', 'ci/lsp-zig-runtime-catalog.json']:
               target = stage / name
               target.parent.mkdir(parents=True, exist_ok=True)
               shutil.copy2(name, target)
@@ -44,6 +49,7 @@ jobs:
           import os
           import shutil
           import subprocess
+          import sys
           from pathlib import Path
           source_ref = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
           if source_ref != os.environ['SOURCE_REF']:
@@ -58,15 +64,8 @@ jobs:
               target.parent.mkdir(parents=True, exist_ok=True)
               shutil.copy2(name, target)
           subprocess.run(['git', 'diff', '--exit-code', '--', 'lsp/Cargo.toml', 'lsp/Cargo.lock', 'lsp/src/lib.rs', 'lsp/tests', 'root-docs'], check=True)
-          main = Path('lsp/src/main.rs')
-          original = main.read_bytes()
-          anchor = b'async fn main() {'
-          if original.count(anchor) != 1:
-              raise SystemExit('LSP entry point requires source review')
-          hook = b'include!(concat!(env!("OUT_DIR"), "/native_notices.rs"));'
-          packaged = hook + bytes([10, 10]) + original.replace(anchor, anchor + bytes([10]) + b'    let _ = std::hint::black_box(KTAV_NATIVE_NOTICES);', 1)
-          main.write_bytes(packaged)
-          record = {'source_ref': source_ref, 'tooling_ref': os.environ['GITHUB_SHA'], 'original_main_sha256': hashlib.sha256(original).hexdigest(), 'packaged_main_sha256': hashlib.sha256(packaged).hexdigest(), 'coverage': 'Audit-only Cargo/std prototype; executable non-Cargo runtime coverage is pending map review.'}
+          overlay = json.loads(subprocess.check_output([sys.executable, '-I', 'scripts/apply_lsp_notice_overlay.py', 'lsp/src/main.rs']))
+          record = {'source_ref': source_ref, 'tooling_ref': os.environ['GITHUB_SHA'], **overlay, 'coverage': 'Notice-only source overlay; runtime and distribution requirements are verified by their dedicated gates.'}
           with (Path(os.environ['RUNNER_TEMP']) / 'lsp-source-provenance.json').open('x', encoding='utf-8') as output:
               json.dump(record, output, sort_keys=True, indent=2)
       - uses: dtolnay/rust-toolchain@1.99.1
