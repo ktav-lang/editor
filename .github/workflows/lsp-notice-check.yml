@@ -27,7 +27,7 @@ jobs:
           from pathlib import Path
           stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
           stage.mkdir()
-          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py']:
+          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py', 'scripts/prepare_lsp_source_bundle.py', 'scripts/rebuild_lsp_source.sh', 'scripts/verify_lsp_source_bundle.py', 'scripts/check_lsp_relink.py', 'ci/test_lsp_source_bundle.py', 'ci/test_lsp_relink.py', 'ci/lsp-source-README.txt', 'ci/licenses/LGPL-2.1.txt', 'ci/licenses/GPL-2.0.txt', 'ci/licenses/GPL-3.0.txt', 'ci/licenses/gnu-source-texts.json']:
               target = stage / name
               target.parent.mkdir(parents=True, exist_ok=True)
               shutil.copy2(name, target)
@@ -78,11 +78,13 @@ jobs:
           version: '0.14.0'
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-zigbuild,cargo-about@0.9.3
+          tool: cargo-zigbuild@0.24.0,cargo-about@0.9.3
       - name: Verify source supplement and startup guards
         run: |
           python3 -I -m unittest discover -s ci -p test_lsp_license_supplement.py -v
           python3 -I -m unittest discover -s ci -p test_lsp_startup.py -v
+          python3 -I -m unittest discover -s ci -p test_lsp_source_bundle.py -v
+          python3 -I -m unittest discover -s ci -p test_lsp_relink.py -v
       - name: Verify registry core and prepare existing locked notices
         shell: python
         run: |
@@ -148,6 +150,49 @@ jobs:
               json.dump({'exact_resource_sha256': hashlib.sha256(resource).hexdigest(), 'incremental_input_rebuilt': True}, output, sort_keys=True, indent=2)
       - name: Verify retained startup inputs and final ELF symbols
         run: python3 scripts/check_lsp_startup.py lsp/target/${{ matrix.target }}/release/ktav-lsp ${{ runner.temp }}/lsp-notices
+      - name: Prepare corresponding source and original target link inputs
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: python3 scripts/prepare_lsp_source_bundle.py ${{ runner.temp }}/lsp-notices ${{ runner.temp }}/lsp-source-package ${{ matrix.target }}
+      - name: Verify actual source archive and extract into a new directory
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: python3 scripts/verify_lsp_source_bundle.py ${{ runner.temp }}/lsp-source-package/ktav-lsp-source-${{ matrix.target }}.tar.gz ${{ runner.temp }}/lsp-source-verify
+      - name: Rebuild original executable from supplied materials
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "$RUNNER_TEMP/lsp-source-verify/lsp-source/rebuild.sh" "${{ matrix.target }}"
+          cp "$RUNNER_TEMP/lsp-source-verify/lsp-source/target-relinked/${{ matrix.target }}/release/ktav-lsp" "$RUNNER_TEMP/lsp-relink-original"
+      - name: Modify supplied startup source for relink proof
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        shell: python
+        run: |
+          import datetime
+          import hashlib
+          import os
+          from pathlib import Path
+          source = Path(os.environ['RUNNER_TEMP']) / 'lsp-source-verify/lsp-source/upstream/zig-5ad91a646a753cc3eecd8751e61cf458dadd9ac4/lib/libc/glibc/sysdeps/aarch64/start-2.33.S'
+          original = source.read_bytes()
+          if hashlib.sha1(b'blob ' + str(len(original)).encode() + bytes([0]) + original).hexdigest() != 'd96cf57e2da901bc21e69bf5a87ed034820453f0':
+              raise SystemExit('original supplied startup source changed')
+          anchor = b'_start:' + bytes([10])
+          if original.count(anchor) != 1:
+              raise SystemExit('startup entry point requires review')
+          notice = ('/* Изменено для CI relink proof, ' + datetime.date.today().isoformat() + '. */').encode('utf-8')
+          source.write_bytes(original.replace(anchor, anchor + notice + bytes([10]) + b'  nop' + bytes([10]), 1))
+      - name: Relink with modified startup and prove actual entry instruction
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "$RUNNER_TEMP/lsp-source-verify/lsp-source/rebuild.sh" "${{ matrix.target }}"
+          python3 scripts/check_lsp_relink.py "$RUNNER_TEMP/lsp-relink-original" "$RUNNER_TEMP/lsp-source-verify/lsp-source/target-relinked/${{ matrix.target }}/release/ktav-lsp" "$RUNNER_TEMP/lsp-notices/NOTICE.json" > "$RUNNER_TEMP/lsp-notices/source-relink-proof.json"
+      - uses: actions/upload-artifact@v4
+        if: success() && matrix.target == 'aarch64-unknown-linux-gnu'
+        with:
+          name: lsp-corresponding-source-${{ matrix.target }}
+          path: ${{ runner.temp }}/lsp-source-package/ktav-lsp-source-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
