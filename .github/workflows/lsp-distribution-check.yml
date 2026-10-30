@@ -7,83 +7,13 @@ permissions:
   contents: read
 
 jobs:
-  contract:
-    runs-on: ubuntu-latest
-    outputs:
-      source_ref: ${{ steps.source.outputs.source_ref }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Verify required legal/source roles and plugin remapping
-        run: python3 -I -m unittest discover -s ci -p 'test_lsp_distribution*.py' -v
-      - name: Verify existing IntelliJ archive guards
-        run: python3 -I -m unittest discover -s ci -p test_intellij_distribution.py -v
-      - name: Verify idempotent notice-only source overlay
-        run: python3 -I -m unittest discover -s ci -p test_lsp_notice_overlay.py -v
-      - name: Pin immutable 0.8.1 audit source
-        id: source
-        shell: python
-        run: |
-          import os
-          from pathlib import Path
-          with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as output:
-              output.write('source_ref=2618bf1232f95da464a5cd407cc247ebb76acddd' + chr(10))
-  gnu:
-    name: GNU notices and matching source
-    needs: contract
-    uses: ./.github/workflows/lsp-notice-check.yml
+  payloads:
+    uses: ./.github/workflows/lsp-licensed-payloads.yml
     with:
-      source_ref: ${{ needs.contract.outputs.source_ref }}
-  windows:
-    name: Windows source-backed notices
-    needs: contract
-    uses: ./.github/workflows/windows-gnullvm-check.yml
-    with:
-      source_ref: ${{ needs.contract.outputs.source_ref }}
-  macos:
-    name: macOS resource and system-input evidence
-    needs: contract
-    uses: ./.github/workflows/macos-notice-check.yml
-    with:
-      source_ref: ${{ needs.contract.outputs.source_ref }}
-  organize:
-    name: Preserve complete plugin binary payloads
-    needs: [gnu, windows, macos]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: lsp-distribution-*
-          path: ${{ runner.temp }}/lsp-plugin-inputs
-          merge-multiple: false
-      - name: Organize all six platform directories with legal/source materials
-        shell: python
-        run: |
-          import os
-          from pathlib import Path
-          import subprocess
-          import sys
-          root = Path(os.environ['RUNNER_TEMP'])
-          report = subprocess.check_output([sys.executable, '-I', 'scripts/organize_lsp_distribution.py', str(root / 'lsp-plugin-inputs'), str(root / 'lsp-plugin-bin')])
-          (root / 'lsp-plugin-organization.json').write_bytes(report)
-          sys.stdout.buffer.write(report)
-      - uses: actions/upload-artifact@v4
-        with:
-          name: lsp-plugin-binaries
-          path: ${{ runner.temp }}/lsp-plugin-bin/
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        with:
-          name: lsp-plugin-organization
-          path: ${{ runner.temp }}/lsp-plugin-organization.json
-          if-no-files-found: error
+      source_ref: 2618bf1232f95da464a5cd407cc247ebb76acddd
   vsix:
     name: Verify actual VSIX legal and source delivery
-    needs: organize
+    needs: payloads
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -121,7 +51,7 @@ jobs:
           if-no-files-found: error
   intellij:
     name: Verify actual IntelliJ legal and source delivery
-    needs: organize
+    needs: payloads
     runs-on: ubuntu-latest
     env:
       KTAV_BUILD_STAMP: license-check
