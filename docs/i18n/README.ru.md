@@ -157,7 +157,15 @@ require("lspconfig").ktav.setup({})
 
 ## Лицензия
 
-MIT OR Apache-2.0. См. [LICENSE-MIT](../../LICENSE-MIT) и [LICENSE-APACHE](../../LICENSE-APACHE).
+Собственный код Ktav распространяется под MIT OR Apache-2.0. См. [LICENSE-MIT](../../LICENSE-MIT) и [LICENSE-APACHE](../../LICENSE-APACHE). Сторонний код сохраняет собственные лицензии и уведомления; лицензия Ktav их не заменяет.
+
+### Нативные бинарники, уведомления и исходники
+
+Лицензионно проверяемый release pipeline поставляет каждый LSP executable вместе с `*.distribution.json`, читаемым `*.THIRD-PARTY-NOTICES.txt`, `*.NOTICE.json`, его сжатой копией, оригинальным отчётом Rust `*.COPYRIGHT-library.html`, `*.Cargo.lock` и обеими лицензиями Ktav. Рядом поставляются уведомления о runtime конкретной платформы. При дальнейшем распространении сохраняйте весь platform payload: копирование одного executable теряет обязательные материалы.
+
+GNU Linux ARM64 payload также содержит `ktav-lsp-source-aarch64-unknown-linux-gnu.tar.gz` и `*.source-binding.json`. Используемый startup code подпадает под LGPL-2.1-or-later без compiled-linking exception, имеющегося у проверенного x64 startup. Matching source archive содержит соответствующие исходники и материалы для повторной линковки; приложенный rebuild script позволяет пересобрать executable с изменённым startup source. Лицензия собственного кода Ktav от этого не меняется.
+
+Universal plugins содержат те же полные payloads: `bin/<platform>/` в VS Code extension и `lib/bin/<platform>/` в IntelliJ plugin. Обязательный ARM64 source archive добавляет около 94 МБ к каждому universal plugin. CI проверяет содержимое настоящих VSIX/IntelliJ ZIP, встроенные notice resources и source bindings, а не только staging directories. Эти проверки не заменяют задним числом исторические опубликованные assets.
 
 ## Другие реализации Ktav
 
