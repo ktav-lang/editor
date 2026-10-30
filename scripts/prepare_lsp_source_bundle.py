@@ -63,7 +63,7 @@ def build(evidence, destination, target):
     config.write_text('[source.crates-io]\nreplace-with = "vendored-sources"\n[source.vendored-sources]\ndirectory = "vendor"\n[net]\noffline = true\n', encoding='utf-8')
     legal = bundle / 'legal'
     legal.mkdir()
-    for name in ('NOTICE.json', 'NOTICE.json.gz', 'COPYRIGHT-library.html', 'rustc.txt', 'source-provenance.json'):
+    for name in ('NOTICE.json', 'NOTICE.json.gz', 'NOTICE.gnu-startup.txt', 'lsp-zig-runtime-catalog.json', 'COPYRIGHT-library.html', 'rustc.txt', 'source-provenance.json'):
         copy_regular(evidence / name, legal / name)
     license_path = root / 'ci/licenses/LGPL-2.1.txt'
     if digest(license_path) != LGPL_SHA:
@@ -99,7 +99,10 @@ def build(evidence, destination, target):
             copy_regular(source, bundle / 'toolchain/lib/rustlib' / target / 'lib' / source.relative_to(libraries))
     copy_regular(root / 'scripts/rebuild_lsp_source.sh', bundle / 'rebuild.sh')
     copy_regular(root / 'ci/lsp-source-README.txt', bundle / 'README.txt')
-    record = {'schema_version': 1, 'target': target, 'source_ref': json.loads((legal / 'source-provenance.json').read_text())['source_ref'], 'cargo_lock_sha256': digest(project / 'Cargo.lock'), 'zig_revision': ZIG_REVISION, 'zig_source_sha256': ZIG_SOURCE_SHA, 'rustc': (legal / 'rustc.txt').read_text(), 'coverage': 'Source/relink prototype; publication together with final distribution remains required.'}
+    resource = json.loads((evidence / 'native-resource-verification.json').read_text(encoding='utf-8'))
+    if resource['notice_sha256'] != digest(legal / 'NOTICE.json'):
+        raise ValueError('source package notice differs from actual executable verification')
+    record = {'schema_version': 1, 'target': target, 'notice_sha256': resource['notice_sha256'], 'original_binary_sha256': resource['binary_sha256'], 'source_ref': json.loads((legal / 'source-provenance.json').read_text())['source_ref'], 'cargo_lock_sha256': digest(project / 'Cargo.lock'), 'zig_revision': ZIG_REVISION, 'zig_source_sha256': ZIG_SOURCE_SHA, 'rustc': (legal / 'rustc.txt').read_text(), 'coverage': 'Source/relink prototype; publication together with final distribution remains required.'}
     (bundle / 'provenance.json').write_text(json.dumps(record, sort_keys=True, indent=2), encoding='utf-8')
     manifest = []
     for path in sorted(bundle.rglob('*')):
@@ -120,6 +123,8 @@ def build(evidence, destination, target):
                     tar.addfile(info, source)
     report = {**record, 'archive_sha256': digest(output_path), 'archive_bytes': output_path.stat().st_size, 'files': len(manifest) + 1}
     (evidence / 'corresponding-source.json').write_text(json.dumps(report, sort_keys=True, indent=2), encoding='utf-8')
+    binding = {'schema_version': 1, 'target': target, 'source_ref': record['source_ref'], 'binary': {'file': resource['binary'], 'sha256': resource['binary_sha256']}, 'notice': {'file': 'NOTICE.json', 'sha256': resource['notice_sha256']}, 'corresponding_source': {'file': output_path.name, 'sha256': report['archive_sha256']}, 'coverage': 'Exact prototype artifact binding; final distribution must publish all matching materials together.'}
+    (evidence / 'native-source-binding.json').write_text(json.dumps(binding, sort_keys=True, indent=2), encoding='utf-8')
     print(json.dumps(report, sort_keys=True))
 
 

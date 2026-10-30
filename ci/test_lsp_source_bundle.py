@@ -19,7 +19,7 @@ class SourceBundleTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        names = ['project/Cargo.toml', 'project/Cargo.lock', 'project/build.rs', 'project/src/main.rs', 'project/.cargo/config.toml', 'project/LICENSE-MIT', 'project/LICENSE-APACHE', 'legal/LGPL-2.1.txt', 'legal/NOTICE.json', 'legal/NOTICE.json.gz', 'upstream/zig-source.tar.gz', 'rebuild.sh', 'provenance.json', 'README.txt', 'project/vendor/fixture/src/lib.rs', 'toolchain/lib/rustlib/aarch64-unknown-linux-gnu/lib/libfixture.rlib']
+        names = ['project/Cargo.toml', 'project/Cargo.lock', 'project/build.rs', 'project/src/main.rs', 'project/.cargo/config.toml', 'project/LICENSE-MIT', 'project/LICENSE-APACHE', 'legal/LGPL-2.1.txt', 'legal/NOTICE.json', 'legal/NOTICE.json.gz', 'legal/NOTICE.gnu-startup.txt', 'legal/lsp-zig-runtime-catalog.json', 'upstream/zig-source.tar.gz', 'rebuild.sh', 'provenance.json', 'README.txt', 'project/vendor/fixture/src/lib.rs', 'toolchain/lib/rustlib/aarch64-unknown-linux-gnu/lib/libfixture.rlib']
         self.files = {name: b'fixture' for name in names}
 
     def archive(self, changed=None, extra=None, link=False):

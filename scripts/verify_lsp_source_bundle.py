@@ -37,7 +37,7 @@ def inspect(archive_path):
                     checksum.update(chunk)
             if checksum.hexdigest() != entry['sha256']:
                 raise ValueError('source file checksum differs from manifest')
-        required = {'project/Cargo.toml', 'project/Cargo.lock', 'project/build.rs', 'project/src/main.rs', 'project/.cargo/config.toml', 'project/LICENSE-MIT', 'project/LICENSE-APACHE', 'legal/LGPL-2.1.txt', 'legal/NOTICE.json', 'legal/NOTICE.json.gz', 'upstream/zig-source.tar.gz', 'rebuild.sh', 'provenance.json', 'README.txt'}
+        required = {'project/Cargo.toml', 'project/Cargo.lock', 'project/build.rs', 'project/src/main.rs', 'project/.cargo/config.toml', 'project/LICENSE-MIT', 'project/LICENSE-APACHE', 'legal/LGPL-2.1.txt', 'legal/NOTICE.json', 'legal/NOTICE.json.gz', 'legal/NOTICE.gnu-startup.txt', 'legal/lsp-zig-runtime-catalog.json', 'upstream/zig-source.tar.gz', 'rebuild.sh', 'provenance.json', 'README.txt'}
         if not required <= set(expected) or not any(name.startswith('project/vendor/') for name in expected) or not any(name.startswith('toolchain/lib/rustlib/') and name.endswith('.rlib') for name in expected):
             raise ValueError('incomplete corresponding source materials')
         return {'files': len(expected), 'verified_manifest': True}

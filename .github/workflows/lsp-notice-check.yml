@@ -27,7 +27,7 @@ jobs:
           from pathlib import Path
           stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
           stage.mkdir()
-          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py', 'scripts/prepare_lsp_source_bundle.py', 'scripts/rebuild_lsp_source.sh', 'scripts/verify_lsp_source_bundle.py', 'scripts/check_lsp_relink.py', 'ci/test_lsp_source_bundle.py', 'ci/test_lsp_relink.py', 'ci/lsp-source-README.txt', 'ci/licenses/LGPL-2.1.txt', 'ci/licenses/GPL-2.0.txt', 'ci/licenses/GPL-3.0.txt', 'ci/licenses/gnu-source-texts.json']:
+          for name in ['lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py', 'scripts/prepare_lsp_source_bundle.py', 'scripts/rebuild_lsp_source.sh', 'scripts/verify_lsp_source_bundle.py', 'scripts/check_lsp_relink.py', 'ci/test_lsp_source_bundle.py', 'ci/test_lsp_relink.py', 'ci/lsp-source-README.txt', 'ci/licenses/LGPL-2.1.txt', 'ci/licenses/GPL-2.0.txt', 'ci/licenses/GPL-3.0.txt', 'ci/licenses/gnu-source-texts.json', 'scripts/lsp_runtime_notices.py', 'ci/test_lsp_runtime_notices.py', 'ci/lsp-zig-runtime-catalog.json']:
               target = stage / name
               target.parent.mkdir(parents=True, exist_ok=True)
               shutil.copy2(name, target)
@@ -85,6 +85,7 @@ jobs:
           python3 -I -m unittest discover -s ci -p test_lsp_startup.py -v
           python3 -I -m unittest discover -s ci -p test_lsp_source_bundle.py -v
           python3 -I -m unittest discover -s ci -p test_lsp_relink.py -v
+          python3 -I -m unittest discover -s ci -p test_lsp_runtime_notices.py -v
       - name: Verify registry core and prepare existing locked notices
         shell: python
         run: |
@@ -102,6 +103,7 @@ jobs:
           evidence = Path(os.environ['RUNNER_TEMP']) / 'lsp-notices'
           subprocess.run([sys.executable, '../scripts/prepare_lsp_notices.py', str(evidence)], cwd='lsp', check=True)
           shutil.copy2(Path(os.environ['RUNNER_TEMP']) / 'lsp-source-provenance.json', evidence / 'source-provenance.json')
+          subprocess.run([sys.executable, 'scripts/lsp_runtime_notices.py', str(evidence), '${{ matrix.target }}'], check=True)
           with Path(os.environ['GITHUB_ENV']).open('a', encoding='utf-8') as output:
               output.write('KTAV_NATIVE_NOTICES=' + (evidence / 'NOTICE.json.gz').as_posix() + chr(10))
       - name: Verify resource and linker-capture guards
