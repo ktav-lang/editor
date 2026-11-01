@@ -32,7 +32,7 @@ jobs:
           from pathlib import Path
           stage = Path(os.environ['RUNNER_TEMP']) / 'lsp-notice-tools'
           stage.mkdir()
-          for name in ['scripts/apply_lsp_notice_overlay.py', 'scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py', 'scripts/prepare_lsp_source_bundle.py', 'scripts/rebuild_lsp_source.sh', 'scripts/verify_lsp_source_bundle.py', 'scripts/check_lsp_relink.py', 'ci/test_lsp_source_bundle.py', 'ci/test_lsp_relink.py', 'ci/lsp-source-README.txt', 'ci/licenses/LGPL-2.1.txt', 'ci/licenses/GPL-2.0.txt', 'ci/licenses/GPL-3.0.txt', 'ci/licenses/gnu-source-texts.json', 'scripts/lsp_runtime_notices.py', 'ci/test_lsp_runtime_notices.py', 'ci/lsp-zig-runtime-catalog.json']:
+          for name in ['scripts/rust_compiler_notices.py', 'ci/test_rust_compiler_notices.py', 'ci/rust-compiler-notices.json', *[str(path) for path in Path('ci/licenses/rust-compiler-originals').glob('*')], 'scripts/apply_lsp_notice_overlay.py', 'scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/capture-zig-link.sh', 'ci/about.toml', 'ci/test_embedded_notices.py', 'ci/test_zig_link_capture.py', 'scripts/supplement_lsp_license.py', 'ci/test_lsp_license_supplement.py', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'scripts/check_lsp_startup.py', 'ci/test_lsp_startup.py', 'scripts/prepare_lsp_source_bundle.py', 'scripts/rebuild_lsp_source.sh', 'scripts/verify_lsp_source_bundle.py', 'scripts/check_lsp_relink.py', 'ci/test_lsp_source_bundle.py', 'ci/test_lsp_relink.py', 'ci/lsp-source-README.txt', 'ci/licenses/LGPL-2.1.txt', 'ci/licenses/GPL-2.0.txt', 'ci/licenses/GPL-3.0.txt', 'ci/licenses/gnu-source-texts.json', 'scripts/lsp_runtime_notices.py', 'ci/test_lsp_runtime_notices.py', 'ci/lsp-zig-runtime-catalog.json']:
               target = stage / name
               target.parent.mkdir(parents=True, exist_ok=True)
               shutil.copy2(name, target)
@@ -68,6 +68,8 @@ jobs:
           record = {'source_ref': source_ref, 'tooling_ref': os.environ['GITHUB_SHA'], **overlay, 'coverage': 'Notice-only source overlay; runtime and distribution requirements are verified by their dedicated gates.'}
           with (Path(os.environ['RUNNER_TEMP']) / 'lsp-source-provenance.json').open('x', encoding='utf-8') as output:
               json.dump(record, output, sort_keys=True, indent=2)
+      - name: Verify pinned compiler notice originals
+        run: python -I -m unittest discover -s ci -p test_rust_compiler_notices.py -v
       - uses: dtolnay/rust-toolchain@1.99.1
         with:
           targets: ${{ matrix.target }}

@@ -9,6 +9,7 @@ import sys
 
 from cargo_notice_bundle import MAX_BUNDLE_BYTES, _build
 from supplement_lsp_license import supplement, supplement_fallbacks
+from rust_compiler_notices import collect as compiler_notices
 
 
 def prepare(evidence):
@@ -54,6 +55,7 @@ def prepare(evidence):
     combined['source_license_supplements'] = provenance
     (evidence / 'licenses.json').write_text(json.dumps(combined, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     bundle = json.loads(_build(evidence))
+    bundle['rust_compiler_builtins'] = compiler_notices(root.parent, bundle['rustc'])
     bundle['source_license_supplements'] = provenance
     bundle['license_report_origin'] = 'cargo-about plus explicit reviewed source supplements'
     data = (json.dumps(bundle, ensure_ascii=False, sort_keys=True, indent=2) + '\n').encode('utf-8')

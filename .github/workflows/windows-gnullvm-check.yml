@@ -36,7 +36,7 @@ jobs:
           import shutil
           stage = Path(os.environ['RUNNER_TEMP']) / 'gnullvm-notice-tools'
           stage.mkdir()
-          names = ['scripts/apply_lsp_notice_overlay.py', 'scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/lsp_gnullvm_notices.py', 'scripts/check_lsp_gnullvm.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/lsp-gnullvm-runtime-catalog.json', 'ci/test_lsp_gnullvm_notices.py']
+          names = ['scripts/rust_compiler_notices.py', 'ci/test_rust_compiler_notices.py', 'ci/rust-compiler-notices.json', *[str(path) for path in Path('ci/licenses/rust-compiler-originals').glob('*')], 'scripts/apply_lsp_notice_overlay.py', 'scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/lsp_gnullvm_notices.py', 'scripts/check_lsp_gnullvm.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/lsp-gnullvm-runtime-catalog.json', 'ci/test_lsp_gnullvm_notices.py']
           for name in names:
               destination = stage / name
               destination.parent.mkdir(parents=True, exist_ok=True)
@@ -69,6 +69,8 @@ jobs:
           overlay = json.loads(subprocess.check_output([sys.executable, '-I', 'scripts/apply_lsp_notice_overlay.py', 'lsp/src/main.rs']))
           provenance = overlay
           (Path(os.environ['RUNNER_TEMP']) / 'gnullvm-source-overlay.json').write_text(json.dumps(provenance, sort_keys=True, indent=2))
+      - name: Verify pinned compiler notice originals
+        run: python -I -m unittest discover -s ci -p test_rust_compiler_notices.py -v
       - uses: dtolnay/rust-toolchain@1.99.1
         with:
           targets: ${{ matrix.target }}

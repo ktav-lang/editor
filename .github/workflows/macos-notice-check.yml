@@ -32,7 +32,7 @@ jobs:
           import shutil
           stage = Path(os.environ['RUNNER_TEMP']) / 'macos-notice-tools'
           stage.mkdir()
-          for name in ['scripts/apply_lsp_notice_overlay.py', 'scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/check_lsp_macos.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/test_lsp_macos_notices.py']:
+          for name in ['scripts/rust_compiler_notices.py', 'ci/test_rust_compiler_notices.py', 'ci/rust-compiler-notices.json', *[str(path) for path in Path('ci/licenses/rust-compiler-originals').glob('*')], 'scripts/apply_lsp_notice_overlay.py', 'scripts/lsp_distribution.py', 'lsp/build.rs', 'scripts/prepare_lsp_notices.py', 'scripts/cargo_notice_bundle.py', 'scripts/collect_cargo_notices.py', 'scripts/check_embedded_notices.py', 'scripts/supplement_lsp_license.py', 'scripts/check_lsp_macos.py', 'ci/about.toml', 'ci/licenses/valuable-0.1.1.LICENSE', 'ci/licenses/lsp-source-supplements.json', 'ci/test_lsp_macos_notices.py']:
               destination = stage / name
               destination.parent.mkdir(parents=True, exist_ok=True)
               shutil.copyfile(name, destination)
@@ -71,6 +71,8 @@ jobs:
           overlay = json.loads(subprocess.check_output([sys.executable, '-I', 'scripts/apply_lsp_notice_overlay.py', 'lsp/src/main.rs']))
           record = {'source_ref': os.environ['SOURCE_REF'], **overlay, 'coverage': 'Audit-only Cargo/std notice resource; system-library terms require separate review.'}
           (Path(os.environ['RUNNER_TEMP']) / 'macos-notice-provenance.json').write_text(json.dumps(record, sort_keys=True, indent=2), encoding='utf-8')
+      - name: Verify pinned compiler notice originals
+        run: python -I -m unittest discover -s ci -p test_rust_compiler_notices.py -v
       - uses: dtolnay/rust-toolchain@1.99.1
         with:
           targets: ${{ matrix.target }}
