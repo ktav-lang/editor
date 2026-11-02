@@ -1,0 +1,96 @@
+name: LSP distribution contract guards
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  payloads:
+    uses: ./.github/workflows/lsp-licensed-payloads.yml
+    with:
+      source_ref: 2618bf1232f95da464a5cd407cc247ebb76acddd
+  vsix:
+    name: Verify actual VSIX legal and source delivery
+    needs: payloads
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: lsp-plugin-binaries
+          path: vscode/bin
+      - name: Restore executable modes lost by artifact transport
+        run: chmod +x vscode/bin/{linux-x64,linux-arm64,darwin-x64,darwin-arm64}/ktav-lsp
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: vscode/package-lock.json
+      - name: Build and package actual extension without publishing
+        working-directory: vscode
+        run: |
+          npm ci
+          npm run sync-grammars
+          npm run test:unit
+          npx vsce package --out ktav-license-check.vsix
+      - name: Verify existing runtime guard and complete LSP payloads
+        run: |
+          python3 -I scripts/check_lsp_plugin_zip.py vscode/ktav-license-check.vsix vsix > "$RUNNER_TEMP/vsix-lsp-distribution.json"
+          python3 -I vscode/src/test/vsix/vsix_archive.py vscode/ktav-license-check.vsix "$(node -p "require('./vscode/package.json').version")"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsp-verified-vsix
+          path: |
+            vscode/ktav-license-check.vsix
+            ${{ runner.temp }}/vsix-lsp-distribution.json
+          if-no-files-found: error
+  intellij:
+    name: Verify actual IntelliJ legal and source delivery
+    needs: payloads
+    runs-on: ubuntu-latest
+    env:
+      KTAV_BUILD_STAMP: license-check
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: lsp-plugin-binaries
+          path: intellij/bin
+      - name: Restore executable modes lost by artifact transport
+        run: chmod +x intellij/bin/{linux-x64,linux-arm64,darwin-x64,darwin-arm64}/ktav-lsp
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and verify actual plugin without publishing
+        working-directory: intellij
+        run: ./gradlew --no-daemon --no-parallel --no-configure-on-demand -I ../ci/license-init.gradle licenseArtifactInventory checkLicense test checkIntellijDistribution
+      - name: Require all six complete platform payloads in actual ZIP
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          archives = list(Path('intellij/build/distributions').glob('*.zip'))
+          if len(archives) != 1:
+              raise SystemExit('expected exactly one actual IntelliJ ZIP')
+          report = subprocess.check_output([sys.executable, '-I', 'scripts/check_lsp_plugin_zip.py', str(archives[0]), 'intellij'])
+          (Path(os.environ['RUNNER_TEMP']) / 'intellij-lsp-distribution.json').write_bytes(report)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsp-verified-intellij
+          path: |
+            intellij/build/distributions/*.zip
+            intellij/build/license-inventory/plugin-distribution.json
+            ${{ runner.temp }}/intellij-lsp-distribution.json
+          if-no-files-found: error

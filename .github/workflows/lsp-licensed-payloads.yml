@@ -1,0 +1,87 @@
+name: Licensed LSP payloads
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Immutable 0.8.1 source commit to build
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require immutable source selection
+        shell: python
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          import os
+          import re
+          if not re.fullmatch('[0-9a-f]{40}', os.environ['SOURCE_REF']):
+              raise SystemExit('licensed LSP producer requires immutable source SHA')
+      - name: Verify required legal/source roles and plugin remapping
+        run: python3 -I -m unittest discover -s ci -p 'test_lsp_distribution*.py' -v
+      - name: Verify existing IntelliJ archive guards
+        run: python3 -I -m unittest discover -s ci -p test_intellij_distribution.py -v
+      - name: Verify idempotent notice-only source overlay
+        run: python3 -I -m unittest discover -s ci -p test_lsp_notice_overlay.py -v
+  gnu:
+    name: GNU notices and matching source
+    needs: contract
+    uses: ./.github/workflows/lsp-notice-check.yml
+    with:
+      source_ref: ${{ inputs.source_ref }}
+  windows:
+    name: Windows source-backed notices
+    needs: contract
+    uses: ./.github/workflows/windows-gnullvm-check.yml
+    with:
+      source_ref: ${{ inputs.source_ref }}
+  macos:
+    name: macOS resource and system-input evidence
+    needs: contract
+    uses: ./.github/workflows/macos-notice-check.yml
+    with:
+      source_ref: ${{ inputs.source_ref }}
+  organize:
+    name: Preserve complete plugin binary payloads
+    needs: [gnu, windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: lsp-distribution-*
+          path: ${{ runner.temp }}/lsp-plugin-inputs
+          merge-multiple: false
+      - name: Organize all six platform directories with legal/source materials
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+          root = Path(os.environ['RUNNER_TEMP'])
+          report = subprocess.check_output([sys.executable, '-I', 'scripts/organize_lsp_distribution.py', str(root / 'lsp-plugin-inputs'), str(root / 'lsp-plugin-bin')])
+          (root / 'lsp-plugin-organization.json').write_bytes(report)
+          sys.stdout.buffer.write(report)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsp-plugin-binaries
+          path: ${{ runner.temp }}/lsp-plugin-bin/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lsp-plugin-organization
+          path: ${{ runner.temp }}/lsp-plugin-organization.json
+          if-no-files-found: error

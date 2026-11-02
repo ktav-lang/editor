@@ -1,3 +1,5 @@
+include!(concat!(env!("OUT_DIR"), "/native_notices.rs"));
+
 use tower_lsp::{LspService, Server};
 use tracing_subscriber::EnvFilter;
 
@@ -5,6 +7,8 @@ use ktav_lsp::Backend;
 
 #[tokio::main]
 async fn main() {
+    // Фактическое сохранение ресурса проверяет CI.
+    let _ = std::hint::black_box(KTAV_NATIVE_NOTICES);
     // stdout is reserved for LSP messages — log to stderr only.
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)

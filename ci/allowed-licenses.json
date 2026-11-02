@@ -1,0 +1,91 @@
+{
+  "allowedLicenses": [
+    {
+      "moduleLicense": "MIT"
+    },
+    {
+      "moduleLicense": "MIT License"
+    },
+    {
+      "moduleLicense": "Apache-2[.]0"
+    },
+    {
+      "moduleLicense": "Apache License 2[.]0"
+    },
+    {
+      "moduleLicense": "Apache License, Version 2[.]0"
+    },
+    {
+      "moduleLicense": "The Apache License, Version 2[.]0"
+    },
+    {
+      "moduleLicense": "The Apache Software License, Version 2[.]0"
+    },
+    {
+      "moduleLicense": "BSD-2-Clause"
+    },
+    {
+      "moduleLicense": "BSD-3-Clause"
+    },
+    {
+      "moduleLicense": "New BSD License"
+    },
+    {
+      "moduleLicense": "ISC"
+    },
+    {
+      "moduleName": "org[.]junit([.].*)?:.*",
+      "moduleLicense": "Eclipse Public License - v 2[.]0"
+    },
+    {
+      "moduleName": "org[.]junit([.].*)?:.*",
+      "moduleLicense": "Eclipse Public License v2[.]0"
+    },
+    {
+      "moduleName": "junit:junit",
+      "moduleVersion": "4[.]13[.]2",
+      "moduleLicense": "Eclipse Public License 1[.]0"
+    },
+    {
+      "moduleName": "com\\.jetbrains\\.intellij\\.platform:test\\-framework",
+      "moduleVersion": "243\\.21565\\.193"
+    },
+    {
+      "moduleName": "com\\.jetbrains\\.intellij\\.platform:test\\-framework\\-common",
+      "moduleVersion": "243\\.21565\\.193"
+    },
+    {
+      "moduleName": "com\\.jetbrains\\.intellij\\.platform:test\\-framework\\-core",
+      "moduleVersion": "243\\.21565\\.193"
+    },
+    {
+      "moduleName": "com\\.jetbrains\\.intellij\\.platform:test\\-framework\\-team\\-city",
+      "moduleVersion": "243\\.21565\\.193"
+    },
+    {
+      "moduleName": "com\\.jetbrains\\.intellij\\.tools:tests\\-bootstrap",
+      "moduleVersion": "243\\.21565\\.193"
+    },
+    {
+      "moduleName": "com\\.jetbrains:jbr\\-api",
+      "moduleVersion": "1\\.0\\.0"
+    },
+    {
+      "moduleName": "org\\.jetbrains\\.intellij\\.deps:trove4j",
+      "moduleVersion": "1\\.0\\.20200330",
+      "moduleLicense": "GNU LESSER GENERAL PUBLIC LICENSE 2[.]1"
+    },
+    {
+      "moduleName": "org\\.jetbrains\\.kotlin\\.jvm:org\\.jetbrains\\.kotlin\\.jvm\\.gradle\\.plugin",
+      "moduleVersion": "2\\.0\\.0"
+    },
+    {
+      "moduleName": "org\\.jetbrains\\.intellij\\.platform:org\\.jetbrains\\.intellij\\.platform\\.gradle\\.plugin",
+      "moduleVersion": "2\\.2\\.0"
+    },
+    {
+      "moduleName": "idea:ideaIC",
+      "moduleVersion": "2025\\.2"
+    }
+  ]
+}

@@ -1,0 +1,1840 @@
+{
+  "dependencies": [
+    {
+      "binary_sha256": "e8a635abcd868f6733f4569c33536f03f97dc4e5c851639e724c7a0a4ad34c35",
+      "configurations": [
+        "::testRuntimeClasspath"
+      ],
+      "file_name": "test-framework-243.21565.193.jar",
+      "license": "Apache-2.0",
+      "module_name": "com.jetbrains.intellij.platform:test-framework",
+      "module_version": "243.21565.193",
+      "source_archive": {
+        "sha256": "3e4f451834a31cd3bd8111b9895638fbecbd86991e394bb0fa99848b65930d7a",
+        "url": "https://www.jetbrains.com/intellij-repository/releases/com/jetbrains/intellij/platform/test-framework/243.21565.193/test-framework-243.21565.193-sources.jar"
+      },
+      "source_files": [
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n\nimport com.intellij.ReviseWhenPortedToJDK;\nimport com.intellij.TestAll;\nimport com.intellij.concurrency.IdeaForkJoinWorkerThreadFactory;\nimport com.intellij.openapi.util.SystemInfo;\nimport com.intellij.openapi.util.io.FileUtilRt;\nimport com.intellij.openapi.util.io.IoTestUtil;\nimport com.intellij.testFramework.GlobalState;\nimport com.intellij.testFramework.Timings;\nimport com.intellij.testFramework.UITestUtil;\nimport com.intellij.util.ExceptionUtil;\nimport com.intellij.util.SystemProperties;\nimport junit.framework.TestCase;\nimport org.jetbrains.annotations.NotNull;\n\nimport javax.swing.*;\nimport java.io.File;\nimport java.nio.charset.Charset;\nimport java.util.List;\nimport java.util.prefs.Preferences;\n\n/**\n * This should be the first test in all test runs,\n * so we can measure how long the tests are starting up.\n *\n * @author max\n */\n@SuppressWarnings({\"JUnitTestClassNamingConvention\", \"UseOfSystemOutOrSystemErr\"})\npublic class _FirstInSuiteTest extends TestCase {\n  private static long suiteStarted;\n  private static boolean nothingIsCalled;\n\n  static long getSuiteStartTime() {\n    return suiteStarted;\n  }\n\n  public void testReportClassLoadingProblems() {\n    List<Throwable> problems = TestAll.getLoadingClassProblems();\n    if (problems.isEmpty()) return;\n\n    StringBuilder builder = new StringBuilder(\"The following test classes were not loaded:\\n\");\n    for (Throwable each : problems) {\n      builder.append(ExceptionUtil.getThrowableText(each)).append(\"\\n\");\n      each.printStackTrace(System.out);\n    }\n\n    throw new AssertionError(builder.toString());\n  }\n\n  @SuppressWarnings(\"AssignmentToStaticFieldFromInstanceMethod\")\n  public void testNothing() throws Exception {\n    if (nothingIsCalled) return;\n\n    nothingIsCalled = true;\n\n    suiteStarted = System.nanoTime();\n    IdeaForkJoinWorkerThreadFactory.setupForkJoinCommonPool(true);\n    SwingUtilities.invokeAndWait(() -> System.out.println(\"EDT is \" + Thread.currentThread()));\n    // in tests EDT inexplicably shuts down sometimes during the first access,\n    // which leads to nasty problems in ApplicationImpl which assumes there is only one EDT.\n    // so we try to forcibly terminate EDT here to urge JVM to re-spawn new shiny permanent EDT-1\n    UITestUtil.replaceIdeEventQueueSafely();\n    SwingUtilities.invokeAndWait(() -> System.out.println(\"EDT is \" + Thread.currentThread()));\n\n    // f",
+          "path": "_FirstInSuiteTest.java",
+          "sha256": "c8aa4ba71717a24cace78364e8063379b9989a45f2cb98f82ebc825885f9818b"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n\nimport com.intellij.lang.Language;\nimport com.intellij.openapi.util.Disposer;\nimport com.intellij.openapi.vfs.newvfs.persistent.FSRecords;\nimport com.intellij.testFramework.GlobalState;\nimport com.intellij.testFramework.JUnit38AssumeSupportRunner;\nimport com.intellij.testFramework.LightPlatformTestCase;\nimport com.intellij.testFramework.TestApplicationManager;\nimport com.intellij.tests.DynamicExtensionPointsTester;\nimport com.intellij.util.SystemProperties;\nimport junit.framework.TestCase;\nimport org.junit.Assume;\nimport org.junit.FixMethodOrder;\nimport org.junit.runner.RunWith;\nimport org.junit.runners.MethodSorters;\n\nimport java.util.Collection;\nimport java.util.HashMap;\nimport java.util.Map;\n\n/**\n * This must be the last test.\n *\n * @author max\n */\n@FixMethodOrder(MethodSorters.NAME_ASCENDING)\n@SuppressWarnings({\"JUnitTestClassNamingConvention\", \"UseOfSystemOutOrSystemErr\", \"TestInProductSource\"})\n@RunWith(JUnit38AssumeSupportRunner.class)\npublic class _LastInSuiteTest extends TestCase {\n\n  @Override\n  protected void setUp() throws Exception {\n    super.setUp();\n    Disposer.setDebugMode(true);\n  }\n\n  @Override\n  public String getName() {\n    return getTestName(super.getName());\n  }\n\n  private static String getTestName(String name) {\n    String buildConf = System.getProperty(\"teamcity.buildConfName\");\n    return buildConf == null ? name : name + \"[\" + buildConf + \"]\";\n  }\n\n  public void testDynamicExtensions() {\n    boolean testDynamicExtensions = SystemProperties.getBooleanProperty(\"intellij.test.all.dynamic.extension.points\", false);\n    Assume.assumeTrue(\"intellij.test.all.dynamic.extension.points is off, no dynamic extensions to test\",\n                      !DynamicExtensionPointsTester.EXTENSION_POINTS_WHITE_LIST.isEmpty() || testDynamicExtensions);\n    DynamicExtensionPointsTester.checkDynamicExtensionPoints(_LastInSuiteTest::getTestName);\n  }\n\n  public void testProjectLeak() {\n    TestApplicationManager.testProjectLeak();\n  }\n\n  // should be run as late as possible to give the Languages the chance to instantiate as many of them as possible\n  public void testLanguagesHaveDifferentDisplayNames() {\n    Collection<Language> languages = Language.getRegisteredLanguages();\n    Map<String, Language> displayNames = new HashMap<>();\n    for (Language language : languages) {\n      Language prev = displayNames.put(language.getDisplayName(",
+          "path": "_LastInSuiteTest.java",
+          "sha256": "49b0bed9755b6c1949fb7ac9e3daff0598bfbc2e662ce7cfe1097d4cdddc31c6"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n\n",
+          "path": "com/intellij/FileSetTestCase.java",
+          "sha256": "09f5ebf338341fc1907c8acf884d2ce3740cc2760201ca37884285c71f42cfc4"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/InternalTestDiscoveryListener.java",
+          "sha256": "9f72d5ee23e0999bc33725ed21590edae46a45db218006533ac2be4f80509e46"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/TestDiscoveryBasicListener.java",
+          "sha256": "2c2a708cc60aeda884bb83364ac500de559b5cbf3d7a2cd769d268704ab19c42"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/codeInsight/AbstractEnterActionTestCase.java",
+          "sha256": "57e611c437c892e2a18fc361be36157bf8d7703f1a3f4fd761b54441906cb402"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/codeInsight/CodeInsightTestData.java",
+          "sha256": "4725726fb81f93cdbb5af357f7a2cae89fb7bd66ad7b02ac3f20f616513b4eaf"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/codeInsight/CommentByLineTestBase.java",
+          "sha256": "9586cc2876d1d531856fc75914ce3208f73e2946afbae191577203eb2cc7b380"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2015 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/codeInsight/EditorInfo.java",
+          "sha256": "7203c40b8a479e7d7f52dc3dc61b65afe71d38a4f59a75f709348925e4a04aac"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/codeInsight/MarkupSurroundTestBase.java",
+          "sha256": "f93f733c73a2064d6530f4720c28c258b6bfd13b9a2d082b379a0d8a6a846770"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/codeInsight/SelectWordTestBase.java",
+          "sha256": "3d2491c7bea97ce8bb748f66256e53a2d9a18c6c93811b0f12013a9870800a30"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/editor/EditorColorSchemeTestCase.java",
+          "sha256": "4d927db5e8231829387961a72299976eeb8538b27564e1b4edcb2fcd829168b7"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/editor/TodoItemsTestCase.java",
+          "sha256": "8b3e9afe208b24de2c0c6e374f196ec70fe0a54a9bdf6ba1d8255e7933729388"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/formatting/FormatterTestUtils.java",
+          "sha256": "dccf19a97be5f7857123b2fa8c4a6dd17baa8e8f2a7e41457c44f6b0838004ee"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/mock/Mock.java",
+          "sha256": "51b1c0c3d8c8e00b35bac577181143f705aa7911dbe2dc3d9ed1066d5012a453"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/mock/MockDocument.java",
+          "sha256": "55cff87cf5cf191fab4be47d79a6bba71a851cf4d826698976f342f0bec4bd36"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2009 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/mock/MockEditorEventMulticaster.java",
+          "sha256": "84076100ef74e7a4fe0aacc1ff7a35a34fd7b5e23e190d32d72de218be31a29a"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/mock/MockEditorFactory.java",
+          "sha256": "99969dc0a1d3aec5542e072cca51bbc50ef8db6ca56c696eccfaeb722cf4787e"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/mock/MockExecutionTargetManager.java",
+          "sha256": "f30b4babffa83afd62067395421e59f8990834fb63481b160d7cb69331ea4083"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/mock/MockFileTypeManager.java",
+          "sha256": "4fde0e7b8e215d12afcb9a0f0296d7c470964d2a9ee29511f3e3f32b2fdfa47e"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/mock/MockInspectionProfile.java",
+          "sha256": "98b8d9fae0fde5a3f04333429cbaffc7053ff80ad896f7a52f4f752b5eac55b5"
+        },
+        {
+          "notice": "",
+          "path": "com/intellij/mock/MockLanguageFileType.java",
+          "sha256": "a06d40e7e71a706a03ffa36bb27165585c9c19108e0d0d8f9bca131858be4508"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/mock/MockLocalFileSystem.java",
+          "sha256": "c4729cda7cc0d57bc24dc4e11d03454ed795c8a5a88384c256cbef6895c323a1"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/mock/MockModule.java",
+          "sha256": "d65876f0be39a6620772df3344af61a1a2ca8e1cf9ba15ca26d26c45da04dee6"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/mock/MockProjectEx.java",
+          "sha256": "9f1adba13b67d56052ae61ec701ce6487e3bd9f82680ae872aa82558f3c8adc8"
+        },
+        {
+          "notice": "/*\n * Copyright (c) 2000-2007 JetBrains s.r.o. All Rights Reserved.\n */\n",
+          "path": "com/intellij/mock/MockPsiDocumentManager.java",
+          "sha256": "4407b4fe3d396c30657d00506bb1dbc0d2082e7ae99f2e5d37cbca397dad350e"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2015 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/mock/MockPsiElement.java",
+          "sha256": "028f0953c5f764f8063a4c6a6dcabe99395bd99e041073029e45a37e889427c6"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/mock/MockPsiFile.java",
+          "sha256": "e650f2cf687b48940936c19c35560961f73c91db86686c1ced9e430cd776a179"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/mock/MockRunManager.kt",
+          "sha256": "1b7d2b4996fd61ee38a4a20ebf19d14942a6ea873d8b6d485af09b285252f678"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/mock/MockSmartPointerManager.java",
+          "sha256": "5d2cd58afd4f1064a897f276e0e593cfbc4869e8d5b8a0853d50b4548b6557c4"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/mock/MockVirtualFile.java",
+          "sha256": "b7bf3695cff219dd712503214c892913810b086cad686d5ef178f317e3be3759"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/mock/MockVirtualFileSystem.java",
+          "sha256": "4a32c70109e5388ec21223d47105adec6c08dcf988d597b0b894c659f7da7fa9"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2013 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/mock/MockVirtualLink.java",
+          "sha256": "7fb17f03befe5313315a488b2adcd13d6094abd72c0b58f87db1e61f67d13779"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/module/moduleGroupTests.kt",
+          "sha256": "fd3c36c5acdc93954dab0d5612bee7d52d0dc72967a7527e80510b131e1e5014"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/project/IntelliJProjectConfiguration.kt",
+          "sha256": "776badb3d7935739c87721224918b1c4f6839509213bb1061ea1581dd041d502"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@file:Suppress(\"ReplacePutWithAssignment\")\n\n",
+          "path": "com/intellij/project/TestProjectManager.kt",
+          "sha256": "2fa58f13c506386608b9e80d635a6faa3d54a1640ab02a12fd473e7d5eec95f9"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/projectView/TestProjectTreeStructure.java",
+          "sha256": "5f90ccc835d499bd54b00116e594de2eb616bb62ba8976939c3178f1fb958a95"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/projectView/TestProjectViewPSIPane.java",
+          "sha256": "29768137d467cf9df69a37f0d2fdb29dc422fa794f437c77cd804eb879cf4556"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/refactoring/AbstractInplaceIntroduceTest.java",
+          "sha256": "23e4e8e19fef657eadae20d8e945bddddd5b95e84346721f906c591ad4e9bb63"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2015 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/AbstractMockGlyphVector.java",
+          "sha256": "9b860a71536bab92ff2a10a70d9536cec0660b1ec17032e34435b9600f7c5ffe"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/AutoPopupParameterInfoTestUtil.kt",
+          "sha256": "b03c64644049d5656411ff508929fc2aac82002553a520cddc6b1c6c23704f47"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/BenchmarkTestInfo.java",
+          "sha256": "80cd4eda1da9f7b8ec3a2b0df2ba9d65315343cc2ff342b0523be919a6fc2f57"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/BenchmarkTestInfoLoader.kt",
+          "sha256": "1e68e201d1fbb723fe64ad99b17e9b33d16f673958ce9cac40840c2d6a979758"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2016 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/BombedProgressIndicator.java",
+          "sha256": "8ee6001d6f94c655dcd7f46cef76908324b8f3d0a470da2446830d129548104c"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/CodeStyleSettingsTracker.java",
+          "sha256": "a5beaa5666ca9e48d43963a20732bd8fb78ee0797ebaa205a63b6ab072be96ea"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/CpuTimings.java",
+          "sha256": "a79998943ee2347d17ea1d5a3c0a1640e3ba68dd7867d68d6c2176154060050f"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/CpuUsageData.java",
+          "sha256": "e0e3e9f60e289646143e60979d154c9b42c1f71d377e9c2fb186f9bbc68fcd1e"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/DumbModeTestUtils.kt",
+          "sha256": "90f11d82576ea16c6b646deeceb8d198de674af84fca99aea5784d9da1cfdec3"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/EditorListenerTracker.java",
+          "sha256": "0c666c4ba589a63b53f9dc7a1485c6ed26ec4e2457d626ec09df704f24e66243"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/EditorTestUtil.java",
+          "sha256": "32bf5aaab1820af4a2ceb3168ba4cac065c18ec4a660283a86cf0567596f8ad8"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/EmptyFileBasedIndex.java",
+          "sha256": "86fa9da44eb7a3a6b9b263dc4498baaa1e0e0745b810c23f03f8b8f0ba111de2"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@file:JvmName(\"EqualsToFile\")\n",
+          "path": "com/intellij/testFramework/EqualsToFile.kt",
+          "sha256": "fddc232ce0b4a9e9335a21d96a8e8fa694a7e4619eb54144db9232768be0418e"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/ExpectedHighlightingData.java",
+          "sha256": "b5b4fb523b91a65183f6454da610caf0d8248d75857c93237fbf196fc63fca7c"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/ExtensionTestUtil.kt",
+          "sha256": "06eeadc586190069446308cc49f33d68eaea334543f39ee6082baf59054fb89c"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/FileBasedArgumentProvider.java",
+          "sha256": "0e21106d275f68cbef05d7d9d2d4ded781d5cb7d0d9f6dbdccad19f89e2ec137"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/FileBasedTestCaseHelper.java",
+          "sha256": "8f4b50327ccb9aed8b22cfaaea11eb567d244633e7f8055c3a76b21997f7c92a"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/FileBasedTestCaseHelperEx.java",
+          "sha256": "73fb19084d3c1707d8e8a5ed56d53d40c78db242159f8b011ad6a358c4478b6d"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/FileEditorManagerTestCase.kt",
+          "sha256": "29567cd1d6b68431e3a77ca6a3f109cf1e227b37c3d1ac6cd315fff0c146bd61"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/FileStructureTestBase.java",
+          "sha256": "75e9d93210d37d4b7d4b816c5607f3e7067a39ec5df463c91a568301c90e6df2"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/FileStructureTestFixture.java",
+          "sha256": "eb24dc9de2935a0a0e4e880c79b009f9980c6381524789a8048787f43bbcaaa0"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/FileTreeAccessFilter.java",
+          "sha256": "fe00cb4103c0dab7cf4eca170177a34c1df944512c6cc03c912eb7c706be18cb"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/FixtureRule.kt",
+          "sha256": "9b907cbf1e71a2038ef7b2e27db56009ff13b6487b74e866338f5a9677257785"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/FlyIdeaTestCase.java",
+          "sha256": "6b5f85b57ace192a49f1198cbc4a8161d2e53cd5d327df27e593a0d5ca6d05a8"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/GlobalState.java",
+          "sha256": "58ce752f82222d1a7e86680e4067e840dad9bdc77ea18464b08aceb8fabcdff7"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/HeavyPlatformTestCase.java",
+          "sha256": "7f5b7f59bc6201868ee237429782deaab7b9a8ec8e97a12d20d65bdcdf1a1dd9"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/HeavyTestHelper.kt",
+          "sha256": "75fc89ef81b6e4ae99e94b646b892f45a987ca7bacac21833bf327181d9f64b1"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2013 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/HighlightTestInfo.java",
+          "sha256": "0f71f2a00824707b24b6f21bbf7b870135f45195912b42e6336a72fcd6f7c0cb"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/IdeResourcesTestCase.java",
+          "sha256": "7f1811bc269d092927df16a5c7d238d10f68009f0971faa2750a985005e677bb"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/IndexingTestUtil.kt",
+          "sha256": "2a3d1352f1cb6b19d4c5abfbaf96bbee6f3af9f743dd202fac23eff7d901b709"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/InspectionFixtureTestCase.java",
+          "sha256": "a6c78886b4f7a241d35efea0008e3d96e39b92a87d9d51288c0948e43018b1d0"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/InspectionTestUtil.java",
+          "sha256": "e999a19df359bffa8d099afc97899ce76912233b5a61cfd29fb47c2039ae101e"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/IoTimings.java",
+          "sha256": "a4b1a002741f9ea249ea50de8eb71c9930c1add9249c48f07ef5b519359c706c"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/JUnit38AssumeSupportRunner.java",
+          "sha256": "2c54503eb223590feab131b60168eda51f841d05012aa634f672b50e1697b9e6"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/LexerTestCase.java",
+          "sha256": "4df87b9220abd572f751c7e8235aebac5512b6f31757a1d1b5d9978205f9e6cd"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/LightPlatform4TestCase.kt",
+          "sha256": "fd6471d8cffbefb5902468531a0db7da522790f7e273882d25fecad0ad9f73d8"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/LightPlatformCodeInsightTestCase.java",
+          "sha256": "8b20e501d04c4434de5337165bfc285e69397ecbee7accdb571491178a2d20e6"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/LightPlatformTestCase.java",
+          "sha256": "09788c1ef3d532b0d631df97a4397bbc3293f8416e19c858a037a69bb2069acf"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/LightProjectDescriptor.java",
+          "sha256": "7ea9a04158aee9df654719f623e42d9a8d1092de828b1329fb80e5e1a75da293"
+        },
+        {
+          "notice": "/*\n * Copyright (c) 2000-2007 JetBrains s.r.o. All Rights Reserved.\n */\n",
+          "path": "com/intellij/testFramework/LiteFixture.java",
+          "sha256": "a39317545fbaefdbe349379d0ab4ea4259483c501a7e1fa37bf468e6fa44ac67"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/LiveTemplateTestUtil.java",
+          "sha256": "b3f43faa5a32177c02ec8203202e538a8e13d79589ce44e8bfa09571f1f3f8ff"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2016 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/MapDataContext.java",
+          "sha256": "2139608ade0a437c1afafb8fb54c1e24cdad3cef028b54ea01c4c1969682695e"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/MixinAwareJUnitRunner.java",
+          "sha256": "60046ef9d88f7d7989ce44949d1aab7d2e366befbc3eb720f7aaf35ba95bf13e"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/MockFontLayoutService.java",
+          "sha256": "c601daf1cdfc48276f492b512a05816bb08d9f5e52b91bc80b3258e65b9c9fff"
+        },
+        {
+          "notice": "/*\n * Copyright (c) 2000-2007 JetBrains s.r.o. All Rights Reserved.\n */\n",
+          "path": "com/intellij/testFramework/MockProblemDescriptor.java",
+          "sha256": "f7e18f4021f50119057b7d8025c3d4e182182315c3d333095ef6af3ce85de4a6"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/MockSchemeManagerFactory.kt",
+          "sha256": "04474dc0aa7392f738c1d539080de34f7ac84269bb738133af53ea1ee431a664"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/NeedsIndex.java",
+          "sha256": "a0ab1fdd7bbcf901a0ccadc93aa6d81517a36c68f4bf4a347fb86e2a3fd4eda9"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/OpenProjectTaskBuilder.kt",
+          "sha256": "b547c90d4a4dc9a6ff8e5f13d35f422157eaf3689effa5b6513a11b568c2ff0d"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/Parameterized.java",
+          "sha256": "0de7074ebb8a0afb3589be529d51112de3b7e2a29a714277a50f79b2fb218605"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/ParsingTestCase.java",
+          "sha256": "1e9aba31e14c79b16383a3cbfcf6e5f750d36c3321bac5c9830181f5256e72d8"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/ParsingTestUtil.java",
+          "sha256": "67dd223ccc6f50883310f681340e2f2b10c4d9ed1016faf05ece735a898ca333"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/PlatformLiteFixture.java",
+          "sha256": "e808a749eb0413632b96b3b5224d040f6cb025d1c0d62f0cf89548dbe4ceb2d5"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/PlatformTestUtil.java",
+          "sha256": "e9a6fca8da06bca3fd87c8f5b02b8570401f57269cd074b0a24ff6c8b5d35259"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/ProjectViewTestUtil.java",
+          "sha256": "02565906ba2d717f2c68a83f15e27144201c052dfa945105fa00d6cc02563a6e"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/PsiTestData.java",
+          "sha256": "e3900733227a9c97fb6bbd73d5cf650d9ca2550f10648d63225aeff1b2f6630d"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/PsiTestUtil.java",
+          "sha256": "22d238a513480c8589dc2ce24406a15957b90fb6aea9fcc35d9494e360440880"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/PsiTestUtil.kt",
+          "sha256": "2225c26d04feebfc4f7fb2b96a56deb76766d866a2ff27ef09bc53e607a8468b"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/RegistryKeyRule.kt",
+          "sha256": "e39d785b12c7855d4343dfd38ae4f3444f0d1abd220b03bf06f9f5a8e57ef419"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@file:JvmName(\"ServiceContainerUtil\")\n",
+          "path": "com/intellij/testFramework/ServiceContainerUtil.kt",
+          "sha256": "4d94acaa42b357830012dad19779b7ed4746766c88d64e3c821e66021ad15c1e"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/StartupActivityTestUtil.kt",
+          "sha256": "1fac06fe00451664d0691a1ab3be5142ecb344ed63fd3024d94f60cc92a4ebf3"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/TempFiles.java",
+          "sha256": "14d8714114b024210b415ec756dacfc09cfbb5c2aca3a893b24424025c8dd9e8"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/TemporaryDirectory.kt",
+          "sha256": "b30f1bfbf05cc71e2e567da59118f897a1850535f6c2f9f0736aec0d57f54a5c"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/TestActionEvent.java",
+          "sha256": "68cbb8953908f6abbb96f8e87977f702c5b0dad8479ad86ece5e0ca792ef47c8"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/TestApplicationManager.kt",
+          "sha256": "ca1f8a13cc4d70f664e764d4d01395af4b8b04f6e54e6851422d2aadcef3785c"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/TestDataFile.java",
+          "sha256": "6fbf7051568517f53e14f632d538edca6895db818aa902334e666528e20be4e6"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/TestDataPath.java",
+          "sha256": "b728953b0760a34dbabd0dd712112a998e3c7ea655e066682596f81ffd54a826"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/TestDataProvider.java",
+          "sha256": "d9ddf621d612d33c8264e3ae0a766b420942ec6ae4fbdfb691843d8b371067eb"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/TestIndexingModeSupporter.java",
+          "sha256": "8b400225f07134fd7010d8f2b57219abfec40cf0a241216afe4bcaa9b7a952e3"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/ThreadTracker.java",
+          "sha256": "d5f5231338ba7f4d690e55a89ac144f5c6d0e644e08dc11184b3b9d89ecd6eee"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/Timings.java",
+          "sha256": "bad218b26c7798d227c19526a94e47302905456db53eeada7ea6d8c1b3ac1639"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/TreeNodeTester.java",
+          "sha256": "81d51dbcc41e858d7c314a44691bfb46fc84c318d6b58ab9589d0d46e3596e72"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/TreePrintCondition.java",
+          "sha256": "0d4a699fa6af1b4cdd702a9012e64c630c989f1718c800693bd01647d2ec617c"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/UncaughtExceptionsRule.kt",
+          "sha256": "6d4e2c5373d1b16b5c86a485aa6b77bd28b7810cf5819219442835928792af65"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/UsefulTestCase.java",
+          "sha256": "7453dd701a772b0d08349426008573880432c733e4fc3492e6b2e4c2cbfc5fcb"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/VfsTestUtil.java",
+          "sha256": "06069868d3c24dab6297ce77f1686aef5c908a636318f1623252a70d7dbd2a75"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/WslTeamCityTestTool.kt",
+          "sha256": "a235aeb51ee48fb792340477863e7f7b8b735a6eee89265c81a2208ea444ec09"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/coroutine.kt",
+          "sha256": "811f9abc7def7b83c1490bd6e95c9a35c0050b80a46615d62f12914c4fb63c02"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2016 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/fsBuilder.kt",
+          "sha256": "a172bec29bc032bb4650906a06b956c2f2943511003ff9afbe1b7394b752fd43"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/inspections.kt",
+          "sha256": "47e8ec10306f6b48e5eff0f41af960040905b8fa03eeef7d56d7b68790cce26f"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/ktAsserts.kt",
+          "sha256": "c5c9105fd7c2868c1fb65ec382bf1486e452b9901d175b8f97ffc9f23acf2629"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/tests/DynamicExtensionPointsTester.java",
+          "sha256": "32b5c2a739a93872dbd2fa868c49bf991ab97bd514a3d69df6057cd917937405"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/tests/JUnit5OutOfProcessRetrySessionListener.java",
+          "sha256": "4d52257b5929aa704e60d5cab16f14bde2bf599e3d95c19626ee55874e2636ba"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/tests/JUnit5TestSessionListener.java",
+          "sha256": "e106df205b482ebc09b52d49d8304076edf0b785afdc561bb4e0890b68efa655"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/ui/ChooserInterceptor.java",
+          "sha256": "9a8dfaffffa7bad38cd0fb336f08ca1ebf3056fc5c26833134d2f3b94c542fcb"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/ui/ConflictInterceptor.java",
+          "sha256": "d10c946414a38478d2964826403085c69815c60646d41084a21a895d46931e8a"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/ui/IconTestUtil.java",
+          "sha256": "3221303aa48c3d7b07261b961617d2c4bc25e5660afe0887c1708be8e0074d94"
+        },
+        {
+          "notice": "",
+          "path": "com/intellij/codeInsight/codeVision/CodeVisionTestCase.kt",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/codeInsight/defaultAction/DefaultActionTestCase.java",
+          "sha256": "35b3f797936a44f35f6298c93458c9bce756895aeeeebade4f5c1f55871f1d49"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/codeInsight/unwrap/UnwrapTestCase.java",
+          "sha256": "e09fa380d3f3971ab6db67665866ed527f49571ec882fa9ca125420e76304515"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/facet/mock/AnotherFacetConfigProperties.java",
+          "sha256": "4edcb7b228ccb34d31dc16a93427e3b282284252448af4c082a3b0696180858e"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n",
+          "path": "com/intellij/facet/mock/AnotherMockFacet.java",
+          "sha256": "bf7372b279f77beae29d64cbce6a2501227a3b87e3127174b6fb3a6fb1dc7a6b"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/facet/mock/AnotherMockFacetConfiguration.java",
+          "sha256": "17e903c429fe0a451af523982f24db3e615a57f714cc13bf95c668ead5bae444"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n",
+          "path": "com/intellij/facet/mock/AnotherMockFacetType.java",
+          "sha256": "55e6594c18cefc1d576be9b2ebfd9dda82bc0527e3a6d99f62658226a216482f"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n",
+          "path": "com/intellij/facet/mock/MockFacet.java",
+          "sha256": "a02b9eb7e1eb1346e27cdb001682596d485a8dc8e3e4d68e2317007cb4576e1b"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n",
+          "path": "com/intellij/facet/mock/MockFacetConfiguration.java",
+          "sha256": "5909839597cb46207c85fe58285f36880f8e200d850fcd978e3ac007970b2a82"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n",
+          "path": "com/intellij/facet/mock/MockFacetEditorTab.java",
+          "sha256": "416783a750105de244e3b6a288a944722550dcd446d74f6bfaee9353d6a8790e"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n",
+          "path": "com/intellij/facet/mock/MockFacetType.java",
+          "sha256": "3f889cbb2d6bf9e53f2485c90c1f7ba7df4c0027ead86eca75e539dc01326ae9"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n",
+          "path": "com/intellij/facet/mock/MockSubFacetType.java",
+          "sha256": "44312ccde81995ef401567e67ea87eb2f6f26bb287891edaac559663b8a949ec"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n@file:JvmName(\"FacetTestUtils\")\n",
+          "path": "com/intellij/facet/mock/facetTestUtils.kt",
+          "sha256": "6c094976b9c1d69acb548dd8f4ad4b968a4f58113c2a03e171cd4b2571ebe9d2"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/lang/impl/PsiBuilderDiagnosticsImpl.kt",
+          "sha256": "85756afb37300bb126b56b7c1bc0118e3dc77264dfbe61055ed4f35e086d4a0c"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/openapi/application/readWriteActionsInTests.kt",
+          "sha256": "efeedbfc55168965bc0eb95eb7dcece6cbe2fccb4e2d0a09bdb390bb48e14d10"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/openapi/components/PersistentStateComponentUtil.kt",
+          "sha256": "c239c7a776de7a41b85874d74a4598177840668221a4cf7733d897e60c36da29"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/psi/formatter/FormatterTestCase.java",
+          "sha256": "77c8b24b65b9ffa3e88ab9bbd477e4f64f4d78367940c92134eb9541c912c9b6"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/builders/EmptyModuleFixtureBuilder.java",
+          "sha256": "8dfe2452833e83787e1025ef5443088e03825215d3a62a9a01bc45b1e9195c09"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n",
+          "path": "com/intellij/testFramework/builders/ModuleFixtureBuilder.java",
+          "sha256": "20a06a6e5bef295c2ad0721812344726e6b82a6810c15091d1f084179b77441c"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/concurrency/PromiseUtil.kt",
+          "sha256": "aca75e8d964858ae65b904c7a3b6c08afc5eb23ea656a761a5b1fc5e8207c919"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/configurationStore/configurationStoreTestUtils.kt",
+          "sha256": "fba5c3d54e98dd1868e0d59fb97c63717035d3cdf6d62a0ef4510c564fba6cfc"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/exceptionCases/AbstractExceptionCase.java",
+          "sha256": "46454d717db4c11767c2f11d0782de897eb09efcaba3ee1b4355468e42c10627"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2015 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/fixtures/BareTestFixture.java",
+          "sha256": "cc3bf88a587563365f52425cac63426e03ff47d3c7c78efb69a54314e7ef3f29"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/BareTestFixtureTestCase.java",
+          "sha256": "94b02d69d90d4f056799348723957cf4cfe1d7035a1ab85f9d8db98f2d8f02b8"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/BasePlatformTestCase.java",
+          "sha256": "e67a7db18215b18910043ba87267f25498973f6cb82f842029754303dd305d5b"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/BuildViewTestFixture.kt",
+          "sha256": "fe37c2c3ca40a105a73ddfe8e6247a6b156029905211d643fd853fabc4ea44d2"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/CodeInsightFixtureTestCase.java",
+          "sha256": "e8a49aea30f38346951d5f56575316722f1b540061eec1f89bfe9c374ccb0e93"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/CodeInsightTestFixture.java",
+          "sha256": "1fdc16be56771ab981bc051858b8c17f75bcb3c82ec40f4504e6898b1f1e739a"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/CodeInsightTestUtil.java",
+          "sha256": "0b3a25002f469bf342ddd1d943e7afb1de0710176be66d3e56e34a7574585214"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/CompletionAutoPopupTestCase.java",
+          "sha256": "ce8cbd367dd7026742a5dc5f63b928a7604a0e1b2244ccfeda79a6e8d2bc9565"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/CompletionAutoPopupTester.java",
+          "sha256": "02c52ff7704f1102e0123a1e7fbbb8540a16830d4e919114be3a80d36e170e6c"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/CompletionAutoPopupTesterBase.java",
+          "sha256": "cdf22bc7bea50ea86fd12db91c4a581d2f0cd14610b53f421f5787a2185d719a"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2013 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/fixtures/CompletionTester.java",
+          "sha256": "bf3c7daebbfebe1c2ab1f4dfb8b9ff1864174bc73ff07ef2b9ad3b186115d51f"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/fixtures/EditorHintFixture.java",
+          "sha256": "8c847cf41523c4619c7630ea80811dd419ad6e7d21f273de00fefa5db1086fd7"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/EditorMouseFixture.java",
+          "sha256": "3c026f23ffe8817e85b09ae68c99c11d2e902c5386e61e76df6a0283777dc347"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/EditorTestFixture.java",
+          "sha256": "c2f5116136eed6fc35eb9b246e0b96ab8c63df12fd15244368432c59c6d5c3a5"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/fixtures/HeavyIdeaTestFixture.java",
+          "sha256": "d4abaad05a17662836d53c89a7a8180488489484aaa12fb66f69eb188e2d4dc5"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/IdeaProjectTestFixture.java",
+          "sha256": "706fc45986c6ae3ebca10993aad08516e6ebfbc0170e8954ef1249bc068beaf4"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/IdeaTestExecutionPolicy.java",
+          "sha256": "09d9bafa44ab658877679924cf4d18f22de49ca00c01ea4b1cd40ac1e591fd75"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/IdeaTestFixture.java",
+          "sha256": "f76e05f95b78949b866260bcb690aee33ebbafb5c306b9e7700e0c42b36df068"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/IdeaTestFixtureFactory.java",
+          "sha256": "47cbee932ca7662b3c238b55a37cfe0641a3e3072fa9bd90f8e98dba02747bab"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/IndexingModeCodeInsightTestFixture.kt",
+          "sha256": "faa92c27495af6e19c37b0810e5a1e8834b36f689a4b090b2a2141b49e4b598c"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/InjectionTestFixture.kt",
+          "sha256": "00a69a32c940d55264a2c8314ed9ffae2582e18299a28a49c0d18b6dc999617a"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/LightIdeaTestFixture.java",
+          "sha256": "4198da1d15ea2fc5fcd5991a952afedbf18c6127ecbf67375c6a2880898c5812"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/LightPlatformCodeInsightFixture4TestCase.java",
+          "sha256": "b0523b80f18077d30377b597ea49819ab3cf170e727053950daa1ee4d2a483f5"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n",
+          "path": "com/intellij/testFramework/fixtures/ModuleFixture.java",
+          "sha256": "cbf75319c10fe1cf69b97ea7abb32ddaa004b8c626532c11b5e0305fd12782e8"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/SkipWithExecutionPolicy.java",
+          "sha256": "2e2e801f60e7668fb75229c754c8085d1682b38ce2c06009af9483c2d87bf19b"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2015 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/fixtures/TempDirTestFixture.java",
+          "sha256": "751e163c649c34b0a37303bd62a5ab6858bed989efcc64fd9d2ed1213f4f6a18"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/TestFixtureBuilder.java",
+          "sha256": "6186221907d0340705353f5662bccffd4302c85e3d0629d62f002cafdd3a24b6"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/TestFixtureRule.kt",
+          "sha256": "982057b1a133a731f4cbdb108a335e1a498e1537dccb7eb331695cdf16f50e0a"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/TestLookupElementPresentation.java",
+          "sha256": "3a8ab11f379e46d2b6384ec31e1a1bb433ea22ea4d7f67092d75521cabcf6ede"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@file:JvmName(\"DynamicTests\")\n",
+          "path": "com/intellij/testFramework/junit5/dynamicTests.kt",
+          "sha256": "4c760cf32b932d7d2a7dd46f808f016b9616f58245491634f0becb607e55d1aa"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/ActionOnFile.java",
+          "sha256": "55f528192e6995970490eaa7ae3e3bea48fa2b3477c5cea64e50615df55bed9b"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/CheckHighlighterConsistency.java",
+          "sha256": "0b56b4ea447376ebed25844ea41fb48ba753df4319fb1240229be0d7ae42e05a"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/propertyBased/CheckPsiReadAccessors.kt",
+          "sha256": "387075fc454f00d4351fab630cb4024663aa424e52851be278b45cbefc6c40f1"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/propertyBased/CheckPsiTextConsistency.java",
+          "sha256": "0981722bf22875cc52679253110df417b58ad2984fe41dec841b7d8ebe0b9fa0"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/propertyBased/CommitDocumentAction.kt",
+          "sha256": "8c8efa28e782d4f87b31d8b1f75d229d98609e1dec297fd292e84e1c0120dd3f"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/CompletionPolicy.java",
+          "sha256": "cd52e865b2a0973e337b3a4142104d41b736824a6dcf14cfb160e005e051c8a6"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/DeleteRange.java",
+          "sha256": "c53d00eb8ba3237b8c4e80da780ebcbe15871b94538e78e11afba2d30526e7a4"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/FilePropertiesChanged.java",
+          "sha256": "1baffcd939f0cb690a46360417bf568a9a5a1b3c39f13ee7b1bb0d3609a3e719"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/FilePsiMutation.java",
+          "sha256": "4061ebf74d307617ef2e4506d0c5c39a3cd9b021bc24ac8f172f39e26b765dd5"
+        },
+        {
+          "notice": "// Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/propertyBased/InsertLineComment.java",
+          "sha256": "009dacf7417acb81c9a4fd8e02e86369adf2aba205afe2af632a356da6b9ea92"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/InsertString.java",
+          "sha256": "bdb08dbcc789cdd773a8571070b7c86762d58c120c06015ac39ecca2b5f44c56"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/propertyBased/IntentionPolicy.java",
+          "sha256": "441815afd658c54a585c078e411c95c939c263d60ca59eba6996de8b2a75e217"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/InvokeCompletion.java",
+          "sha256": "28ebde513af03c35ec976ac9cda0e3922ecd5d87f347477e36035f27ff13693e"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/InvokeIntention.java",
+          "sha256": "89600cce574ff38ed40bd1a0dd795ea62a55f270e9b3675cb214dcb98bf83e8e"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/MadTestingAction.java",
+          "sha256": "b83d654703eb99cb54c265750d9168b22661e41bbe9f5d6a6159bd784ddbc2e3"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/propertyBased/MadTestingUtil.java",
+          "sha256": "2d5acf7c278728c7e8d2944fa1322d67338e03da668e66279bbdbdd0b9207334"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/propertyBased/PsiIndexConsistencyTester.kt",
+          "sha256": "0034b456a25f120c10721eb8c33250878253840b272ccae3684b30733d56d484"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/propertyBased/RandomActivityInterceptor.java",
+          "sha256": "534bc527eb2249c39db4eca9a033fb37cb50bd6d0603d9235e2eca65b5db7306"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/RehighlightAllEditors.java",
+          "sha256": "7e138e196fb16099f950f3f97a112d26065b381db39d15c3a6b6c2bcaa88cb5f"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/propertyBased/ResolveAllReferences.kt",
+          "sha256": "299c52576ae13214a7e187b5de80f2613b1ad828ec5492a3a4273868601056ef"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/propertyBased/StripTestDataMarkup.java",
+          "sha256": "071fc023a2620737cc32f4deb57e6e158ef072d85240bb77306f9ff41cc03876"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/rules/ProjectModelRule.kt",
+          "sha256": "eb7db3997d50d595ff99f2b6ebab01dbd7e9b7c3f4a2b0747320f563b6c68f92"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/rules/TempDirectory.kt",
+          "sha256": "2ecfae48512a0ae38ad36306d556e66e61a0cb009811fb3a875c3eedd5f20f1c"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/rules/TestNameExtension.kt",
+          "sha256": "dd787703b0317e2f6eb2ff021678741602723276316a400e6394f0d61933b213"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/workspaceModel/workspaceModelTools.kt",
+          "sha256": "cc0225f0c23531cb5fb43c140dab7b9a03a851d63e1505f7003c08362005de98"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/ui/tree/TreeTestUtil.java",
+          "sha256": "2ee6bf8f790fe45ef03ff1d06a9ab19a4c827c6ebad4842690b4d583214cc6b1"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n\n",
+          "path": "com/intellij/util/io/DirectoryContentSpec.kt",
+          "sha256": "827336221430b1850003e126afe5870562dc2492321804ef447c7817c11c4b72"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/util/io/FileTreePrinter.kt",
+          "sha256": "db8b01572c3471fa1fc4e444d11f658c1e85d6f3b3a9859d82cf255ba72bde47"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/util/io/TestFileSystemBuilder.java",
+          "sha256": "f4fe4748455089f27cb84459f428c8a06f8727354dfc4a245550d764c2a7b3e2"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/util/io/TestFileSystemItem.java",
+          "sha256": "cfb2e099b952ec5fc50add69ed6b58fab4bfa7d1a349fd6a52bdb94a3d85a8d8"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/util/xml/CallRegistry.java",
+          "sha256": "a4819ec04ace58e83d55aeac87a6eecf9ea468d3d8031ef6b74641b8f284dcdb"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/codeInsight/daemon/quickFix/ActionHint.java",
+          "sha256": "5c812580d6b4040fa5bac13105d7f91c8273649de2ec14ace06935c93aae1850"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/codeInsight/folding/impl/AbstractFoldingPolicyTest.java",
+          "sha256": "1a42631eb67cd67f9a9455ab522facd602ca5a06f9c0200fafe3f44d936fa073"
+        },
+        {
+          "notice": "// Copyright 2000-2018 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/codeInsight/folding/impl/AbstractPsiNamesElementSignatureProviderTest.java",
+          "sha256": "1597bf302522b31c263c4b693449720cf833a4b3d360a635e36434ffb7746fee"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/codeInsight/inline/completion/InlineCompletionLifecycleTestDSL.kt",
+          "sha256": "fd521e3f28c438f7394b7efc96b297f412517bc81ad1b0975a937d0f862d05a5"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/openapi/application/ex/PathManagerEx.java",
+          "sha256": "584a715bbfa1b3316158b30b8d450016b8aeab0840839126c5728a83cdfb4788"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/openapi/editor/actions/MoveStatementUpDownTestBase.java",
+          "sha256": "34c0250670470a43e1ea9b97e59e29fb3b20bc861343ad4e00f9cc2bc86c92af"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/openapi/editor/colors/editorColorScheme.kt",
+          "sha256": "71ae6bb0fc659a9fc8f7a4a16a6b1aa99c31c3233830c298ef730f514299ddc4"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/openapi/options/advanced/AdvancedSettingsTestUtil.kt",
+          "sha256": "4ef90107c1f9392378a112991d743a246bf599cd78a144ca3e9bd01b5fcd596b"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/openapi/util/io/IoTestUtil.java",
+          "sha256": "451a33560a53c66db77810f9a1e89d4d28af8c383eaa301a4db875d95c666d6e"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n@file:JvmName(\"RegistryTestUtil\")\n",
+          "path": "com/intellij/openapi/util/registry/RegistryTestUtil.kt",
+          "sha256": "3b4d3a39485ac08862f6d80040d3d2c37c339250c6c7c05d5b4f37333cf9a5d3"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/io/DnsMock.kt",
+          "sha256": "27fa03d5c6929e7ed2890837c6056283a7cb4de581f2b2036a25f61aff54988a"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/io/ExternalResourcesChecker.kt",
+          "sha256": "201c32f10368b40dfda6a3a0b29f8e27f7f122cf6f6d1aee7925b84fe6c64bba"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/treeAssertion/SimpleTree.kt",
+          "sha256": "f16f0b4462e2fc3762e9f8fadc679def94a99624121c21d1bd180d98f991c6b7"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/treeAssertion/SimpleTreeAssertion.kt",
+          "sha256": "712fddc495b4fb1fccd362edac09f2ad425af20639e683a3c2c9dd56424a1997"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/treeAssertion/SimpleTreeAssertionImpl.kt",
+          "sha256": "a0f72702cadde29fe8c14f44bba409fa8a9fae047ba57695f0d25f3b3bc4f623"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/treeAssertion/SimpleTreeBuilder.kt",
+          "sha256": "cf0063bc20ba6e16d8e347db68b73e4979216eef0ce19751a1e50ad570d04d60"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/treeAssertion/SimpleTreeUtil.kt",
+          "sha256": "831b06e1568fd2656c001e118d8c8fd9870214e260bc31ecc46d099392ad0f03"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/psi/codeStyle/arrangement/AbstractRearrangerTest.java",
+          "sha256": "3eef6b533039b34a105441a6981c34a78019d47b37164527da0692ebbf29bf2a"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/psi/codeStyle/arrangement/FoldingHandler.java",
+          "sha256": "b2f88adfc69395e3ba24681a933028f281363a141240fcb1ad0c0fc68df30955"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/psi/codeStyle/arrangement/FoldingInfo.java",
+          "sha256": "e32869bf87c5a77e4fd969c5697f0cfe16dbda2955f52c51dfa7f42caabe457e"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/psi/codeStyle/arrangement/Info.java",
+          "sha256": "2281b67f403ee31dcc7d737f4d6d6cad2c75c6b3712aab873012fb7ce57d16ae"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/psi/codeStyle/arrangement/RangeHandler.java",
+          "sha256": "ba66b9ed0b71e4d98d7453b512675d9d0944bdac721ad3b5cde26b815e3235dc"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2014 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/psi/codeStyle/arrangement/RichTextHandler.java",
+          "sha256": "c6241f79b1a9a5fcb4d20f2b8569430ceda3bb988ede887bf1c1ae5d0bf7c6ea"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/codeInsight/hierarchy/HierarchyViewTestFixture.java",
+          "sha256": "cab661cad7f412396bb9dd25d2531c9cd078ac24a97173af69e592fa07ff0062"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/BareTestFixtureImpl.java",
+          "sha256": "417f62617f83eea9cac2fa86c4e03118c86a105fff0561f5472b114e79701ebf"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/BaseFixture.java",
+          "sha256": "3069dcecd8b3a51d81693c79c5af065c2dd6f7ec3e7cd1b7a3fa2ede1cfd30b8"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/CodeInsightTestFixtureImpl.java",
+          "sha256": "ec6b177ddbd6baf3c0c1a0261619f776f7b2836bd51a4281eb3e39f54bf0dbca"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/EmptyModuleFixtureBuilderImpl.java",
+          "sha256": "b2080549a05b891701ed3c5933c82fe5138d5c29e087889839e87e06eb34d669"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2015 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/fixtures/impl/GlobalInspectionContextForTests.java",
+          "sha256": "69a7bdf5b195f341b7022409778a11acb8c1c221b92ff71a79b0d7ff0754f646"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/HeavyIdeaTestFixtureImpl.java",
+          "sha256": "d9e975a6921f2a025ef9fdc60d37b3445444d647bdbb3f5ff998df3e4d52626b"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/HeavyTestFixtureBuilderImpl.java",
+          "sha256": "939d698a977ed31ec4ceacdcb59d786625d873a234fa07dc14f4da9e2d05bd36"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/IdeaTestFixtureFactoryImpl.java",
+          "sha256": "fef27c73142f07a0d6a2a87ff4e1b16f799e48e72e888076afe063b910b86324"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/LightIdeaTestFixtureImpl.java",
+          "sha256": "a083c107723eba90969830e845b61382baab7875dca7e35e7def077a3cbd6a2d"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/LightTempDirTestFixtureImpl.java",
+          "sha256": "7a9cf5a8d91e6412d071bf80b1cf78e3856f792be0c1da1fc0c3d00c4c6a0a0b"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/LightTestFixtureBuilderImpl.java",
+          "sha256": "e98ccdaa4ddd23656390f3e949fca912772b41c1e2018dc57b316c61572f7aea"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n\n",
+          "path": "com/intellij/testFramework/fixtures/impl/ModuleFixtureBuilderImpl.java",
+          "sha256": "abceb87d27030da62fd3defb8ca62363c0253fa3ac3f8857d9af11be56856aa7"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/ModuleFixtureImpl.java",
+          "sha256": "443c1887fea1951f25229ec6f75d1daf8bc214e13d2dd79fc3d7aa0a9c9da2e0"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/fixtures/impl/TempDirTestFixtureImpl.java",
+          "sha256": "24e865b9e0902d0fea4420c00a40b56ce07a902fb300cddd2d474eccd9bf8d87"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/utils/codeVision/CodeVisionTestCase.kt",
+          "sha256": "e84507a51cada03841103fa57564d6ea3eaf723b420c8321b9c6bade078f3274"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/utils/coroutines/CoroutinesTestUtil.kt",
+          "sha256": "59724bf8970711c4deb57a9a34390259e138e5eafca48ead423402f6d0c79bb3"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/utils/editor/DocumentUtil.kt",
+          "sha256": "610dbeb3dbf737bd07190caabc0b750ceab14a6ce821828faf8dccd39519d9ae"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/utils/inlays/InlayHintsProviderTestCase.kt",
+          "sha256": "2b6ac677a3084c34f31c5d6771c795424d86bb1818d9e31f8e2880ccde5e2e0d"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/utils/inlays/InlayParameterHintsTest.kt",
+          "sha256": "6cd82483bf60800c0ab80548409708527b2d86fc3944a7a9ebba48f1c41385c6"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/utils/io/NioPathUtil.kt",
+          "sha256": "883dd823342cc1fef900cc7be090bef430962367f0d4598459fee103d367c96d"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@file:ApiStatus.Internal\n\n",
+          "path": "com/intellij/testFramework/utils/module/CollectionAssertions.kt",
+          "sha256": "4f4836d1d2ca68776d1dab4784b5ed1539d61efa4e13c879dd1a7445daf11fe0"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@file:JvmName(\"ModuleAssertions\")\n\n",
+          "path": "com/intellij/testFramework/utils/module/ModuleAssertions.kt",
+          "sha256": "268137c908fb9f73aa7423c13b9b7491e669305f0e42d7ac4d9d952016a42e20"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@file:JvmName(\"SourceRootAssertions\")\n\n",
+          "path": "com/intellij/testFramework/utils/module/SourceRootAssertions.kt",
+          "sha256": "7a8d6bbc8c66809fd665626f66c450d44b92be3f98d06cce63e18e03be9140d9"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2009 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/utils/parameterInfo/MockCreateParameterInfoContext.java",
+          "sha256": "126ff0ab23b3530ac90bca0c6cc9e0135fd8c3d9b2fbd28be1d634b325864136"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/utils/parameterInfo/MockParameterInfoUIContext.java",
+          "sha256": "ebcf3285502404351f630a659ba0b8b020b72ced24a61e4a12ab4b6054cadf25"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/utils/parameterInfo/MockUpdateParameterInfoContext.java",
+          "sha256": "270a918b04a72a4132564bdd37164e87d5e4c426e8f2baf4bbd134b4ebd62668"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/utils/vfs/CheckVFSHealth.kt",
+          "sha256": "69b083b3438c12c8d1099e12f369031ca9fff0505e791eb9a5898dc603e7cf69"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/utils/vfs/VirtualFileUtil.kt",
+          "sha256": "f7b08a8c746aa80fe4c3b8969899c0b37b2711afa5326b91cc0669384c6feb22"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/util/io/impl/DirectoryContentSpecImpl.kt",
+          "sha256": "36dc7835fbe8af196c4f5033326be21aa236fbae06dfd09b7a30ce3fde3280de"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/util/io/impl/FileTextMatchers.kt",
+          "sha256": "6c8b430ece5467529eb02bdd64d4069e086120b1afaf0121e1cec10e94a632a5"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/util/io/java/ClassFileBuilder.kt",
+          "sha256": "952d606167fb4197a2c0242208e864178f7d00542cecf9354aaeffea888ff518"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/projectModel/library/MockCustomLibraryTableDescription.kt",
+          "sha256": "ed16aff8766991b791650bc6bbaba85bf993447d54ef3ef9e05e0d8eff41c5b9"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/observable/operation/core/PromiseUtil.kt",
+          "sha256": "e688aaf2c8ca513108b95d0a32035afe2c7d37a7bff8bdf3b07259db1cd7dd6b"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/utils/inlays/declarative/DeclarativeInlayHintsProviderTestCase.kt",
+          "sha256": "d52768c5de94afc8d8a7078871724c02b4a097d984e7e38dc82563a65fff5adb"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/psi/impl/source/tree/injected/InjectedTestUtil.java",
+          "sha256": "aa23440dc35fad47621dafc7b80a838ff81d1f3d11d8ad312c2e7c7d593e093c"
+        }
+      ]
+    },
+    {
+      "binary_sha256": "2900d55d5adc6c140013c58feb07c2f76cbb82203761499a3691e00dc0df503a",
+      "configurations": [
+        "::testRuntimeClasspath"
+      ],
+      "file_name": "test-framework-common-243.21565.193.jar",
+      "license": "Apache-2.0",
+      "module_name": "com.jetbrains.intellij.platform:test-framework-common",
+      "module_version": "243.21565.193",
+      "source_archive": {
+        "sha256": "f8f9c2d865e43d3fb042cb428defafda0cec08e1f510b3f7b956a872565d6093",
+        "url": "https://www.jetbrains.com/intellij-repository/releases/com/jetbrains/intellij/platform/test-framework-common/243.21565.193/test-framework-common-243.21565.193-sources.jar"
+      },
+      "source_files": [
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/EdtTestUtil.java",
+          "sha256": "fa82e12be10e024c611de7ed0e201a507f0052923e90b493c22e765e8cdeef24"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/EdtTestUtil.kt",
+          "sha256": "e13b27f363087f6347caffa10d626f2515f19e2f62ef5fadbe630e5f9034c93d"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/LeakHunter.java",
+          "sha256": "fb20d40d8b194e7fead0f2576e9ea644f7d7fffd74dfabe75a8405d6e277af72"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/RunAll.kt",
+          "sha256": "20ee1946fa2b6bcb5f13e4db757f3701523fd8c3d8ba3e66b98f78a2a1746033"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/SdkLeakTracker.java",
+          "sha256": "274538f4fc429705ff057979e00f862b19a6db2853170f2ae47ae40cefbf27e1"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/UITestUtil.java",
+          "sha256": "b77b23492f99dfe3eba1ba46b4277ef76a729f4a31cb4401828fc6d5305c24ff"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/Cleanup.java",
+          "sha256": "2debb59323a2738ccbbe29e2461f9394c8a0cd14c6d28c601d7c49d43221704d"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/PlatformPrefix.java",
+          "sha256": "37b33cdc231b09e4fee191c8cc510b156b373f858bb9057c93d5ec60cf7ab038"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/ThreadLeakTracker.java",
+          "sha256": "b8a5525b65890dce05b654300fca0f855e01222ca2541ba97af7da7ede126ada"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/ThreadUtil.java",
+          "sha256": "b18460b5f92ec67bff626987bea162f79005c565f4c8b62565997f8e5bf6f764"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/disposer.kt",
+          "sha256": "91d2d0abb642e9042df15efcdccbbd0534c5e6d8810ef744f5669c92161f2c5f"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/dump.kt",
+          "sha256": "6c964d4d289e8e9d6301ca2b4ce68cfaee439324bcd54ec26e5369d3e4614f57"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/runAll.kt",
+          "sha256": "13a905b6c2c81e8ac4b2471490b84db0163995dddfbf82af0ee27809f65d50b7"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@file:Suppress(\"JAVA_MODULE_DOES_NOT_EXPORT_PACKAGE\", \"RAW_RUN_BLOCKING\")\n\n",
+          "path": "com/intellij/testFramework/common/testApplication.kt",
+          "sha256": "c3630fe004a81b9e47f20866c73e046383aa8756334396130e2fe8ff3ce9b1bf"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/testEnvironment.kt",
+          "sha256": "c5171c9d88c538062d039ac619f17b6d7d855161d670972609d61dc25147d765"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/threadUtil.kt",
+          "sha256": "540a9a64737404dcbca88640fd8f156e624f331f3579799c3ad828836a31243d"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/timeout.kt",
+          "sha256": "3156362a9f46ac0b1face4783015a80e34f71c8f5c36945d993e12095a1a6866"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/common/waitUtils.kt",
+          "sha256": "22a5475e752e250c6eb4be943da6cbd6000cedee9ccbb7ced12abd0e56ea291c"
+        }
+      ]
+    },
+    {
+      "binary_sha256": "a3e2e4bc98b1e7db4f96d8d0f34b1f5eea91c908e9c304342c27bbaca8ed86d7",
+      "configurations": [
+        "::testRuntimeClasspath"
+      ],
+      "file_name": "test-framework-core-243.21565.193.jar",
+      "license": "Apache-2.0",
+      "module_name": "com.jetbrains.intellij.platform:test-framework-core",
+      "module_version": "243.21565.193",
+      "source_archive": {
+        "sha256": "39aba3166a447f34eea66a5b2b8451b5d7d6425a72682c2840ae2bb3bb427017",
+        "url": "https://www.jetbrains.com/intellij-repository/releases/com/jetbrains/intellij/platform/test-framework-core/243.21565.193/test-framework-core-243.21565.193-sources.jar"
+      },
+      "source_files": [
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/AllTests.java",
+          "sha256": "55c4ebcbc02cb52e6166eacd584bacf76d0adb56c433a95b5aef6c7200a80d20"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n\n",
+          "path": "com/intellij/ClassFinder.java",
+          "sha256": "2339054b4e5ebcb1a1b458e8d1e67c10e2be22023970cb394f7f44f4898e63f6"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/GroupBasedTestClassFilter.java",
+          "sha256": "d75becf6d2520a0a2dff6352f0e5ec54fa557bf78b14ab56ef4d085765ff3761"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/NameListTestClassFilter.java",
+          "sha256": "ce99709832572082176d47bcbd7276946642f54fa4e944d1d0299ff6797ee662"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/OutOfProcessRetries.java",
+          "sha256": "5a2003fcc8e6353914341148c046ef470cb281080dbae7b3b019ae359ed5ee81"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/PatternListTestClassFilter.java",
+          "sha256": "e10ba8db4f45fd0f6b36947e353ac4b21e6c6390d352e985627b29db66dd60ae"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/RetriesImpl.java",
+          "sha256": "7150335f83bbb7594ab8f51e15c7d6e5741aeb061ed48a65793be7e03796e16e"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/TestAll.java",
+          "sha256": "5e732ff9f58ca489468c13f5debf25e9fb200db88eb0af36c68e4fc55cb9319a"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/TestCaseLoader.java",
+          "sha256": "f523b4605f1b6e00be9f1b5dc236813d14df9718803044a96606d014a13a4ffe"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/TestClassesFilter.java",
+          "sha256": "f4ddfc401d3dcdcc535ef40ddcd6b7d00b2585fc9215bba4b89f8df538514f48"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/idea/ExcludeFromTestDiscovery.java",
+          "sha256": "d50714662366dfb041998ed9a978b678e79dfeb9e8e74a1d71289220d4fbaafd"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/idea/IJIgnore.java",
+          "sha256": "46ef2bf97983f4ae941360dffa27e068cb875fd74bf69cb320ec487f31e6bacb"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/idea/IgnoreJUnit3.java",
+          "sha256": "0aac6a505419fed6fc7bdaaf626108fea87f7cd53d3e7207fec06df1ce2c99be"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/idea/TestFor.java",
+          "sha256": "88736864d90379919f1063a94688944afaceb2a6c99497bbb2f254b5a702af29"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/nastradamus/NastradamusClient.kt",
+          "sha256": "970bf4ac972c6ec9d6ad2e5517bd89caf5fe33f90cf6e4702d05ce39b4f0be5a"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/nastradamus/NastradamusTestCaseSorter.kt",
+          "sha256": "722e4fb905a4bb70255ae23824dcce42663ac166be0c17512e6a1f22a6c90d13"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/teamcity/TeamCityClient.kt",
+          "sha256": "e8478e5d64a9803271a7cfa9c37c133dc3dcaa3229c2fee91d0b72f512c38511"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@file:OptIn(ExperimentalPathApi::class)\n\n",
+          "path": "com/intellij/testFramework/DebugArtifactPublisher.kt",
+          "sha256": "fa82b56dfc4e849114921ac26b0f9b8f4b8d410a031565d95af0883603eeb5ec"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/ErrorLog.kt",
+          "sha256": "1eb3ab81f64313243f79e33a1b320a81ddc5c4a6ae88e0a9804a32276bafa74c"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/LoggedError.kt",
+          "sha256": "fee10592a03347d65d0550d2e15efa6716527cd27c263ac3d996798567d7f439"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/LoggedErrorProcessor.java",
+          "sha256": "50b933f5957bd535e4e906229b67171498bc87bcd0a548d283c9b7a6d5f49272"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/LoggedErrorProcessorEnabler.kt",
+          "sha256": "1567696d4b8dfaadd903be3c03a3aa6bd2c0701438b6a2681160508a41e51312"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2017 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/RunFirst.java",
+          "sha256": "55f5dc1c6465f0ab0e55813f471934edb964c57934066176de221b5b7038f155"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/SelfSeedingTestCase.java",
+          "sha256": "d4acac4f3b7d191a57a3d05e8b95ce23e5534e129df1245e968a4d672db42268"
+        },
+        {
+          "notice": "/*\n * Copyright 2000-2011 JetBrains s.r.o.\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n * http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\n",
+          "path": "com/intellij/testFramework/SkipInHeadlessEnvironment.java",
+          "sha256": "65810f7cac7e09008576f5863af131600e450037c3f78e31d416c0900574f44e"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/SkipSlowTestLocally.java",
+          "sha256": "cc203ebe5d8b2d8c97a680fdf6a8d66ebf1eae033e66811515462d17c5edc899"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/TeamCityLogger.java",
+          "sha256": "c7bdcebee49e8edec0d1d83007a48095c00983142d51b2b308d9e8556deed2c9"
+        },
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/TestFrameworkUtil.java",
+          "sha256": "bf8b0ec80b6e77a28ed15856ba06a5dcb2cc72f9a8206f9bcfa8e88632f8baf4"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/TestLoggerFactory.java",
+          "sha256": "33b156209a07b22f13ee38ba8672e144bd848eff954f4766d924b02c5e521a43"
+        },
+        {
+          "notice": "// Copyright 2000-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/testFramework/TestSorter.java",
+          "sha256": "87ca1af661c253a051b0d97b496dcd5e35a34b9543188bf622b44dfdb59eb585"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/errorLogReporting.kt",
+          "sha256": "0dc6b82b348e504a0f2f8f4de482f2c2e37918cc99ff8b2d0aaffcb5b6279ba4"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/testLogger.kt",
+          "sha256": "4f7b7a1d2cf7b5b4ad615fb7f7aa8a8722ee8a6ee0ccb887380940da5a64ee0c"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/tool/Cache.kt",
+          "sha256": "d7fb3d59b56a5c1c4df5418afe9eaa5ed94d408fb75451d55a2468ae07b48d23"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/tool/HttpClient.kt",
+          "sha256": "28cc1246fea57b985e080e89212629410669bbafd7d44460d7820d96a4103255"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/tool/errorThreshold.kt",
+          "sha256": "582fe4bba2aed8164234419b8f11fcb8f1cee74d7c1bba62234112ab0e9af4f3"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@file:Suppress(\"SSBasedInspection\")\n\n",
+          "path": "com/intellij/tool/retry.kt",
+          "sha256": "d8198c98e59d956309fdc59e956b56b395a4283a824afd879878832e81d3585f"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/tool/task.kt",
+          "sha256": "747720c1b985f0b7d36f1e63fc53389c793b5ba53d1eb0272852e24432b790fe"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/idea/extensions/ExcludeFromTestDiscoveryExecutionCondition.java",
+          "sha256": "48f9425b57c6ad3a7c33d945f38e4bfbf50b0a8078bf2ac314f27ced4f125470"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/idea/extensions/IJIgnoreExtension.java",
+          "sha256": "a1f79f8d5c1c2b0b2284fc8357f0a4c7252db8c701f883e44181529f2a35df0e"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/idea/extensions/SkipSlowExecutionCondition.java",
+          "sha256": "91b08cbd22d2ef0b1d9ac0f4b535471eb9bf681eed1a6ddaadc65ed3073f3330"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/idea/extensions/TooManyFailedTestsExecutionCondition.java",
+          "sha256": "125dabb758c624ffea8a5978f3551caccbcdabfc1e2709693adb57d478eb1b00"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/nastradamus/model/BuildInfo.kt",
+          "sha256": "726f1e84a502d7a189af387706e32996a75ecfc80e4d36ed235e1cc4cf8d6609"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/nastradamus/model/ChangeEntity.kt",
+          "sha256": "ed9065faf40fc692401d44f533be065f96ecb693f2ffbe05c7dbd8e1f8420267"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/nastradamus/model/SortRequestEntity.kt",
+          "sha256": "f1ed68b42cc26ff0f0162f2ff42e535545dcad2ed606bbb4c92e1efbce2ae329"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/nastradamus/model/TestCaseEntity.kt",
+          "sha256": "a8b8bbfec4cbff1ca68bdcf44ade5df2a75aad786ffc2ce8c611c4ef916c0d3d"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/nastradamus/model/TestClassResultEntity.kt",
+          "sha256": "d1ca267bc57bae7f2a19460e61ccc3694be5886761797ae961e148463866087e"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/nastradamus/model/TestResultEntity.kt",
+          "sha256": "7a23ba0f655156245f5b8c0f3d85237cf41476accd21cea6193b5dba9563e49a"
+        },
+        {
+          "notice": "// Copyright 2000-2022 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/nastradamus/model/TestResultRequestEntity.kt",
+          "sha256": "7dfc10dce5ac3eee28b73f0ff617997b0e92e40ad1fe1201c7a13ed518edf1ab"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/bucketing/BucketingScheme.java",
+          "sha256": "9e9e9a794574e6d7988e44b4c25cea75ee2532050409689761c20948eff3d95b"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/bucketing/CyclicCounterBucketingScheme.java",
+          "sha256": "cfc97c19b82858bd5f805d7d531a566ffc0b7de678f450d752b74981e20583f0"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/bucketing/HashingBucketingScheme.java",
+          "sha256": "96930a0f98fef1d83a8f5549ba0ee260600a33287dbd81c075474b5073b68751"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/bucketing/NastradamusBucketingScheme.java",
+          "sha256": "56abf2bb98bacbb31b117f749906642f90cae6cd44362c52a37eb59f4c55a31e"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/bucketing/NastradamusDataCollectingBucketingScheme.java",
+          "sha256": "92f1c928c861206e584676faf1b5007dd8ff313e03f4bf88cb6e195bb00084f1"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/bucketing/TestsDurationBucketingScheme.java",
+          "sha256": "0753f997428e3846ac3790be2ff9338e5f95e7f5d298153b49db92c6deaa2a27"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/testFramework/bucketing/TestsDurationBucketingUtils.kt",
+          "sha256": "47d1908f2746a5739eca6b9cbe8832553f2ea3dfe79d62ce5280b5681f10ea52"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/core/FileComparisonFailedError.kt",
+          "sha256": "6d8469078d3517a559b651df9e4ceec8934d1644b418a8107a37af0214e2600d"
+        }
+      ]
+    },
+    {
+      "binary_sha256": "fafa3177270fe9d9071eb7a253902e2ac82b1a09a5f05617b31d6b1a54ef8ff8",
+      "configurations": [
+        "::testRuntimeClasspath"
+      ],
+      "file_name": "test-framework-team-city-243.21565.193.jar",
+      "license": "Apache-2.0",
+      "module_name": "com.jetbrains.intellij.platform:test-framework-team-city",
+      "module_version": "243.21565.193",
+      "source_archive": {
+        "sha256": "0eebd01f359d997ef8bc5c9198fff0e18ee8459e78d66a4cabcdf0a3ddc39731",
+        "url": "https://www.jetbrains.com/intellij-repository/releases/com/jetbrains/intellij/platform/test-framework-team-city/243.21565.193/test-framework-team-city-243.21565.193-sources.jar"
+      },
+      "source_files": [
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/teamCity/generify.kt",
+          "sha256": "c231458a7eb161f1f7c34c4119414513f9a1cb3a54d19d8c63e0569cb23f89c4"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n@Internal\n",
+          "path": "com/intellij/platform/testFramework/teamCity/package-info.java",
+          "sha256": "2bed8b78e9353f5128a94e2c26809cf09ffa47079903a75506121a103414b15b"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/platform/testFramework/teamCity/teamCityPrinter.kt",
+          "sha256": "655ae41abaa83ae512748b652a4abcec25037527c26a699e23984f477e758b4f"
+        }
+      ]
+    },
+    {
+      "binary_sha256": "fd89b11222c5768c77a145209b4f83463d6ec866c4411635ffdcfb0f24940276",
+      "configurations": [
+        "::testRuntimeClasspath"
+      ],
+      "file_name": "tests-bootstrap-243.21565.193.jar",
+      "license": "Apache-2.0",
+      "module_name": "com.jetbrains.intellij.tools:tests-bootstrap",
+      "module_version": "243.21565.193",
+      "source_archive": {
+        "sha256": "64b2d44f2589752345fb68a0f984a1664f9ebfd57e7ab31175b826e17e165d85",
+        "url": "https://www.jetbrains.com/intellij-repository/releases/com/jetbrains/intellij/tools/tests-bootstrap/243.21565.193/tests-bootstrap-243.21565.193-sources.jar"
+      },
+      "source_files": [
+        {
+          "notice": "// Copyright 2000-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/tests/BootstrapTests.java",
+          "sha256": "5dec503bcb7e0e8b08bd5eff40e88e6538baffec49b322a0b4c6b0ea9eeb7f95"
+        },
+        {
+          "notice": "// Copyright 2000-2023 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/tests/ExternalClasspathClassLoader.java",
+          "sha256": "4fa96360c426ec61222024778ffc9a67c8cc6837a84178fb5f8d56a4e0a3f7e3"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/tests/IgnoreException.java",
+          "sha256": "f249a2ded1fc6e7899cb99ee972d563e22a378e025874f166dc06dae45d91bf4"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/tests/JUnit5TeamCityRunnerForTestAllSuite.java",
+          "sha256": "98c545243b3f7d4a9457f5e49a648163b61a4c0c44c38e2d5810194610d58bef"
+        },
+        {
+          "notice": "// Copyright 2000-2024 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license.\n",
+          "path": "com/intellij/tests/JUnit5TeamCityRunnerForTestsOnClasspath.java",
+          "sha256": "e74e8d66d25db24d64226e8b6de5e465e3b3be221bb1f75077f2f6d7eeb012da"
+        },
+        {
+          "notice": "// Copyright 2000-2021 JetBrains s.r.o. and contributors. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.\n",
+          "path": "com/intellij/tests/Retries.java",
+          "sha256": "217e495e010667a40433853243f47cb4d6393d5fa64297b2b3cedd9e974e27d6"
+        }
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "scope": "Only these exact test SDK binaries; not permission to bundle the IDE or other SDK components.",
+  "source_revision": "9ae2edc879df5e9e189483752c4c4ae01650a566",
+  "upstream_license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+  "upstream_license_text": "\n                                 Apache License\n                           Version 2.0, January 2004\n                        http://www.apache.org/licenses/\n\n   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION\n\n   1. Definitions.\n\n      \"License\" shall mean the terms and conditions for use, reproduction,\n      and distribution as defined by Sections 1 through 9 of this document.\n\n      \"Licensor\" shall mean the copyright owner or entity authorized by\n      the copyright owner that is granting the License.\n\n      \"Legal Entity\" shall mean the union of the acting entity and all\n      other entities that control, are controlled by, or are under common\n      control with that entity. For the purposes of this definition,\n      \"control\" means (i) the power, direct or indirect, to cause the\n      direction or management of such entity, whether by contract or\n      otherwise, or (ii) ownership of fifty percent (50%) or more of the\n      outstanding shares, or (iii) beneficial ownership of such entity.\n\n      \"You\" (or \"Your\") shall mean an individual or Legal Entity\n      exercising permissions granted by this License.\n\n      \"Source\" form shall mean the preferred form for making modifications,\n      including but not limited to software source code, documentation\n      source, and configuration files.\n\n      \"Object\" form shall mean any form resulting from mechanical\n      transformation or translation of a Source form, including but\n      not limited to compiled object code, generated documentation,\n      and conversions to other media types.\n\n      \"Work\" shall mean the work of authorship, whether in Source or\n      Object form, made available under the License, as indicated by a\n      copyright notice that is included in or attached to the work\n      (an example is provided in the Appendix below).\n\n      \"Derivative Works\" shall mean any work, whether in Source or Object\n      form, that is based on (or derived from) the Work and for which the\n      editorial revisions, annotations, elaborations, or other modifications\n      represent, as a whole, an original work of authorship. For the purposes\n      of this License, Derivative Works shall not include works that remain\n      separable from, or merely link (or bind by name) to the interfaces of,\n      the Work and Derivative Works thereof.\n\n      \"Contribution\" shall mean any work of authorship, including\n      the original version of the Work and any modifications or additions\n      to that Work or Derivative Works thereof, that is intentionally\n      submitted to Licensor for inclusion in the Work by the copyright owner\n      or by an individual or Legal Entity authorized to submit on behalf of\n      the copyright owner. For the purposes of this definition, \"submitted\"\n      means any form of electronic, verbal, or written communication sent\n      to the Licensor or its representatives, including but not limited to\n      communication on electronic mailing lists, source code control systems,\n      and issue tracking systems that are managed by, or on behalf of, the\n      Licensor for the purpose of discussing and improving the Work, but\n      excluding communication that is conspicuously marked or otherwise\n      designated in writing by the copyright owner as \"Not a Contribution.\"\n\n      \"Contributor\" shall mean Licensor and any individual or Legal Entity\n      on behalf of whom a Contribution has been received by Licensor and\n      subsequently incorporated within the Work.\n\n   2. Grant of Copyright License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      copyright license to reproduce, prepare Derivative Works of,\n      publicly display, publicly perform, sublicense, and distribute the\n      Work and such Derivative Works in Source or Object form.\n\n   3. Grant of Patent License. Subject to the terms and conditions of\n      this License, each Contributor hereby grants to You a perpetual,\n      worldwide, non-exclusive, no-charge, royalty-free, irrevocable\n      (except as stated in this section) patent license to make, have made,\n      use, offer to sell, sell, import, and otherwise transfer the Work,\n      where such license applies only to those patent claims licensable\n      by such Contributor that are necessarily infringed by their\n      Contribution(s) alone or by combination of their Contribution(s)\n      with the Work to which such Contribution(s) was submitted. If You\n      institute patent litigation against any entity (including a\n      cross-claim or counterclaim in a lawsuit) alleging that the Work\n      or a Contribution incorporated within the Work constitutes direct\n      or contributory patent infringement, then any patent licenses\n      granted to You under this License for that Work shall terminate\n      as of the date such litigation is filed.\n\n   4. Redistribution. You may reproduce and distribute copies of the\n      Work or Derivative Works thereof in any medium, with or without\n      modifications, and in Source or Object form, provided that You\n      meet the following conditions:\n\n      (a) You must give any other recipients of the Work or\n          Derivative Works a copy of this License; and\n\n      (b) You must cause any modified files to carry prominent notices\n          stating that You changed the files; and\n\n      (c) You must retain, in the Source form of any Derivative Works\n          that You distribute, all copyright, patent, trademark, and\n          attribution notices from the Source form of the Work,\n          excluding those notices that do not pertain to any part of\n          the Derivative Works; and\n\n      (d) If the Work includes a \"NOTICE\" text file as part of its\n          distribution, then any Derivative Works that You distribute must\n          include a readable copy of the attribution notices contained\n          within such NOTICE file, excluding those notices that do not\n          pertain to any part of the Derivative Works, in at least one\n          of the following places: within a NOTICE text file distributed\n          as part of the Derivative Works; within the Source form or\n          documentation, if provided along with the Derivative Works; or,\n          within a display generated by the Derivative Works, if and\n          wherever such third-party notices normally appear. The contents\n          of the NOTICE file are for informational purposes only and\n          do not modify the License. You may add Your own attribution\n          notices within Derivative Works that You distribute, alongside\n          or as an addendum to the NOTICE text from the Work, provided\n          that such additional attribution notices cannot be construed\n          as modifying the License.\n\n      You may add Your own copyright statement to Your modifications and\n      may provide additional or different license terms and conditions\n      for use, reproduction, or distribution of Your modifications, or\n      for any such Derivative Works as a whole, provided Your use,\n      reproduction, and distribution of the Work otherwise complies with\n      the conditions stated in this License.\n\n   5. Submission of Contributions. Unless You explicitly state otherwise,\n      any Contribution intentionally submitted for inclusion in the Work\n      by You to the Licensor shall be under the terms and conditions of\n      this License, without any additional terms or conditions.\n      Notwithstanding the above, nothing herein shall supersede or modify\n      the terms of any separate license agreement you may have executed\n      with Licensor regarding such Contributions.\n\n   6. Trademarks. This License does not grant permission to use the trade\n      names, trademarks, service marks, or product names of the Licensor,\n      except as required for reasonable and customary use in describing the\n      origin of the Work and reproducing the content of the NOTICE file.\n\n   7. Disclaimer of Warranty. Unless required by applicable law or\n      agreed to in writing, Licensor provides the Work (and each\n      Contributor provides its Contributions) on an \"AS IS\" BASIS,\n      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or\n      implied, including, without limitation, any warranties or conditions\n      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A\n      PARTICULAR PURPOSE. You are solely responsible for determining the\n      appropriateness of using or redistributing the Work and assume any\n      risks associated with Your exercise of permissions under this License.\n\n   8. Limitation of Liability. In no event and under no legal theory,\n      whether in tort (including negligence), contract, or otherwise,\n      unless required by applicable law (such as deliberate and grossly\n      negligent acts) or agreed to in writing, shall any Contributor be\n      liable to You for damages, including any direct, indirect, special,\n      incidental, or consequential damages of any character arising as a\n      result of this License or out of the use or inability to use the\n      Work (including but not limited to damages for loss of goodwill,\n      work stoppage, computer failure or malfunction, or any and all\n      other commercial damages or losses), even if such Contributor\n      has been advised of the possibility of such damages.\n\n   9. Accepting Warranty or Additional Liability. While redistributing\n      the Work or Derivative Works thereof, You may choose to offer,\n      and charge a fee for, acceptance of support, warranty, indemnity,\n      or other liability obligations and/or rights consistent with this\n      License. However, in accepting such obligations, You may act only\n      on Your own behalf and on Your sole responsibility, not on behalf\n      of any other Contributor, and only if You agree to indemnify,\n      defend, and hold each Contributor harmless for any liability\n      incurred by, or claims asserted against, such Contributor by reason\n      of your accepting any such warranty or additional liability.\n\n   END OF TERMS AND CONDITIONS\n\n   APPENDIX: How to apply the Apache License to your work.\n\n      To apply the Apache License to your work, attach the following\n      boilerplate notice, with the fields enclosed by brackets \"[]\"\n      replaced with your own identifying information. (Don't include\n      the brackets!)  The text should be enclosed in the appropriate\n      comment syntax for the file format. We also recommend that a\n      file or class name and description of purpose be included on the\n      same \"printed page\" as the copyright notice for easier\n      identification within third-party archives.\n\n   Copyright [yyyy] [name of copyright owner]\n\n   Licensed under the Apache License, Version 2.0 (the \"License\");\n   you may not use this file except in compliance with the License.\n   You may obtain a copy of the License at\n\n       http://www.apache.org/licenses/LICENSE-2.0\n\n   Unless required by applicable law or agreed to in writing, software\n   distributed under the License is distributed on an \"AS IS\" BASIS,\n   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n   See the License for the specific language governing permissions and\n   limitations under the License.\n",
+  "upstream_license_url": "https://raw.githubusercontent.com/JetBrains/intellij-community/9ae2edc879df5e9e189483752c4c4ae01650a566/LICENSE.txt"
+}

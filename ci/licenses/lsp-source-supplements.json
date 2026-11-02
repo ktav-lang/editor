@@ -1,0 +1,130 @@
+{
+  "packages": [
+    {
+      "crate_checksum": "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299",
+      "crate_license_path": null,
+      "declared_license": "MIT OR Apache-2.0",
+      "license": "MIT",
+      "license_sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3",
+      "license_source": "https://raw.githubusercontent.com/zrzka/anes-rs/378ac7461ecac29fde9e10df7b08359d1315a9ad/LICENSE-MIT",
+      "license_text": "Permission is hereby granted, free of charge, to any\nperson obtaining a copy of this software and associated\ndocumentation files (the \"Software\"), to deal in the\nSoftware without restriction, including without\nlimitation the rights to use, copy, modify, merge,\npublish, distribute, sublicense, and/or sell copies of\nthe Software, and to permit persons to whom the Software\nis furnished to do so, subject to the following\nconditions:\n\nThe above copyright notice and this permission notice\nshall be included in all copies or substantial portions\nof the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF\nANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED\nTO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A\nPARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT\nSHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY\nCLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION\nOF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR\nIN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER\nDEALINGS IN THE SOFTWARE.\n",
+      "name": "anes",
+      "reason": "Original source license replaces generated cargo-about fallback; original report retained.",
+      "vcs": {
+        "git": {
+          "sha1": "378ac7461ecac29fde9e10df7b08359d1315a9ad"
+        }
+      },
+      "version": "0.1.6"
+    },
+    {
+      "crate_checksum": "5aeb6f403d7a4911efb1e33402027fc44f29b5bf6def3effcc22d7bb75f2b747",
+      "crate_license_path": null,
+      "declared_license": "MIT",
+      "license": "MIT",
+      "license_sha256": "cab8ff38785be68c4c914b6a01f871711b7c983e98c8f5c5f7057e31c46fe05c",
+      "license_source": "https://raw.githubusercontent.com/plotters-rs/plotters/cb7791f6814024d85aa6f9968e73051a4b295bf0/LICENSE",
+      "license_text": "MIT License\n\nCopyright (c) 2019-2021 Hao Hou <haohou302@gmail.com>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
+      "name": "plotters",
+      "reason": "Original source license replaces generated cargo-about fallback; original report retained.",
+      "vcs": {
+        "git": {
+          "sha1": "cb7791f6814024d85aa6f9968e73051a4b295bf0"
+        },
+        "path_in_vcs": "plotters"
+      },
+      "version": "0.3.7"
+    },
+    {
+      "crate_checksum": "df42e13c12958a16b3f7f4386b9ab1f3e7933914ecea48da7139435263a4172a",
+      "crate_license_path": null,
+      "declared_license": "MIT",
+      "license": "MIT",
+      "license_sha256": "cab8ff38785be68c4c914b6a01f871711b7c983e98c8f5c5f7057e31c46fe05c",
+      "license_source": "https://raw.githubusercontent.com/plotters-rs/plotters/cb7791f6814024d85aa6f9968e73051a4b295bf0/LICENSE",
+      "license_text": "MIT License\n\nCopyright (c) 2019-2021 Hao Hou <haohou302@gmail.com>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
+      "name": "plotters-backend",
+      "reason": "Original source license replaces generated cargo-about fallback; original report retained.",
+      "vcs": {
+        "git": {
+          "sha1": "cb7791f6814024d85aa6f9968e73051a4b295bf0"
+        },
+        "path_in_vcs": "plotters-backend"
+      },
+      "version": "0.3.7"
+    },
+    {
+      "crate_checksum": "51bae2ac328883f7acdfea3d66a7c35751187f870bc81f94563733a154d7a670",
+      "crate_license_path": null,
+      "declared_license": "MIT",
+      "license": "MIT",
+      "license_sha256": "cab8ff38785be68c4c914b6a01f871711b7c983e98c8f5c5f7057e31c46fe05c",
+      "license_source": "https://raw.githubusercontent.com/plotters-rs/plotters/cb7791f6814024d85aa6f9968e73051a4b295bf0/LICENSE",
+      "license_text": "MIT License\n\nCopyright (c) 2019-2021 Hao Hou <haohou302@gmail.com>\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
+      "name": "plotters-svg",
+      "reason": "Original source license replaces generated cargo-about fallback; original report retained.",
+      "vcs": {
+        "git": {
+          "sha1": "cb7791f6814024d85aa6f9968e73051a4b295bf0"
+        },
+        "path_in_vcs": "plotters-svg"
+      },
+      "version": "0.3.7"
+    },
+    {
+      "crate_checksum": "84fd902d4e0b9a4b27f2f440108dc034e1758628a9b702f8ec61ad66355422fa",
+      "crate_license_path": null,
+      "declared_license": "MIT OR Apache-2.0",
+      "license": "MIT",
+      "license_sha256": "b1eb2598599e2a78fdd20f4a6a1d95ce79928a1f9854c16d8305157397dcf265",
+      "license_source": "https://raw.githubusercontent.com/ebkalderon/tower-lsp/7b580128faa39b907db8f40bc53924181887acde/LICENSE-MIT",
+      "license_text": "Copyright (c) 2023 Eyal Kalderon\n\nPermission is hereby granted, free of charge, to any\nperson obtaining a copy of this software and associated\ndocumentation files (the \"Software\"), to deal in the\nSoftware without restriction, including without\nlimitation the rights to use, copy, modify, merge,\npublish, distribute, sublicense, and/or sell copies of\nthe Software, and to permit persons to whom the Software\nis furnished to do so, subject to the following\nconditions:\n\nThe above copyright notice and this permission notice\nshall be included in all copies or substantial portions\nof the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF\nANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED\nTO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A\nPARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT\nSHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY\nCLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION\nOF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR\nIN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER\nDEALINGS IN THE SOFTWARE.\n",
+      "name": "tower-lsp-macros",
+      "reason": "Original source license replaces generated cargo-about fallback; original report retained.",
+      "vcs": {
+        "git": {
+          "sha1": "7b580128faa39b907db8f40bc53924181887acde"
+        },
+        "path_in_vcs": "tower-lsp-macros"
+      },
+      "version": "0.9.0"
+    },
+    {
+      "crate_checksum": "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5",
+      "crate_license_path": "license-mit",
+      "declared_license": "MIT OR Apache-2.0",
+      "license": "MIT",
+      "license_sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "license_source": "https://static.crates.io/crates/windows-link/windows-link-0.2.1.crate",
+      "license_text": "    MIT License\n\n    Copyright (c) Microsoft Corporation.\n\n    Permission is hereby granted, free of charge, to any person obtaining a copy\n    of this software and associated documentation files (the \"Software\"), to deal\n    in the Software without restriction, including without limitation the rights\n    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n    copies of the Software, and to permit persons to whom the Software is\n    furnished to do so, subject to the following conditions:\n\n    The above copyright notice and this permission notice shall be included in all\n    copies or substantial portions of the Software.\n\n    THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n    SOFTWARE\n",
+      "name": "windows-link",
+      "reason": "Original source license replaces generated cargo-about fallback; original report retained.",
+      "vcs": {
+        "git": {
+          "sha1": "d468916ac27a36fb8a12bafc1bf5c0ec2fe92238"
+        },
+        "path_in_vcs": "crates/libs/link"
+      },
+      "version": "0.2.1"
+    },
+    {
+      "crate_checksum": "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc",
+      "crate_license_path": "license-mit",
+      "declared_license": "MIT OR Apache-2.0",
+      "license": "MIT",
+      "license_sha256": "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383",
+      "license_source": "https://static.crates.io/crates/windows-sys/windows-sys-0.61.2.crate",
+      "license_text": "    MIT License\n\n    Copyright (c) Microsoft Corporation.\n\n    Permission is hereby granted, free of charge, to any person obtaining a copy\n    of this software and associated documentation files (the \"Software\"), to deal\n    in the Software without restriction, including without limitation the rights\n    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n    copies of the Software, and to permit persons to whom the Software is\n    furnished to do so, subject to the following conditions:\n\n    The above copyright notice and this permission notice shall be included in all\n    copies or substantial portions of the Software.\n\n    THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n    SOFTWARE\n",
+      "name": "windows-sys",
+      "reason": "Original source license replaces generated cargo-about fallback; original report retained.",
+      "vcs": {
+        "git": {
+          "sha1": "32c3144490c016fe496a0aed769bce60987a2e9d"
+        },
+        "path_in_vcs": "crates/libs/sys"
+      },
+      "version": "0.61.2"
+    }
+  ],
+  "schema_version": 1
+}
